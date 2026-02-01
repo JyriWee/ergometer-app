@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
+
 
 /**
  * MainActivity
@@ -264,7 +266,7 @@ private fun MenuScreen(
     onStartSession: () -> Unit
 ) {
     Column(Modifier.padding(24.dp)) {
-        Text("ERGOMETER", fontSize = 20.sp)
+        Text(stringResource(R.string.title_ergometer), fontSize = 20.sp)
         Spacer(Modifier.height(16.dp))
 
         Text("FTMS: " + if (ftmsReady) "READY" else "CONNECTING", fontSize = 18.sp)
