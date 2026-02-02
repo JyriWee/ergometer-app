@@ -110,7 +110,7 @@ class MainActivity : ComponentActivity() {
                         phase = phase,
                         bikeData = bikeData,
                         heartRate = heartRate,
-                        durationSeconds = session?.durationSeconds, // korvaa oikealla kentällä
+                        durationSeconds = session?.durationSeconds,
                         ftmsReady = ftmsReady,
                         ftmsControlGranted = ftmsControlGranted,
                         lastTargetPower = lastTargetPower,
@@ -266,14 +266,21 @@ private fun MenuScreen(
     onStartSession: () -> Unit
 ) {
     Column(Modifier.padding(24.dp)) {
-        Text(stringResource(R.string.title_ergometer), fontSize = 20.sp)
+        Text(stringResource(R.string.menu_title), fontSize = 20.sp)
         Spacer(Modifier.height(16.dp))
 
-        Text("FTMS: " + if (ftmsReady) "READY" else "CONNECTING", fontSize = 18.sp)
+        Text(
+            text = if (ftmsReady)
+                stringResource(R.string.menu_ftms_ready)
+            else
+                stringResource(R.string.menu_ftms_connecting),
+            fontSize = 18.sp
+        )
+
         Spacer(Modifier.height(16.dp))
 
         Button(onClick = onStartSession, enabled = ftmsReady) {
-            Text("START SESSION")
+            Text(stringResource(R.string.menu_start_session))
         }
     }
 }
@@ -283,7 +290,7 @@ private fun SessionScreen(
     phase: SessionPhase,
     bikeData: IndoorBikeData?,
     heartRate: Int?,
-    durationSeconds: Int?, // pidä Int? jos session voi olla null
+    durationSeconds: Int?,
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
     lastTargetPower: Int?,
@@ -300,33 +307,55 @@ private fun SessionScreen(
         disabledContentColor = Color(0xFF666666)
     )
     Column(Modifier.padding(24.dp)) {
-        Text("SESSION", fontSize = 20.sp)
+        Text(stringResource(R.string.session_title), fontSize = 20.sp)
         Spacer(Modifier.height(12.dp))
 
-        Text("Phase: $phase", fontSize = 18.sp)
+        Text(
+            text = stringResource(R.string.session_phase, phase.toString()),
+            fontSize = 18.sp
+        )
+
         Spacer(Modifier.height(12.dp))
 
         // LIVE DATA
         if (bikeData == null) {
-            Text("Waiting for ergometer…", fontSize = 18.sp)
+            Text(stringResource(R.string.session_waiting), fontSize = 18.sp)
         } else {
-            Text("Speed: ${format1(bikeData.instantaneousSpeedKmh)} km/h", fontSize = 24.sp)
-            Text("Cadence: ${format1(bikeData.instantaneousCadenceRpm)} rpm", fontSize = 24.sp)
-            Text("Power: ${format0(bikeData.instantaneousPowerW)} W", fontSize = 24.sp)
-            Text("Time: ${formatTime(dur)}", fontSize = 18.sp)
+            Text(
+                text = stringResource(R.string.session_speed, format1(bikeData.instantaneousSpeedKmh)),
+                fontSize = 24.sp
+            )
+
+            Text(stringResource(R.string.session_cadence, format1(bikeData.instantaneousCadenceRpm)), fontSize = 24.sp)
+            Text(stringResource(R.string.session_power, format0(bikeData.instantaneousPowerW)), fontSize = 24.sp)
+            Text(stringResource(R.string.session_time, formatTime(dur)), fontSize = 18.sp)
         }
 
         Spacer(Modifier.height(12.dp))
-        Text("HR: ${effectiveHr ?: "--"} bpm", fontSize = 22.sp)
+        Text(
+            text = stringResource(R.string.session_hr, (effectiveHr?.toString() ?: "--")),
+            fontSize = 22.sp
+        )
+
 
         Spacer(Modifier.height(16.dp))
 
         // FTMS status
+        val ftmsStatusText =
+            if (!ftmsReady) stringResource(R.string.session_ftms_connecting)
+            else if (ftmsControlGranted) stringResource(R.string.session_ftms_control)
+            else stringResource(R.string.session_ftms_ready)
+
         Text(
-            text = "FTMS: " + (if (!ftmsReady) "CONNECTING" else if (ftmsControlGranted) "CONTROL" else "READY"),
+            text = stringResource(R.string.session_ftms_status, ftmsStatusText),
             fontSize = 18.sp
         )
-        Text("Target: ${lastTargetPower?.toString() ?: "--"} W", fontSize = 18.sp)
+
+        Text(
+            text = stringResource(R.string.session_target, lastTargetPower?.toString() ?: "--"),
+            fontSize = 18.sp
+        )
+
 
         Spacer(Modifier.height(12.dp))
 
@@ -338,7 +367,7 @@ private fun SessionScreen(
             },
             enabled = ftmsReady && !ftmsControlGranted
         ) {
-            Text("TAKE CONTROL")
+            Text(stringResource(R.string.btn_take_control))
         }
 
 
@@ -350,7 +379,7 @@ private fun SessionScreen(
                 onClick = { onSetTargetPower(120) },
                 enabled = canSendPower,
                 colors = powerButtonColors
-            ) { Text("120 W") }
+            ) { Text(stringResource(R.string.power_button, 120)) }
 
             Spacer(Modifier.width(8.dp))
 
@@ -358,7 +387,7 @@ private fun SessionScreen(
                 onClick = { onSetTargetPower(160) },
                 enabled = canSendPower,
                 colors = powerButtonColors
-            ) { Text("160 W") }
+            ) { Text(stringResource(R.string.power_button, 160)) }
 
             Spacer(Modifier.width(8.dp))
 
@@ -366,7 +395,7 @@ private fun SessionScreen(
                 onClick = { onSetTargetPower(200) },
                 enabled = canSendPower,
                 colors = powerButtonColors
-            ) { Text("200 W") }
+            ) { Text(stringResource(R.string.power_button, 200)) }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -375,7 +404,7 @@ private fun SessionScreen(
             onClick = onRelease,
             enabled = ftmsReady && ftmsControlGranted
         ) {
-            Text("RELEASE")
+            Text(stringResource(R.string.btn_release))
         }
 
         Spacer(Modifier.height(16.dp))
@@ -385,7 +414,7 @@ private fun SessionScreen(
             onClick = onStopSession,
             enabled = phase == SessionPhase.RUNNING
         ) {
-            Text("STOP SESSION")
+            Text(stringResource(R.string.btn_stop_session))
         }
     }
 }
@@ -396,21 +425,22 @@ private fun SummaryScreen(
     onBackToMenu: () -> Unit
 ) {
     Column(Modifier.padding(24.dp)) {
-        Text("SUMMARY", fontSize = 20.sp)
+        Text(stringResource(R.string.summary), fontSize = 20.sp)
         Spacer(Modifier.height(16.dp))
 
         if (summary == null) {
-            Text("No summary yet.")
+            Text(stringResource(R.string.no_summary))
         } else {
-            Text("Duration: ${summary.durationSeconds} s")
-            Text("Avg power: ${summary.avgPower} W")
-            Text("Max power: ${summary.maxPower} W")
-            Text("Avg cadence: ${summary.avgCadence} rpm")
-            Text("Max cadence: ${summary.maxCadence} rpm")
-            Text("Avg HR: ${summary.avgHeartRate ?: "--"} bpm")
+            Text(stringResource(R.string.duration, summary.durationSeconds.toString()))
+            Text(stringResource(R.string.avg_power, summary.avgPower?.toString() ?: "--"))
+            Text(stringResource(R.string.max_power, summary.maxPower?.toString() ?: "--"))
+            Text(stringResource(R.string.avg_cadence, summary.avgCadence?.toString() ?: "--"))
+            Text(stringResource(R.string.max_cadence, summary.maxCadence?.toString() ?: "--"))
+            Text(stringResource(R.string.avg_hr, summary.avgHeartRate?.toString() ?: "--"))
         }
-
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onBackToMenu) { Text("BACK TO MENU") }
+        Button(onClick = onBackToMenu) {
+            Text(stringResource(R.string.back_to_menu))
+        }
     }
 }

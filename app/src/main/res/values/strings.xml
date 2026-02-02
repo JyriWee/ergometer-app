@@ -1,43 +1,43 @@
 <resources>
-
-    <!-- General -->
-    <string name="title_ergometer">ERGOMETER</string>
     <string name="app_name">ERGOMETER</string>
 
     <!-- Menu -->
-    <string name="ftms_ready">FTMS: READY</string>
-    <string name="ftms_connecting">FTMS: CONNECTING</string>
-    <string name="start_session">START SESSION</string>
+    <string name="menu_title">ERGOMETER</string>
+    <string name="menu_ftms_ready">FTMS: READY</string>
+    <string name="menu_ftms_connecting">FTMS: CONNECTING</string>
+    <string name="menu_start_session">START SESSION</string>
 
     <!-- Session -->
-    <string name="session">SESSION</string>
-    <string name="phase">Phase: %1$s</string>
-    <string name="waiting_for_ergometer">Waiting for ergometer…</string>
+    <string name="session_title">SESSION</string>
+    <string name="session_phase">Phase: %1$s</string>
+    <string name="session_waiting">Waiting for ergometer…</string>
 
-    <string name="speed">Speed: %1$s km/h</string>
-    <string name="cadence">Cadence: %1$s rpm</string>
-    <string name="power">Power: %1$s W</string>
-    <string name="time">Time: %1$s</string>
-    <string name="heart_rate">HR: %1$s bpm</string>
+    <string name="session_speed">Speed: %1$s km/h</string>
+    <string name="session_cadence">Cadence: %1$s rpm</string>
+    <string name="session_power">Power: %1$s W</string>
+    <string name="session_time">Time: %1$s</string>
+    <string name="session_hr">HR: %1$s bpm</string>
 
-    <!-- FTMS -->
-    <string name="ftms_status">FTMS: %1$s</string>
-    <string name="target_power">Target: %1$s W</string>
+    <string name="session_ftms_status">FTMS: %1$s</string>
+    <string name="session_ftms_connecting">CONNECTING</string>
+    <string name="session_ftms_ready">READY</string>
+    <string name="session_ftms_control">CONTROL</string>
 
-    <string name="take_control">TAKE CONTROL</string>
-    <string name="release">RELEASE</string>
-    <string name="stop_session">STOP SESSION</string>
+    <string name="session_target">Target: %1$s W</string>
+    <string name="power_button">%1$d W</string>
+
+    <string name="btn_take_control">TAKE CONTROL</string>
+    <string name="btn_release">RELEASE</string>
+    <string name="btn_stop_session">STOP SESSION</string>
 
     <!-- Summary -->
-    <string name="summary">SUMMARY</string>
-    <string name="no_summary">No summary yet.</string>
+    <string name="no_summary">SUMMARY</string>
+    <string name="summary">No summary yet.</string>
     <string name="duration">Duration: %1$s s</string>
     <string name="avg_power">Avg power: %1$s W</string>
     <string name="max_power">Max power: %1$s W</string>
     <string name="avg_cadence">Avg cadence: %1$s rpm</string>
     <string name="max_cadence">Max cadence: %1$s rpm</string>
     <string name="avg_hr">Avg HR: %1$s bpm</string>
-
     <string name="back_to_menu">BACK TO MENU</string>
-
 </resources>
