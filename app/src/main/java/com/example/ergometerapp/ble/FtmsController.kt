@@ -1,8 +1,8 @@
 package com.example.ergometerapp.ble
 
-import android.util.Log
 import android.os.Handler
 import android.os.Looper
+import android.util.Log
 
 class FtmsController(
     private val writeControlPoint: (ByteArray) -> Unit
