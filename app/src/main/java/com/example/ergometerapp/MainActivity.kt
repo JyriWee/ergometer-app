@@ -110,18 +110,10 @@ class MainActivity : ComponentActivity() {
                             lastTargetPowerState.value = watts
                         },
                         onRelease = {
-                            ftmsController.stop()
-                            ftmsController.reset()
-                            lastTargetPowerState.value = null
+                            releaseControl()
                         },
                         onStopSession = {
-                            sessionManager.stopSession()
-                            ftmsController.stop()
-                            ftmsController.reset()
-
-                            summaryState.value = sessionManager.lastSummary
-                            allowScreenOff()
-                            screenState.value = AppScreen.SUMMARY
+                            stopSessionAndGoToSummary()
                         }
                     )
 
@@ -161,14 +153,11 @@ class MainActivity : ComponentActivity() {
 
                 // 0x01 = Reset, 0x01 = Success (käytetään tätä “release done” -merkkinä)
                 if (requestOpcode == 0x01 && resultCode == 0x01) {
-                    ftmsControlGrantedState.value = false
-                    lastTargetPowerState.value = null
+                    resetFtmsUiState(clearReady = false)
                 }
             },
             onDisconnected = {
-                ftmsReadyState.value = false
-                ftmsControlGrantedState.value = false
-                lastTargetPowerState.value = null
+                resetFtmsUiState(clearReady = true)
                 Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
             }
         )
@@ -197,6 +186,33 @@ class MainActivity : ComponentActivity() {
 
     private fun allowScreenOff() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    private fun releaseControl() {
+        // FTMS: stop + reset (FtmsController hoitaa jonotuksen/timeoutin)
+        ftmsController.stop()
+        ftmsController.reset()
+
+        // UI-tila heti “optimistisesti” järkeväksi:
+        resetFtmsUiState(clearReady = false)
+        // CP reset-success vahvistaa vapautuksen (idempotentti)
+    }
+
+    private fun stopSessionAndGoToSummary() {
+        sessionManager.stopSession()
+        releaseControl()
+
+        summaryState.value = sessionManager.lastSummary
+        allowScreenOff()
+        screenState.value = AppScreen.SUMMARY
+    }
+
+    private fun resetFtmsUiState(clearReady: Boolean) {
+        if (clearReady) {
+            ftmsReadyState.value = false
+        }
+        ftmsControlGrantedState.value = false
+        lastTargetPowerState.value = null
     }
 
     private fun ensureBluetoothPermission() {
@@ -236,6 +252,4 @@ class MainActivity : ComponentActivity() {
     }
 
 }
-
-
 

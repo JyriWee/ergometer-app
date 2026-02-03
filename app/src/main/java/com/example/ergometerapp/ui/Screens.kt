@@ -7,11 +7,9 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -19,6 +17,7 @@ import com.example.ergometerapp.R
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
 
 
 @Composable
@@ -40,7 +39,11 @@ internal fun MenuScreen(
 
         Spacer(Modifier.height(16.dp))
 
-        Button(onClick = onStartSession, enabled = ftmsReady) {
+        Button(
+            onClick = onStartSession,
+            enabled = ftmsReady,
+            colors = disabledVisibleButtonColors()
+        ) {
             Text(stringResource(R.string.menu_start_session))
         }
     }
@@ -63,10 +66,6 @@ internal fun SessionScreen(
     val canSendPower = ftmsReady && ftmsControlGranted
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
     val dur = durationSeconds ?: 0
-    val powerButtonColors = ButtonDefaults.buttonColors(
-        disabledContainerColor = Color(0xFFE0E0E0),
-        disabledContentColor = Color(0xFF666666)
-    )
     Column(Modifier.padding(24.dp)) {
         Text(stringResource(R.string.session_title), fontSize = 20.sp)
         Spacer(Modifier.height(12.dp))
@@ -126,7 +125,8 @@ internal fun SessionScreen(
                 onTakeControl()
                 // Log.d("FTMS", "UI: requestControl()")
             },
-            enabled = ftmsReady && !ftmsControlGranted
+            enabled = ftmsReady && !ftmsControlGranted,
+            colors = disabledVisibleButtonColors()
         ) {
             Text(stringResource(R.string.btn_take_control))
         }
@@ -139,7 +139,7 @@ internal fun SessionScreen(
             Button(
                 onClick = { onSetTargetPower(120) },
                 enabled = canSendPower,
-                colors = powerButtonColors
+                colors = disabledVisibleButtonColors()
             ) { Text(stringResource(R.string.power_button, 120)) }
 
             Spacer(Modifier.width(8.dp))
@@ -147,7 +147,7 @@ internal fun SessionScreen(
             Button(
                 onClick = { onSetTargetPower(160) },
                 enabled = canSendPower,
-                colors = powerButtonColors
+                colors = disabledVisibleButtonColors()
             ) { Text(stringResource(R.string.power_button, 160)) }
 
             Spacer(Modifier.width(8.dp))
@@ -155,7 +155,7 @@ internal fun SessionScreen(
             Button(
                 onClick = { onSetTargetPower(200) },
                 enabled = canSendPower,
-                colors = powerButtonColors
+                colors = disabledVisibleButtonColors()
             ) { Text(stringResource(R.string.power_button, 200)) }
         }
 
@@ -163,7 +163,8 @@ internal fun SessionScreen(
 
         Button(
             onClick = onRelease,
-            enabled = ftmsReady && ftmsControlGranted
+            enabled = ftmsReady && ftmsControlGranted,
+            colors = disabledVisibleButtonColors()
         ) {
             Text(stringResource(R.string.btn_release))
         }
@@ -173,7 +174,8 @@ internal fun SessionScreen(
         // Session control
         Button(
             onClick = onStopSession,
-            enabled = phase == SessionPhase.RUNNING
+            enabled = phase == SessionPhase.RUNNING,
+            colors = disabledVisibleButtonColors()
         ) {
             Text(stringResource(R.string.btn_stop_session))
         }
@@ -200,7 +202,10 @@ internal fun SummaryScreen(
             Text(stringResource(R.string.avg_hr, summary.avgHeartRate?.toString() ?: "--"))
         }
         Spacer(Modifier.height(16.dp))
-        Button(onClick = onBackToMenu) {
+        Button(
+            onClick = onBackToMenu,
+            colors = disabledVisibleButtonColors()
+        ) {
             Text(stringResource(R.string.back_to_menu))
         }
     }
