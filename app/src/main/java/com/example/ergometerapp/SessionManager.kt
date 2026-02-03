@@ -11,13 +11,13 @@ enum class SessionPhase {
 /**
  * SessionManager
  *
- * Vastaa yhden harjoitussession elinkaaresta:
+ * Manages a single training session lifecycle:
  * - START / RUNNING / STOPPED
- * - kerää FTMS- ja HR-datan
- * - tuottaa session summaryn
+ * - collects FTMS and HR data
+ * - produces a session summary
  *
- * Ei sisällä UI-logiikkaa.
- * Ei tiedä BLE-yksityiskohdista.
+ * Does not contain UI logic.
+ * Does not know BLE details.
  */
 class SessionManager(
     private val context: android.content.Context,
@@ -38,7 +38,7 @@ class SessionManager(
 
     private var sessionPhase: SessionPhase = SessionPhase.IDLE
 
-    // UI käyttää tätä tilan näyttämiseen ja nappien enable/disable-logiikkaan
+    // UI uses this for state display and button enable/disable logic
     fun getPhase(): SessionPhase = sessionPhase
 
     fun updateBikeData(bikeData: IndoorBikeData) {
@@ -46,19 +46,19 @@ class SessionManager(
 
         if (sessionPhase == SessionPhase.RUNNING) {
 
-            // 1) Kerää power (vain järkevät arvot)
+            // 1) Collect power (only reasonable values)
             latestBikeData?.instantaneousPowerW
                 ?.takeIf { it > 0 }
                 ?.let { powerSamples.add(it) }
 
-            // 2) Päivitä viimeisin matka
+            // 2) Update latest distance
             latestBikeData?.totalDistanceMeters
                 ?.let { lastDistanceMeters = it }
 
-            //// 3)  HR-prioriteetti:
-            //// - Erillinen HR-vyö, jos saatavilla
-            //// -  Ergometrin sisäinen HR (kahva-anturi)
-            //// -  null, jos kumpikaan ei ole käytettävissä
+            //// 3) HR priority:
+            //// - separate HR strap, if available
+            //// - ergometer internal HR (handle sensor)
+            //// - null, if neither is available
             if (latestHeartRate == null) {
                 latestBikeData?.heartRateBpm
                     ?.takeIf { it in 30..220 }
@@ -173,5 +173,4 @@ class SessionManager(
         }
     }
 }
-
 

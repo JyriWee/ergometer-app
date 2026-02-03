@@ -2,8 +2,8 @@ package com.example.ergometerapp.ftms
 
 /**
  * FTMS Indoor Bike Data (UUID 0x2AD2)
- * Parseri perustuu Bluetooth FTMS -spesifikaatioon ja
- * käyttäjän nRF Connect -lokissa vahvistettuun datamuotoon.
+ * Parser is based on the Bluetooth FTMS specification and
+ * the data format verified in the user's nRF Connect log.
  */
 
 /*
@@ -36,8 +36,8 @@ data class IndoorBikeData(
 )
 */
 /**
- * Parsii FTMS Indoor Bike Data -paketin.
- * Ei heitä poikkeuksia normaalivirheissä → valid=false.
+ * Parses an FTMS Indoor Bike Data packet.
+ * Does not throw on normal errors -> valid=false.
  */
 fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
 

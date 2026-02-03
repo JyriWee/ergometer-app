@@ -18,7 +18,7 @@ class FtmsController(
 
     private var timeoutRunnable: Runnable? = null
 
-    // V0: ei vielä oikeaa ready-logiikkaa
+    // V0: no real ready logic yet
     fun isReady(): Boolean = true
 
     private fun sendCommand(payload: ByteArray, label: String) {
@@ -32,7 +32,7 @@ class FtmsController(
 
         Log.d("FTMS", "Sending: $label payload=${payload.joinToString()}")
         writeControlPoint(payload)
-        // HUOM: BUSY vapautetaan myöhemmin Control Point response -callbackista
+        // NOTE: BUSY is released later in the Control Point response callback
     }
 
     fun requestControl() {
@@ -48,7 +48,7 @@ class FtmsController(
     fun setTargetPower(watts: Int) {
         val w = watts.coerceIn(0, 2000)
 
-        // LAST WINS: jos BUSY, muistetaan vain viimeisin pyyntö ja poistutaan
+        // LAST WINS: if BUSY, keep only the latest request and return
         if (commandState == FtmsCommandState.BUSY) {
             pendingTargetPowerWatts = w
             Log.d("FTMS", "Queued target power (last wins): $w W")
@@ -84,8 +84,8 @@ class FtmsController(
     }
 
     /**
-     * Kutsu tätä FtmsBleClientistä, kun saat Control Point response -paketin (0x80 ...).
-     * Tämä vapauttaa BUSY-tilan deterministisesti.
+     * Call this from FtmsBleClient when you receive a Control Point response packet (0x80 ...).
+     * This releases the BUSY state deterministically.
      */
     fun onControlPointResponse(requestOpcode: Int, resultCode: Int) {
         cancelTimeoutTimer()
@@ -94,7 +94,7 @@ class FtmsController(
         commandState = if (ok) FtmsCommandState.SUCCESS else FtmsCommandState.ERROR
         Log.d("FTMS", "CP response opcode=$requestOpcode result=$resultCode state=$commandState")
 
-        // vapauta seuraavaa komentoa varten
+        // release for the next command
         commandState = FtmsCommandState.IDLE
 
         if (pendingReset) {
@@ -104,12 +104,12 @@ class FtmsController(
             return
         }
 
-        // LAST WINS: jos käyttäjä pyysi uutta target poweria BUSY aikana, lähetä se nyt
+        // LAST WINS: if the user requested a new target power while BUSY, send it now
         val pending = pendingTargetPowerWatts
         if (pending != null) {
             pendingTargetPowerWatts = null
             Log.d("FTMS", "Sending queued target power: $pending W")
-            setTargetPower(pending) // tämä menee nyt läpi, koska commandState on IDLE
+            setTargetPower(pending) // this will go through now because commandState is IDLE
         }
 
     }
@@ -119,7 +119,7 @@ class FtmsController(
 
         timeoutRunnable = Runnable {
             cancelTimeoutTimer()
-            // Jos komento jäi roikkumaan, vapauta BUSY
+            // If the command got stuck, release BUSY
             if (commandState == FtmsCommandState.BUSY) {
                 Log.w("FTMS", "Control Point command timeout -> forcing IDLE")
                 commandState = FtmsCommandState.IDLE

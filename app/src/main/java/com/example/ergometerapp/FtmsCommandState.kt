@@ -1,8 +1,8 @@
 package com.example.ergometerapp.ble
 
 enum class FtmsCommandState {
-    IDLE,        // mitään ei odoteta
-    BUSY,        // komento lähetetty, vastausta odotetaan
-    SUCCESS,     // viimeisin onnistui
-    ERROR        // viimeisin epäonnistui
+    IDLE,        // no pending command
+    BUSY,        // command sent, awaiting response
+    SUCCESS,     // last command succeeded
+    ERROR        // last command failed
 }

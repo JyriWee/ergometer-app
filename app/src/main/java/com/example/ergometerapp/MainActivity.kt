@@ -27,12 +27,12 @@ import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 /**
  * MainActivity
  *
- * Vastaa:
- * - BLE-clientien käynnistämisestä
- * - käyttöoikeuksista
- * - tilan syötöstä Compose-UI:lle
+ * Responsibilities:
+ * - starting BLE clients
+ * - permissions
+ * - providing state to the Compose UI
  *
- * Ei sisällä session-logiikkaa.
+ * Does not contain session logic.
  */
 
 
@@ -151,7 +151,7 @@ class MainActivity : ComponentActivity() {
                     ftmsControlGrantedState.value = true
                 }
 
-                // 0x01 = Reset, 0x01 = Success (käytetään tätä “release done” -merkkinä)
+                // 0x01 = Reset, 0x01 = Success (used as the “release done” signal)
                 if (requestOpcode == 0x01 && resultCode == 0x01) {
                     resetFtmsUiState(clearReady = false)
                 }
@@ -189,13 +189,13 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun releaseControl() {
-        // FTMS: stop + reset (FtmsController hoitaa jonotuksen/timeoutin)
+        // FTMS: stop + reset (FtmsController handles queueing/timeouts)
         ftmsController.stop()
         ftmsController.reset()
 
-        // UI-tila heti “optimistisesti” järkeväksi:
+        // Make the UI state immediately “optimistically” sensible:
         resetFtmsUiState(clearReady = false)
-        // CP reset-success vahvistaa vapautuksen (idempotentti)
+        // CP reset-success confirms the release (idempotent)
     }
 
     private fun stopSessionAndGoToSummary() {
@@ -252,4 +252,3 @@ class MainActivity : ComponentActivity() {
     }
 
 }
-
