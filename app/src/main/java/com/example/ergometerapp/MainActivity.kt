@@ -2,13 +2,13 @@ package com.example.ergometerapp
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
@@ -37,8 +37,6 @@ import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 
 
 class MainActivity : ComponentActivity() {
-    private val REQUEST_BLUETOOTH_CONNECT = 1001
-
     private enum class AppScreen { MENU, SESSION, SUMMARY }
 
     private val screenState = mutableStateOf(AppScreen.MENU)
@@ -65,6 +63,14 @@ class MainActivity : ComponentActivity() {
     private lateinit var sessionManager: SessionManager
 
     private lateinit var ftmsController: FtmsController
+    private val requestBluetoothConnectPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                Log.d("BLE", "BLUETOOTH_CONNECT granted")
+            } else {
+                Log.d("BLE", "BLUETOOTH_CONNECT denied")
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -216,33 +222,10 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun ensureBluetoothPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissions(
-                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-                    REQUEST_BLUETOOTH_CONNECT
-                )
-            }
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == REQUEST_BLUETOOTH_CONNECT) {
-            if (grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED
-            ) {
-                Log.d("BLE", "BLUETOOTH_CONNECT granted")
-            } else {
-                Log.d("BLE", "BLUETOOTH_CONNECT denied")
-            }
+        if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
         }
     }
 

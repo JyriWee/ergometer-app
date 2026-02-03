@@ -9,7 +9,6 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import android.util.Log
 import java.util.UUID
 
@@ -57,8 +56,7 @@ class HrBleClient(
             try {
                 gatt.setCharacteristicNotification(ch, true)
                 val ccc = ch.getDescriptor(CCC_UUID) ?: return
-                ccc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-                gatt.writeDescriptor(ccc)
+                gatt.writeDescriptor(ccc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
             } catch (e: SecurityException) {
                 Log.w("HR", "Configuring notifications failed: ${e.message}")
             }
@@ -66,14 +64,15 @@ class HrBleClient(
 
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
         ) {
             if (characteristic.uuid == HR_MEASUREMENT_UUID) {
-                val bpm = parseHeartRate(characteristic.value)
+                val bpm = parseHeartRate(value)
                 onHeartRate(bpm)
-
             }
         }
+
     }
 
     fun connect(mac: String) {
@@ -85,13 +84,15 @@ class HrBleClient(
             "Invalid Bluetooth MAC address: $mac"
         }
         try {
-            val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(mac)
+            val bluetoothManager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
+            val adapter = bluetoothManager.adapter
+            val device = adapter.getRemoteDevice(mac)
             gatt = device.connectGatt(context, false, gattCallback)
         } catch (e: SecurityException) {
             Log.w("HR", "connectGatt failed: ${e.message}")
         }
     }
-
+    @Suppress("unused")
     fun close() {
         try {
             gatt?.close()
@@ -113,7 +114,6 @@ class HrBleClient(
     }
 
     private fun hasBluetoothConnectPermission(): Boolean {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
         return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
             PackageManager.PERMISSION_GRANTED
     }

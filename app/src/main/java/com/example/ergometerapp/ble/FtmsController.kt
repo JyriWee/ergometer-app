@@ -18,6 +18,8 @@ class FtmsController(
 
     private var timeoutRunnable: Runnable? = null
 
+    @Suppress("unused")
+
     // V0: no real ready logic yet
     fun isReady(): Boolean = true
 
@@ -39,6 +41,8 @@ class FtmsController(
         val payload = byteArrayOf(0x00.toByte())
         sendCommand(payload, "requestControl")
     }
+
+    @Suppress("unused")
 
     fun setResistanceLevel(level: Int) {
         val payload = byteArrayOf(0x04.toByte(), level.toByte())
@@ -67,6 +71,7 @@ class FtmsController(
         sendCommand(payload, "stop")
     }
 
+    @Suppress("unused")
     fun pause() {
         val payload = byteArrayOf(0x08.toByte(), 0x02.toByte())
         sendCommand(payload, "pause")
