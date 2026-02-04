@@ -8,16 +8,12 @@ enum class SessionPhase {
     RUNNING,
     STOPPED
 }
+
 /**
- * SessionManager
+ * Coordinates a single workout session lifecycle.
  *
- * Manages a single training session lifecycle:
- * - START / RUNNING / STOPPED
- * - collects FTMS and HR data
- * - produces a session summary
- *
- * Does not contain UI logic.
- * Does not know BLE details.
+ * This class is intentionally UI-agnostic and BLE-agnostic; it only consumes
+ * parsed FTMS/HR signals and produces a [SessionSummary].
  */
 class SessionManager(
     private val context: android.content.Context,
@@ -38,7 +34,9 @@ class SessionManager(
 
     private var sessionPhase: SessionPhase = SessionPhase.IDLE
 
-    // UI uses this for state display and button enable/disable logic
+    /**
+     * Current session phase used by UI for state rendering and controls.
+     */
     fun getPhase(): SessionPhase = sessionPhase
 
     fun updateBikeData(bikeData: IndoorBikeData) {
@@ -46,19 +44,17 @@ class SessionManager(
 
         if (sessionPhase == SessionPhase.RUNNING) {
 
-            // 1) Collect power (only reasonable values)
+            // Power values at or below zero are treated as invalid samples.
             latestBikeData?.instantaneousPowerW
                 ?.takeIf { it > 0 }
                 ?.let { powerSamples.add(it) }
 
-            // 2) Update latest distance
+            // Distance is cumulative; store the latest for the summary.
             latestBikeData?.totalDistanceMeters
                 ?.let { lastDistanceMeters = it }
 
-            //// 3) HR priority:
-            //// - separate HR strap, if available
-            //// - ergometer internal HR (handle sensor)
-            //// - null, if neither is available
+            // Prefer external HR strap if present; fall back to bike HR otherwise.
+            // This avoids mixing two sensors with different latencies.
             if (latestHeartRate == null) {
                 latestBikeData?.heartRateBpm
                     ?.takeIf { it in 30..220 }
@@ -70,6 +66,12 @@ class SessionManager(
         emitState()
     }
 
+    /**
+     * Updates heart rate from an external sensor.
+     *
+     * When present, it supersedes any HR embedded in FTMS bike data to keep
+     * the data source consistent for statistics.
+     */
     fun updateHeartRate(hr: Int?) {
         latestHeartRate = hr
 
@@ -95,6 +97,7 @@ class SessionManager(
                 else -> 0
             }
 
+        // Effective HR is exposed for UI even when only bike HR is available.
         val effectiveHr =
             latestHeartRate
                 ?: latestBikeData?.heartRateBpm
@@ -111,6 +114,9 @@ class SessionManager(
         onStateUpdated(state)
     }
 
+    /**
+     * Starts a new session and clears any prior aggregates.
+     */
     fun startSession() {
         sessionPhase = SessionPhase.RUNNING
         sessionStartMillis = System.currentTimeMillis()
@@ -127,6 +133,12 @@ class SessionManager(
         emitState()
     }
 
+    /**
+     * Stops the session and finalizes summary statistics.
+     *
+     * Uses simple averages over collected samples; the caller is responsible for
+     * choosing sampling frequency elsewhere.
+     */
     fun stopSession() {
         if (sessionPhase != SessionPhase.RUNNING) return
 
@@ -173,4 +185,3 @@ class SessionManager(
         }
     }
 }
-
