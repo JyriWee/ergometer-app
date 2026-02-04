@@ -20,6 +20,12 @@ import com.example.ergometerapp.session.SessionSummary
 import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
 
 
+/**
+ * Entry screen for starting a session.
+ *
+ * The start action is gated on FTMS readiness because Control Point writes are
+ * undefined until the device is connected and notifications/indications are set.
+ */
 @Composable
 internal fun MenuScreen(
     ftmsReady: Boolean,
@@ -49,6 +55,13 @@ internal fun MenuScreen(
     }
 }
 
+/**
+ * Live session UI.
+ *
+ * This screen surfaces FTMS/HR telemetry and exposes control actions. Buttons
+ * are intentionally visible but disabled when control has not been granted, to
+ * make the protocol state explicit to the user.
+ */
 @Composable
 internal fun SessionScreen(
     phase: SessionPhase,
@@ -64,6 +77,7 @@ internal fun SessionScreen(
     onStopSession: () -> Unit
 ) {
     val canSendPower = ftmsReady && ftmsControlGranted
+    // External HR is preferred by the session layer; fall back to bike HR for display.
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
     val dur = durationSeconds ?: 0
     Column(Modifier.padding(24.dp)) {
@@ -182,6 +196,11 @@ internal fun SessionScreen(
     }
 }
 
+/**
+ * End-of-session summary UI.
+ *
+ * Summary values may be null when signals were not available during the session.
+ */
 @Composable
 internal fun SummaryScreen(
     summary: SessionSummary?,
@@ -217,6 +236,9 @@ private fun format1(value: Double?): String =
 private fun format0(value: Int?): String =
     value?.toString() ?: "--"
 
+/**
+ * Formats seconds as `M:SS` for human readability.
+ */
 private fun formatTime(seconds: Int?): String {
     if (seconds == null) return "--"
     val m = seconds / 60

@@ -23,19 +23,12 @@ import com.example.ergometerapp.ui.SummaryScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 
 
-
 /**
- * MainActivity
+ * App entry point that wires BLE clients, session logic, and UI state.
  *
- * Responsibilities:
- * - starting BLE clients
- * - permissions
- * - providing state to the Compose UI
- *
- * Does not contain session logic.
+ * This activity intentionally keeps protocol handling in the BLE/controller
+ * layers and only reacts to their callbacks to update UI state.
  */
-
-
 class MainActivity : ComponentActivity() {
     private enum class AppScreen { MENU, SESSION, SUMMARY }
 
@@ -56,7 +49,6 @@ class MainActivity : ComponentActivity() {
     private val ftmsControlGrantedState = mutableStateOf(false)
 
     private val lastTargetPowerState = mutableStateOf<Int?>(null)
-
 
     private lateinit var bleClient: FtmsBleClient
 
@@ -152,12 +144,12 @@ class MainActivity : ComponentActivity() {
 
                 Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
 
-                // 0x00 = Request Control, 0x01 = Success
+                // FTMS: Request Control success unlocks power control in the UI.
                 if (requestOpcode == 0x00 && resultCode == 0x01) {
                     ftmsControlGrantedState.value = true
                 }
 
-                // 0x01 = Reset, 0x01 = Success (used as the “release done” signal)
+                // Reset success is treated as a definitive "release done" signal.
                 if (requestOpcode == 0x01 && resultCode == 0x01) {
                     resetFtmsUiState(clearReady = false)
                 }
@@ -173,6 +165,7 @@ class MainActivity : ComponentActivity() {
             bleClient.writeControlPoint(payload)
         }
 
+        // TODO: Move hardcoded MACs to configuration or device discovery flow.
         bleClient.connect("E0:DF:01:46:14:2F")
 
         hrClient = HrBleClient(this)
@@ -186,14 +179,27 @@ class MainActivity : ComponentActivity() {
 
     }
 
+    /**
+     * Keeps the screen awake during an active session to avoid lost telemetry
+     * visibility when the user is mid-workout.
+     */
     private fun keepScreenOn() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    /**
+     * Clears the keep-awake flag once a session is finished.
+     */
     private fun allowScreenOff() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    /**
+     * Releases FTMS control using the stop+reset pattern.
+     *
+     * Some devices only acknowledge control release after a reset, so the UI
+     * resets state optimistically and waits for the Control Point response.
+     */
     private fun releaseControl() {
         // FTMS: stop + reset (FtmsController handles queueing/timeouts)
         ftmsController.stop()
@@ -204,6 +210,9 @@ class MainActivity : ComponentActivity() {
         // CP reset-success confirms the release (idempotent)
     }
 
+    /**
+     * Finalizes the session and moves to the summary screen.
+     */
     private fun stopSessionAndGoToSummary() {
         sessionManager.stopSession()
         releaseControl()
@@ -213,6 +222,9 @@ class MainActivity : ComponentActivity() {
         screenState.value = AppScreen.SUMMARY
     }
 
+    /**
+     * Clears FTMS UI state; callers decide whether disconnection should also clear readiness.
+     */
     private fun resetFtmsUiState(clearReady: Boolean) {
         if (clearReady) {
             ftmsReadyState.value = false
@@ -221,6 +233,9 @@ class MainActivity : ComponentActivity() {
         lastTargetPowerState.value = null
     }
 
+    /**
+     * Requests BLUETOOTH_CONNECT when needed; required for GATT operations on Android 12+.
+     */
     private fun ensureBluetoothPermission() {
         if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
             != PackageManager.PERMISSION_GRANTED
