@@ -163,13 +163,32 @@ class WorkoutStepper(
 
     private fun targetPowerWatts(step: Step, state: StepperState): Int? {
         return when (step) {
-            is Step.Warmup -> interpolatedWatts(step.powerLow, step.powerHigh, step.durationSec, state.stepElapsedMs)
-            is Step.Cooldown -> interpolatedWatts(step.powerLow, step.powerHigh, step.durationSec, state.stepElapsedMs)
-            is Step.Ramp -> interpolatedWatts(step.powerLow, step.powerHigh, step.durationSec, state.stepElapsedMs)
+            is Step.Warmup -> interpolatedWatts(
+                step.powerLow,
+                step.powerHigh,
+                step.durationSec,
+                state.stepElapsedMs
+            )
+
+            is Step.Cooldown -> interpolatedWatts(
+                step.powerLow,
+                step.powerHigh,
+                step.durationSec,
+                state.stepElapsedMs
+            )
+
+            is Step.Ramp -> interpolatedWatts(
+                step.powerLow,
+                step.powerHigh,
+                step.durationSec,
+                state.stepElapsedMs
+            )
+
             is Step.SteadyState -> ratioToWatts(step.power)
             is Step.IntervalsT -> {
                 if (state.inOn) ratioToWatts(step.onPower) else ratioToWatts(step.offPower)
             }
+
             is Step.FreeRide -> null
             is Step.Unknown -> null
         }
@@ -207,6 +226,7 @@ class WorkoutStepper(
                 if (onMs == null || offMs == null) return null
                 if (state.inOn) onMs else offMs
             }
+
             is Step.Unknown -> null
         }
     }
