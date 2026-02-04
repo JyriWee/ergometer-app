@@ -1,15 +1,23 @@
 package com.example.ergometerapp.ble
 
-import android.bluetooth.BluetoothAdapter
+import android.Manifest
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.pm.PackageManager
 import android.util.Log
 import java.util.UUID
 
+/**
+ * BLE client for the Fitness Machine Service (FTMS, 0x1826).
+ *
+ * This client enables notifications/indications in a strict order to satisfy
+ * GATT's single-operation-at-a-time constraint and FTMS expectations for
+ * Control Point acknowledgements.
+ */
 class FtmsBleClient(
     private val context: Context,
     private val onIndoorBikeData: (ByteArray) -> Unit,
@@ -41,7 +49,15 @@ class FtmsBleClient(
             this@FtmsBleClient.gatt = gatt
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                gatt.discoverServices()
+                if (!hasBluetoothConnectPermission()) {
+                    Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
+                    return
+                }
+                try {
+                    gatt.discoverServices()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "discoverServices failed: ${e.message}")
+                }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
             Log.w("FTMS", "GATT disconnected (status=$status)")
             controlPointCharacteristic = null
@@ -73,6 +89,10 @@ class FtmsBleClient(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (!hasBluetoothConnectPermission()) {
+                Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot configure FTMS")
+                return
+            }
             val service = gatt.getService(FTMS_SERVICE_UUID) ?: run {
                 Log.w("FTMS", "FTMS service not found")
                 return
@@ -95,18 +115,27 @@ class FtmsBleClient(
                 return
             }
 
-            // Enable notifications locally (doesn't write CCCD yet)
-            gatt.setCharacteristicNotification(indoorBikeDataCharacteristic, true)
-
-            // Enable indications locally (doesn't write CCCD yet)
-            controlPointCharacteristic?.let { cp ->
-                gatt.setCharacteristicNotification(cp, true)
+            // Local enablement is required before writing CCCD values on some stacks.
+            try {
+                gatt.setCharacteristicNotification(indoorBikeDataCharacteristic, true)
+            } catch (e: SecurityException) {
+                Log.w("FTMS", "setCharacteristicNotification failed: ${e.message}")
+                return
             }
 
-            // Start CCCD writes in a controlled order:
-            // 1) Control Point indications
+            // Control Point uses indications for reliable acknowledgements.
+            controlPointCharacteristic?.let { cp ->
+                try {
+                    gatt.setCharacteristicNotification(cp, true)
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "setCharacteristicNotification failed: ${e.message}")
+                    return
+                }
+            }
+
+            // Start CCCD writes in a controlled order to avoid concurrent GATT ops.
             val cp = controlPointCharacteristic ?: run {
-                // If no CP, we can still at least enable bike data CCCD directly:
+                // If no CP, we can still enable bike data CCCD directly.
                 writeBikeCccd(gatt)
                 return
             }
@@ -123,7 +152,7 @@ class FtmsBleClient(
                 FTMS_CONTROL_POINT_UUID -> {
                     Log.d("FTMS", "Control Point response: ${value.joinToString()}")
 
-                    // Response Code = 0x80, request opcode = value[1], result = value[2]
+                    // FTMS: Response Code (0x80), then request opcode and result code.
                     if (value.size >= 3 && value[0] == 0x80.toByte()) {
                         val requestOpcode = value[1].toInt() and 0xFF
                         val resultCode = value[2].toInt() and 0xFF
@@ -136,14 +165,6 @@ class FtmsBleClient(
 
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
-        ) {
-            val value = characteristic.value ?: return
-            handleCharacteristicChanged(characteristic, value)
-        }
-
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
@@ -152,16 +173,45 @@ class FtmsBleClient(
 
     }
 
+    /**
+     * Connects to a Fitness Machine peripheral by MAC address.
+     *
+     * Callers should wait for [onReady] before issuing Control Point commands.
+     */
     fun connect(mac: String) {
-        val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(mac)
-        gatt = device.connectGatt(context, false, gattCallback)
+        if (!hasBluetoothConnectPermission()) {
+            Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot connect")
+            return
+        }
+        try {
+            val bluetoothManager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
+            val adapter = bluetoothManager.adapter
+            val device = adapter.getRemoteDevice(mac)
+            gatt = device.connectGatt(context, false, gattCallback)
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "connectGatt failed: ${e.message}")
+        }
     }
 
+    @Suppress("unused")
+    /**
+     * Releases the GATT connection.
+     *
+     * Safe to call multiple times; exceptions can occur if permissions change.
+     */
     fun close() {
-        gatt?.close()
+        try {
+            gatt?.close()
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "close failed: ${e.message}")
+        }
         gatt = null
     }
     private fun writeControlPointCccd(gatt: BluetoothGatt, cp: BluetoothGattCharacteristic) {
+        if (!hasBluetoothConnectPermission()) {
+            Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write CP CCCD")
+            return
+        }
         val cccd = cp.getDescriptor(CCCD_UUID)
         if (cccd == null) {
             Log.w("FTMS", "CCCD not found for Control Point")
@@ -171,12 +221,19 @@ class FtmsBleClient(
         }
 
         setupStep = SetupStep.CP_CCCD
-        cccd.value = BluetoothGattDescriptor.ENABLE_INDICATION_VALUE
-        val ok = gatt.writeDescriptor(cccd)
-        Log.d("FTMS", "Writing CP CCCD (indication) -> $ok")
+        try {
+            val ok = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
+            Log.d("FTMS", "Writing CP CCCD (indication) -> $ok")
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "writeDescriptor failed: ${e.message}")
+        }
     }
 
     private fun writeBikeCccd(gatt: BluetoothGatt) {
+        if (!hasBluetoothConnectPermission()) {
+            Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write Bike CCCD")
+            return
+        }
         val ch = indoorBikeDataCharacteristic ?: run {
             Log.w("FTMS", "Bike characteristic missing when writing CCCD")
             return
@@ -189,12 +246,26 @@ class FtmsBleClient(
         }
 
         setupStep = SetupStep.BIKE_CCCD
-        cccd.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-        val ok = gatt.writeDescriptor(cccd)
-        Log.d("FTMS", "Writing BIKE CCCD (notification) -> $ok")
+        try {
+            // TODO: Confirm whether Indoor Bike Data should use notifications (0x0001) vs indications (0x0002).
+            val ok = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
+            Log.d("FTMS", "Writing BIKE CCCD (notification) -> $ok")
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "writeDescriptor failed: ${e.message}")
+        }
     }
 
+    /**
+     * Writes a raw FTMS Control Point payload.
+     *
+     * FTMS devices are allowed to reject commands until they have granted control
+     * and Control Point indications are enabled.
+     */
     fun writeControlPoint(payload: ByteArray) {
+        if (!hasBluetoothConnectPermission()) {
+            Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write Control Point")
+            return
+        }
         val currentGatt = gatt
         val characteristic = controlPointCharacteristic
 
@@ -203,12 +274,21 @@ class FtmsBleClient(
             return
         }
 
-        characteristic.value = payload
-        characteristic.writeType =
-            BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+        try {
+            val ok = currentGatt.writeCharacteristic(
+                characteristic,
+                payload,
+                BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+            )
+            Log.d("FTMS", "writeControlPoint ${payload.joinToString()} -> $ok")
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "writeCharacteristic failed: ${e.message}")
+        }
+    }
 
-        val ok = currentGatt.writeCharacteristic(characteristic)
-        Log.d("FTMS", "writeControlPoint ${payload.joinToString()} -> $ok")
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
     }
 
 }

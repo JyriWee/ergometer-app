@@ -1,5 +1,6 @@
 package com.example.ergometerapp.ble
 
+import android.Manifest
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -7,8 +8,16 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
+import android.content.pm.PackageManager
+import android.util.Log
 import java.util.UUID
 
+/**
+ * BLE client for the standard Heart Rate Service (0x180D).
+ *
+ * The HR Measurement characteristic is notify-only; the client must enable the
+ * CCCD and then parse notifications according to the flag byte.
+ */
 class HrBleClient(
     private val context: Context,
     private val onHeartRate: (Int) -> Unit
@@ -30,46 +39,94 @@ class HrBleClient(
             newState: Int
         ) {
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                gatt.discoverServices()
+                if (!hasBluetoothConnectPermission()) {
+                    Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
+                    return
+                }
+                try {
+                    gatt.discoverServices()
+                } catch (e: SecurityException) {
+                    Log.w("HR", "discoverServices failed: ${e.message}")
+                }
             }
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (!hasBluetoothConnectPermission()) {
+                Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot configure HR notifications")
+                return
+            }
             val service = gatt.getService(HR_SERVICE_UUID) ?: return
             val ch = service.getCharacteristic(HR_MEASUREMENT_UUID) ?: return
 
-            gatt.setCharacteristicNotification(ch, true)
-            val ccc = ch.getDescriptor(CCC_UUID) ?: return
-            ccc.value = BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
-            gatt.writeDescriptor(ccc)
+            try {
+                gatt.setCharacteristicNotification(ch, true)
+                val ccc = ch.getDescriptor(CCC_UUID) ?: return
+                gatt.writeDescriptor(ccc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+            } catch (e: SecurityException) {
+                Log.w("HR", "Configuring notifications failed: ${e.message}")
+            }
         }
 
         override fun onCharacteristicChanged(
             gatt: BluetoothGatt,
-            characteristic: BluetoothGattCharacteristic
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
         ) {
             if (characteristic.uuid == HR_MEASUREMENT_UUID) {
-                val bpm = parseHeartRate(characteristic.value)
+                val bpm = parseHeartRate(value)
                 onHeartRate(bpm)
-
             }
         }
+
     }
 
+    /**
+     * Connects to a Heart Rate peripheral by MAC address.
+     *
+     * This uses the platform GATT stack; callers must ensure Bluetooth is enabled
+     * and the device is bonded if required by the peripheral.
+     */
     fun connect(mac: String) {
+        if (!hasBluetoothConnectPermission()) {
+            Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot connect")
+            return
+        }
         require(BluetoothAdapter.checkBluetoothAddress(mac)) {
             "Invalid Bluetooth MAC address: $mac"
         }
-        val device = BluetoothAdapter.getDefaultAdapter().getRemoteDevice(mac)
-        gatt = device.connectGatt(context, false, gattCallback)
+        try {
+            val bluetoothManager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
+            val adapter = bluetoothManager.adapter
+            val device = adapter.getRemoteDevice(mac)
+            gatt = device.connectGatt(context, false, gattCallback)
+        } catch (e: SecurityException) {
+            Log.w("HR", "connectGatt failed: ${e.message}")
+        }
     }
-
+    @Suppress("unused")
+    /**
+     * Releases the GATT connection.
+     *
+     * Always safe to call; exceptions can occur if permissions were revoked.
+     */
     fun close() {
-        gatt?.close()
+        try {
+            gatt?.close()
+        } catch (e: SecurityException) {
+            Log.w("HR", "close failed: ${e.message}")
+        }
         gatt = null
     }
 
-    // HR Measurement (0x2A37) – V0: vain bpm
+    /**
+     * Parses the HR Measurement payload (0x2A37) into BPM.
+     *
+     * The first flag bit selects 8-bit vs 16-bit HR value. Other optional fields
+     * (energy expended, RR intervals) are currently ignored.
+     *
+     * TODO: Validate payload length before indexing to avoid malformed packets.
+     */
     private fun parseHeartRate(bytes: ByteArray): Int {
         val flags = bytes[0].toInt()
         val hr16bit = flags and 0x01 != 0
@@ -78,5 +135,10 @@ class HrBleClient(
         } else {
             bytes[1].toInt() and 0xFF
         }
+    }
+
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
     }
 }

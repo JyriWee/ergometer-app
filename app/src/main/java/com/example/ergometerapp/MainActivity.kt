@@ -2,13 +2,13 @@ package com.example.ergometerapp
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.mutableStateOf
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
@@ -23,22 +23,13 @@ import com.example.ergometerapp.ui.SummaryScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 
 
-
 /**
- * MainActivity
+ * App entry point that wires BLE clients, session logic, and UI state.
  *
- * Vastaa:
- * - BLE-clientien käynnistämisestä
- * - käyttöoikeuksista
- * - tilan syötöstä Compose-UI:lle
- *
- * Ei sisällä session-logiikkaa.
+ * This activity intentionally keeps protocol handling in the BLE/controller
+ * layers and only reacts to their callbacks to update UI state.
  */
-
-
 class MainActivity : ComponentActivity() {
-    private val REQUEST_BLUETOOTH_CONNECT = 1001
-
     private enum class AppScreen { MENU, SESSION, SUMMARY }
 
     private val screenState = mutableStateOf(AppScreen.MENU)
@@ -59,12 +50,19 @@ class MainActivity : ComponentActivity() {
 
     private val lastTargetPowerState = mutableStateOf<Int?>(null)
 
-
     private lateinit var bleClient: FtmsBleClient
 
     private lateinit var sessionManager: SessionManager
 
     private lateinit var ftmsController: FtmsController
+    private val requestBluetoothConnectPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                Log.d("BLE", "BLUETOOTH_CONNECT granted")
+            } else {
+                Log.d("BLE", "BLUETOOTH_CONNECT denied")
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -146,12 +144,12 @@ class MainActivity : ComponentActivity() {
 
                 Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
 
-                // 0x00 = Request Control, 0x01 = Success
+                // FTMS: Request Control success unlocks power control in the UI.
                 if (requestOpcode == 0x00 && resultCode == 0x01) {
                     ftmsControlGrantedState.value = true
                 }
 
-                // 0x01 = Reset, 0x01 = Success (käytetään tätä “release done” -merkkinä)
+                // Reset success is treated as a definitive "release done" signal.
                 if (requestOpcode == 0x01 && resultCode == 0x01) {
                     resetFtmsUiState(clearReady = false)
                 }
@@ -167,6 +165,7 @@ class MainActivity : ComponentActivity() {
             bleClient.writeControlPoint(payload)
         }
 
+        // TODO: Move hardcoded MACs to configuration or device discovery flow.
         bleClient.connect("E0:DF:01:46:14:2F")
 
         hrClient = HrBleClient(this)
@@ -180,24 +179,40 @@ class MainActivity : ComponentActivity() {
 
     }
 
+    /**
+     * Keeps the screen awake during an active session to avoid lost telemetry
+     * visibility when the user is mid-workout.
+     */
     private fun keepScreenOn() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    /**
+     * Clears the keep-awake flag once a session is finished.
+     */
     private fun allowScreenOff() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
+    /**
+     * Releases FTMS control using the stop+reset pattern.
+     *
+     * Some devices only acknowledge control release after a reset, so the UI
+     * resets state optimistically and waits for the Control Point response.
+     */
     private fun releaseControl() {
-        // FTMS: stop + reset (FtmsController hoitaa jonotuksen/timeoutin)
+        // FTMS: stop + reset (FtmsController handles queueing/timeouts)
         ftmsController.stop()
         ftmsController.reset()
 
-        // UI-tila heti “optimistisesti” järkeväksi:
+        // Make the UI state immediately “optimistically” sensible:
         resetFtmsUiState(clearReady = false)
-        // CP reset-success vahvistaa vapautuksen (idempotentti)
+        // CP reset-success confirms the release (idempotent)
     }
 
+    /**
+     * Finalizes the session and moves to the summary screen.
+     */
     private fun stopSessionAndGoToSummary() {
         sessionManager.stopSession()
         releaseControl()
@@ -207,6 +222,9 @@ class MainActivity : ComponentActivity() {
         screenState.value = AppScreen.SUMMARY
     }
 
+    /**
+     * Clears FTMS UI state; callers decide whether disconnection should also clear readiness.
+     */
     private fun resetFtmsUiState(clearReady: Boolean) {
         if (clearReady) {
             ftmsReadyState.value = false
@@ -215,34 +233,14 @@ class MainActivity : ComponentActivity() {
         lastTargetPowerState.value = null
     }
 
+    /**
+     * Requests BLUETOOTH_CONNECT when needed; required for GATT operations on Android 12+.
+     */
     private fun ensureBluetoothPermission() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
-                != PackageManager.PERMISSION_GRANTED
-            ) {
-                requestPermissions(
-                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT),
-                    REQUEST_BLUETOOTH_CONNECT
-                )
-            }
-        }
-    }
-
-    override fun onRequestPermissionsResult(
-        requestCode: Int,
-        permissions: Array<out String>,
-        grantResults: IntArray
-    ) {
-        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-
-        if (requestCode == REQUEST_BLUETOOTH_CONNECT) {
-            if (grantResults.isNotEmpty() &&
-                grantResults[0] == PackageManager.PERMISSION_GRANTED
-            ) {
-                Log.d("BLE", "BLUETOOTH_CONNECT granted")
-            } else {
-                Log.d("BLE", "BLUETOOTH_CONNECT denied")
-            }
+        if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
         }
     }
 
@@ -252,4 +250,3 @@ class MainActivity : ComponentActivity() {
     }
 
 }
-

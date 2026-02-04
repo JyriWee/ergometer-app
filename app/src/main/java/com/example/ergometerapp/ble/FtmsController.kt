@@ -4,6 +4,14 @@ import android.os.Handler
 import android.os.Looper
 import android.util.Log
 
+/**
+ * Serializes FTMS Control Point commands and matches them to response opcodes.
+ *
+ * BLE Control Point procedures are defined as request/response; devices may drop or
+ * reject concurrent commands. This controller enforces a single in-flight command,
+ * applies a "last wins" policy for target power updates, and releases the BUSY
+ * state on either a response or a timeout to avoid permanent deadlock.
+ */
 class FtmsController(
     private val writeControlPoint: (ByteArray) -> Unit
 ) {
@@ -18,7 +26,12 @@ class FtmsController(
 
     private var timeoutRunnable: Runnable? = null
 
-    // V0: ei vielä oikeaa ready-logiikkaa
+    @Suppress("unused")
+    /**
+     * Indicates whether the controller is ready to send commands.
+     *
+     * TODO: Wire this to actual readiness (e.g., Control Point CCCD enabled).
+     */
     fun isReady(): Boolean = true
 
     private fun sendCommand(payload: ByteArray, label: String) {
@@ -32,23 +45,41 @@ class FtmsController(
 
         Log.d("FTMS", "Sending: $label payload=${payload.joinToString()}")
         writeControlPoint(payload)
-        // HUOM: BUSY vapautetaan myöhemmin Control Point response -callbackista
+        // BUSY is released only after a Control Point response or timeout.
     }
 
+    /**
+     * Requests exclusive control of the trainer.
+     *
+     * Some FTMS devices require this before accepting other Control Point commands.
+     */
     fun requestControl() {
         val payload = byteArrayOf(0x00.toByte())
         sendCommand(payload, "requestControl")
     }
 
+    @Suppress("unused")
+    /**
+     * Sets a device-specific resistance level.
+     *
+     * This is optional in FTMS and may be ignored by devices that only support
+     * power-based targets.
+     */
     fun setResistanceLevel(level: Int) {
         val payload = byteArrayOf(0x04.toByte(), level.toByte())
         sendCommand(payload, "setResistanceLevel($level)")
     }
 
+    /**
+     * Sets target power in watts (clamped to a safe range for FTMS encoding).
+     *
+     * "Last wins" ensures rapid UI updates do not queue stale targets while the
+     * device is processing the previous command.
+     */
     fun setTargetPower(watts: Int) {
         val w = watts.coerceIn(0, 2000)
 
-        // LAST WINS: jos BUSY, muistetaan vain viimeisin pyyntö ja poistutaan
+        // "Last wins" avoids a backlog that FTMS devices are unlikely to process.
         if (commandState == FtmsCommandState.BUSY) {
             pendingTargetPowerWatts = w
             Log.d("FTMS", "Queued target power (last wins): $w W")
@@ -62,16 +93,29 @@ class FtmsController(
         sendCommand(payload, "setTargetPower($w)")
     }
 
+    /**
+     * Stops the current workout session if the device supports it.
+     */
     fun stop() {
         val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
         sendCommand(payload, "stop")
     }
 
+    @Suppress("unused")
+    /**
+     * Pauses the current workout session if the device supports it.
+     */
     fun pause() {
         val payload = byteArrayOf(0x08.toByte(), 0x02.toByte())
         sendCommand(payload, "pause")
     }
 
+    /**
+     * Resets the device state.
+     *
+     * Reset is queued while BUSY to preserve the invariant of a single in-flight
+     * Control Point command.
+     */
     fun reset() {
         if (commandState == FtmsCommandState.BUSY) {
             pendingReset = true
@@ -84,8 +128,8 @@ class FtmsController(
     }
 
     /**
-     * Kutsu tätä FtmsBleClientistä, kun saat Control Point response -paketin (0x80 ...).
-     * Tämä vapauttaa BUSY-tilan deterministisesti.
+     * Call this from FtmsBleClient when you receive a Control Point response packet (0x80 ...).
+     * This releases the BUSY state deterministically.
      */
     fun onControlPointResponse(requestOpcode: Int, resultCode: Int) {
         cancelTimeoutTimer()
@@ -94,7 +138,7 @@ class FtmsController(
         commandState = if (ok) FtmsCommandState.SUCCESS else FtmsCommandState.ERROR
         Log.d("FTMS", "CP response opcode=$requestOpcode result=$resultCode state=$commandState")
 
-        // vapauta seuraavaa komentoa varten
+        // Release for the next command after a definitive response.
         commandState = FtmsCommandState.IDLE
 
         if (pendingReset) {
@@ -104,12 +148,12 @@ class FtmsController(
             return
         }
 
-        // LAST WINS: jos käyttäjä pyysi uutta target poweria BUSY aikana, lähetä se nyt
+        // Apply the latest target if it was updated while BUSY.
         val pending = pendingTargetPowerWatts
         if (pending != null) {
             pendingTargetPowerWatts = null
             Log.d("FTMS", "Sending queued target power: $pending W")
-            setTargetPower(pending) // tämä menee nyt läpi, koska commandState on IDLE
+            setTargetPower(pending) // this will go through now because commandState is IDLE
         }
 
     }
@@ -119,7 +163,7 @@ class FtmsController(
 
         timeoutRunnable = Runnable {
             cancelTimeoutTimer()
-            // Jos komento jäi roikkumaan, vapauta BUSY
+            // If the device never responds, release BUSY to avoid a permanent lock.
             if (commandState == FtmsCommandState.BUSY) {
                 Log.w("FTMS", "Control Point command timeout -> forcing IDLE")
                 commandState = FtmsCommandState.IDLE

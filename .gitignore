@@ -1,9 +1,18 @@
-# Gradle files
+
+# Gradle
 .gradle/
 build/
 
-# Local configuration file (sdk path, etc)
+# IntelliJ / Android Studio
+.idea/
+*.iml
+
+# Local SDK config
 local.properties
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Log/OS Files
 *.log
@@ -17,8 +26,6 @@ captures/
 output-metadata.json
 
 # IntelliJ
-*.iml
-.idea/
 misc.xml
 deploymentTargetDropDown.xml
 render.experimental.xml

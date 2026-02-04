@@ -1,43 +1,17 @@
 package com.example.ergometerapp.ftms
 
 /**
- * FTMS Indoor Bike Data (UUID 0x2AD2)
- * Parseri perustuu Bluetooth FTMS -spesifikaatioon ja
- * käyttäjän nRF Connect -lokissa vahvistettuun datamuotoon.
+ * Parser for FTMS Indoor Bike Data (UUID 0x2AD2).
+ *
+ * Field presence is driven by the flags bitmask. Some devices deviate from the
+ * spec and still include certain fields even when the corresponding flag is
+ * cleared; this parser tolerates such behavior to keep telemetry flowing.
  */
-
-/*
-data class IndoorBikeData(
-    val valid: Boolean,
-
-    val instantaneousSpeedKmh: Double?,   // km/h
-    val averageSpeedKmh: Double?,
-
-    val instantaneousCadenceRpm: Double?, // rpm
-    val averageCadenceRpm: Double?,
-
-    val totalDistanceMeters: Int?,
-
-    val resistanceLevel: Int?,
-
-    val instantaneousPowerW: Int?,
-    val averagePowerW: Int?,
-
-    val totalEnergyKcal: Int?,
-    val energyPerHourKcal: Int?,
-    val energyPerMinuteKcal: Int?,
-
-    val heartRateBpm: Int?,
-
-    val metabolicEquivalent: Double?,     // MET
-
-    val elapsedTimeSeconds: Int?,
-    val remainingTimeSeconds: Int?
-)
-*/
 /**
- * Parsii FTMS Indoor Bike Data -paketin.
- * Ei heitä poikkeuksia normaalivirheissä → valid=false.
+ * Parses an FTMS Indoor Bike Data packet.
+ *
+ * Returns [IndoorBikeData.valid] false when the payload is malformed or too
+ * short, rather than throwing and tearing down the BLE callback.
  */
 fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
 
@@ -62,66 +36,54 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
     }
 
     return try {
-        // Flags (2 bytes, little-endian)
+        // Flags are little-endian per FTMS and gate optional fields.
         val flags = u16()
         fun flag(bit: Int) = (flags and (1 shl bit)) != 0
 
-        // 0) Instantaneous Speed (always present), unit: 0.01 km/h
+        // Instantaneous Speed is always present per spec.
         val instantSpeed = u16() / 100.0
 
-        // Tunturi E80: Average Speed appears always, even if flag(0) == false
+        // Some devices (e.g., Tunturi E80) send Average Speed even with flag(0) cleared.
         val avgSpeed =
             if (flag(0)) u16() / 100.0 else u16() / 100.0
 
-        // 1) Instantaneous Cadence, unit: 0.5 rpm
+        // Cadence fields are optional; missing fields are preserved as null.
         val instantCadence =
             if (flag(1)) u16() / 2.0 else null
 
-        // 2) Average Cadence, unit: 0.5 rpm
         val avgCadence =
             if (flag(2)) u16() / 2.0 else null
 
-        // 3) Total Distance, unit: meter
         val distance =
             if (flag(3)) u24() else null
 
-        // 4) Resistance Level
         val resistance =
             if (flag(4)) u16() else null
 
-        // 5) Instantaneous Power, unit: watt
         val instantPower =
             if (flag(5)) u16() else null
 
-        // 6) Average Power, unit: watt
         val avgPower =
             if (flag(6)) u16() else null
 
-        // 7) Total Energy, unit: kcal
         val totalEnergy =
             if (flag(7)) u16() else null
 
-        // 8) Energy Per Hour, unit: kcal/hour
         val energyPerHour =
             if (flag(8)) u16() else null
 
-        // 9) Energy Per Minute, unit: kcal/min
         val energyPerMinute =
             if (flag(9)) u8() else null
 
-        // 10) Heart Rate, unit: bpm
         val heartRate =
             if (flag(10)) u8() else null
 
-        // 11) Metabolic Equivalent (MET), unit: 0.1
         val met =
             if (flag(11)) u8() / 10.0 else null
 
-        // 12) Elapsed Time, unit: seconds
         val elapsed =
             if (flag(12)) u16() else null
 
-        // 13) Remaining Time, unit: seconds
         val remaining =
             if (flag(13)) u16() else null
 
@@ -145,6 +107,7 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
         )
 
     } catch (e: Exception) {
+        // TODO: Consider returning partial data when only trailing fields are missing.
         IndoorBikeData(
             valid = false,
             instantaneousSpeedKmh = null,
