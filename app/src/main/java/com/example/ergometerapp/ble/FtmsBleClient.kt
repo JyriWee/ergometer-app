@@ -11,6 +11,13 @@ import android.content.pm.PackageManager
 import android.util.Log
 import java.util.UUID
 
+/**
+ * BLE client for the Fitness Machine Service (FTMS, 0x1826).
+ *
+ * This client enables notifications/indications in a strict order to satisfy
+ * GATT's single-operation-at-a-time constraint and FTMS expectations for
+ * Control Point acknowledgements.
+ */
 class FtmsBleClient(
     private val context: Context,
     private val onIndoorBikeData: (ByteArray) -> Unit,
@@ -108,7 +115,7 @@ class FtmsBleClient(
                 return
             }
 
-            // Enable notifications locally (doesn't write CCCD yet)
+            // Local enablement is required before writing CCCD values on some stacks.
             try {
                 gatt.setCharacteristicNotification(indoorBikeDataCharacteristic, true)
             } catch (e: SecurityException) {
@@ -116,7 +123,7 @@ class FtmsBleClient(
                 return
             }
 
-            // Enable indications locally (doesn't write CCCD yet)
+            // Control Point uses indications for reliable acknowledgements.
             controlPointCharacteristic?.let { cp ->
                 try {
                     gatt.setCharacteristicNotification(cp, true)
@@ -126,10 +133,9 @@ class FtmsBleClient(
                 }
             }
 
-            // Start CCCD writes in a controlled order:
-            // 1) Control Point indications
+            // Start CCCD writes in a controlled order to avoid concurrent GATT ops.
             val cp = controlPointCharacteristic ?: run {
-                // If no CP, we can still at least enable bike data CCCD directly:
+                // If no CP, we can still enable bike data CCCD directly.
                 writeBikeCccd(gatt)
                 return
             }
@@ -146,7 +152,7 @@ class FtmsBleClient(
                 FTMS_CONTROL_POINT_UUID -> {
                     Log.d("FTMS", "Control Point response: ${value.joinToString()}")
 
-                    // Response Code = 0x80, request opcode = value[1], result = value[2]
+                    // FTMS: Response Code (0x80), then request opcode and result code.
                     if (value.size >= 3 && value[0] == 0x80.toByte()) {
                         val requestOpcode = value[1].toInt() and 0xFF
                         val resultCode = value[2].toInt() and 0xFF
@@ -167,6 +173,11 @@ class FtmsBleClient(
 
     }
 
+    /**
+     * Connects to a Fitness Machine peripheral by MAC address.
+     *
+     * Callers should wait for [onReady] before issuing Control Point commands.
+     */
     fun connect(mac: String) {
         if (!hasBluetoothConnectPermission()) {
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot connect")
@@ -183,6 +194,11 @@ class FtmsBleClient(
     }
 
     @Suppress("unused")
+    /**
+     * Releases the GATT connection.
+     *
+     * Safe to call multiple times; exceptions can occur if permissions change.
+     */
     fun close() {
         try {
             gatt?.close()
@@ -231,6 +247,7 @@ class FtmsBleClient(
 
         setupStep = SetupStep.BIKE_CCCD
         try {
+            // TODO: Confirm whether Indoor Bike Data should use notifications (0x0001) vs indications (0x0002).
             val ok = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
             Log.d("FTMS", "Writing BIKE CCCD (notification) -> $ok")
         } catch (e: SecurityException) {
@@ -238,6 +255,12 @@ class FtmsBleClient(
         }
     }
 
+    /**
+     * Writes a raw FTMS Control Point payload.
+     *
+     * FTMS devices are allowed to reject commands until they have granted control
+     * and Control Point indications are enabled.
+     */
     fun writeControlPoint(payload: ByteArray) {
         if (!hasBluetoothConnectPermission()) {
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write Control Point")

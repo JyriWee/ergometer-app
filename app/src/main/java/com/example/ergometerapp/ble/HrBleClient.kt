@@ -12,6 +12,12 @@ import android.content.pm.PackageManager
 import android.util.Log
 import java.util.UUID
 
+/**
+ * BLE client for the standard Heart Rate Service (0x180D).
+ *
+ * The HR Measurement characteristic is notify-only; the client must enable the
+ * CCCD and then parse notifications according to the flag byte.
+ */
 class HrBleClient(
     private val context: Context,
     private val onHeartRate: (Int) -> Unit
@@ -75,6 +81,12 @@ class HrBleClient(
 
     }
 
+    /**
+     * Connects to a Heart Rate peripheral by MAC address.
+     *
+     * This uses the platform GATT stack; callers must ensure Bluetooth is enabled
+     * and the device is bonded if required by the peripheral.
+     */
     fun connect(mac: String) {
         if (!hasBluetoothConnectPermission()) {
             Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot connect")
@@ -93,6 +105,11 @@ class HrBleClient(
         }
     }
     @Suppress("unused")
+    /**
+     * Releases the GATT connection.
+     *
+     * Always safe to call; exceptions can occur if permissions were revoked.
+     */
     fun close() {
         try {
             gatt?.close()
@@ -102,7 +119,14 @@ class HrBleClient(
         gatt = null
     }
 
-    // HR Measurement (0x2A37) – V0: bpm only
+    /**
+     * Parses the HR Measurement payload (0x2A37) into BPM.
+     *
+     * The first flag bit selects 8-bit vs 16-bit HR value. Other optional fields
+     * (energy expended, RR intervals) are currently ignored.
+     *
+     * TODO: Validate payload length before indexing to avoid malformed packets.
+     */
     private fun parseHeartRate(bytes: ByteArray): Int {
         val flags = bytes[0].toInt()
         val hr16bit = flags and 0x01 != 0
