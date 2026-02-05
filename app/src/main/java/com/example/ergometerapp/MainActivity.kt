@@ -21,6 +21,10 @@ import com.example.ergometerapp.ui.MenuScreen
 import com.example.ergometerapp.ui.SessionScreen
 import com.example.ergometerapp.ui.SummaryScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
+import com.example.ergometerapp.workout.Step
+import com.example.ergometerapp.workout.WorkoutFile
+import com.example.ergometerapp.workout.runner.WorkoutRunner
+import com.example.ergometerapp.workout.runner.WorkoutStepper
 
 
 /**
@@ -50,11 +54,16 @@ class MainActivity : ComponentActivity() {
 
     private val lastTargetPowerState = mutableStateOf<Int?>(null)
 
+    private val workoutPausedState = mutableStateOf(false)
+    private val workoutRunningState = mutableStateOf(false)
+
     private lateinit var bleClient: FtmsBleClient
 
     private lateinit var sessionManager: SessionManager
 
     private lateinit var ftmsController: FtmsController
+
+    private var workoutRunner: WorkoutRunner? = null
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -81,12 +90,16 @@ class MainActivity : ComponentActivity() {
                 val ftmsReady = ftmsReadyState.value
                 val ftmsControlGranted = ftmsControlGrantedState.value
                 val lastTargetPower = lastTargetPowerState.value
+                val workoutPaused = workoutPausedState.value
+                val workoutRunning = workoutRunningState.value
 
                 when (screen) {
                     AppScreen.MENU -> MenuScreen(
                         ftmsReady = ftmsReadyState.value,
                         onStartSession = {
                             sessionManager.startSession()
+                            ensureWorkoutRunner().start()
+                            workoutPausedState.value = false
                             keepScreenOn()
                             screenState.value = AppScreen.SESSION
                         }
@@ -99,7 +112,17 @@ class MainActivity : ComponentActivity() {
                         durationSeconds = session?.durationSeconds,
                         ftmsReady = ftmsReady,
                         ftmsControlGranted = ftmsControlGranted,
+                        workoutPaused = workoutPaused,
+                        workoutRunning = workoutRunning,
                         lastTargetPower = lastTargetPower,
+                        onPauseWorkout = {
+                            workoutRunner?.pause()
+                            workoutPausedState.value = true
+                        },
+                        onResumeWorkout = {
+                            workoutRunner?.resume()
+                            workoutPausedState.value = false
+                        },
                         onTakeControl = {
                             ftmsController.requestControl()
                         },
@@ -214,6 +237,9 @@ class MainActivity : ComponentActivity() {
      * Finalizes the session and moves to the summary screen.
      */
     private fun stopSessionAndGoToSummary() {
+        workoutRunner?.stop()
+        workoutRunner = null
+        workoutPausedState.value = false
         sessionManager.stopSession()
         releaseControl()
 
@@ -242,6 +268,47 @@ class MainActivity : ComponentActivity() {
         ) {
             requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
         }
+    }
+
+    /**
+     * Provides a replaceable workout source for early runner integration.
+     */
+    private fun ensureWorkoutRunner(): WorkoutRunner {
+        val existing = workoutRunner
+        if (existing != null) return existing
+        val runner = WorkoutRunner(
+            stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),
+            applyTarget = { targetWatts ->
+                if (ftmsReadyState.value && ftmsControlGrantedState.value && targetWatts != null) {
+                    ftmsController.setTargetPower(targetWatts)
+                    lastTargetPowerState.value = targetWatts
+                } else {
+                    lastTargetPowerState.value = null
+                }
+            },
+            onRunningChanged = { running ->
+                workoutRunningState.value = running
+            }
+        )
+        workoutRunner = runner
+        return runner
+    }
+
+    /**
+     * Minimal workout used for verifying runner integration.
+     */
+    private fun createTestWorkout(): WorkoutFile {
+        return WorkoutFile(
+            name = "Test Workout",
+            description = "Minimal hardcoded workout for runner testing.",
+            author = "ErgometerApp",
+            tags = emptyList(),
+            steps = listOf(
+                Step.Warmup(durationSec = 120, powerLow = 0.5, powerHigh = 0.7, cadence = 90),
+                Step.SteadyState(durationSec = 180, power = 0.75, cadence = 90),
+                Step.Cooldown(durationSec = 120, powerLow = 0.6, powerHigh = 0.4, cadence = 85)
+            )
+        )
     }
 
     override fun onDestroy() {

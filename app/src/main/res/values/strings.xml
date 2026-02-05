@@ -24,9 +24,12 @@
     <string name="session_ftms_control">CONTROL</string>
 
     <string name="session_target">Target: %1$s W</string>
+    <string name="session_workout_running_pause_manual">Workout running: pause to set manual watts.</string>
     <string name="power_button">%1$d W</string>
 
     <string name="btn_take_control">TAKE CONTROL</string>
+    <string name="btn_pause_workout">PAUSE WORKOUT</string>
+    <string name="btn_resume_workout">RESUME WORKOUT</string>
     <string name="btn_release">RELEASE</string>
     <string name="btn_stop_session">STOP SESSION</string>
 
