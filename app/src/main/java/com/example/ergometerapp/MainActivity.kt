@@ -55,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private val lastTargetPowerState = mutableStateOf<Int?>(null)
 
     private val workoutPausedState = mutableStateOf(false)
+    private val workoutRunningState = mutableStateOf(false)
 
     private lateinit var bleClient: FtmsBleClient
 
@@ -89,6 +90,8 @@ class MainActivity : ComponentActivity() {
                 val ftmsReady = ftmsReadyState.value
                 val ftmsControlGranted = ftmsControlGrantedState.value
                 val lastTargetPower = lastTargetPowerState.value
+                val workoutPaused = workoutPausedState.value
+                val workoutRunning = workoutRunningState.value
 
                 when (screen) {
                     AppScreen.MENU -> MenuScreen(
@@ -109,7 +112,17 @@ class MainActivity : ComponentActivity() {
                         durationSeconds = session?.durationSeconds,
                         ftmsReady = ftmsReady,
                         ftmsControlGranted = ftmsControlGranted,
+                        workoutPaused = workoutPaused,
+                        workoutRunning = workoutRunning,
                         lastTargetPower = lastTargetPower,
+                        onPauseWorkout = {
+                            workoutRunner?.pause()
+                            workoutPausedState.value = true
+                        },
+                        onResumeWorkout = {
+                            workoutRunner?.resume()
+                            workoutPausedState.value = false
+                        },
                         onTakeControl = {
                             ftmsController.requestControl()
                         },
@@ -272,6 +285,9 @@ class MainActivity : ComponentActivity() {
                 } else {
                     lastTargetPowerState.value = null
                 }
+            },
+            onRunningChanged = { running ->
+                workoutRunningState.value = running
             }
         )
         workoutRunner = runner

@@ -15,6 +15,7 @@ import android.os.SystemClock
 class WorkoutRunner(
     private val stepper: WorkoutStepper,
     private val applyTarget: (Int?) -> Unit,
+    private val onRunningChanged: (Boolean) -> Unit = {},
     private val tickIntervalMs: Long = 250L,
     private val nowUptimeMs: () -> Long = { SystemClock.uptimeMillis() },
     private val handler: Handler = Handler(Looper.getMainLooper()),
@@ -40,6 +41,7 @@ class WorkoutRunner(
         stepper.start()
         running = true
         paused = false
+        onRunningChanged(true)
         handler.post(tickRunnable)
     }
 
@@ -53,6 +55,7 @@ class WorkoutRunner(
     fun resume() {
         if (!running) {
             running = true
+            onRunningChanged(true)
         }
         if (!paused) return
         stepper.resume()
@@ -68,6 +71,7 @@ class WorkoutRunner(
         stepper.restore(state)
         running = false
         paused = state.paused
+        onRunningChanged(false)
         handler.removeCallbacks(tickRunnable)
     }
 
@@ -77,6 +81,7 @@ class WorkoutRunner(
         handler.removeCallbacks(tickRunnable)
         running = false
         paused = true
+        onRunningChanged(false)
         if (stopStepper) {
             stepper.stop()
         }

@@ -70,13 +70,18 @@ internal fun SessionScreen(
     durationSeconds: Int?,
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
+    workoutPaused: Boolean,
+    workoutRunning: Boolean,
     lastTargetPower: Int?,
+    onPauseWorkout: () -> Unit,
+    onResumeWorkout: () -> Unit,
     onTakeControl: () -> Unit,
     onSetTargetPower: (Int) -> Unit,
     onRelease: () -> Unit,
     onStopSession: () -> Unit
 ) {
     val canSendPower = ftmsReady && ftmsControlGranted
+    val canSendManualPower = canSendPower && workoutPaused
     // External HR is preferred by the session layer; fall back to bike HR for display.
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
     val dur = durationSeconds ?: 0
@@ -152,7 +157,7 @@ internal fun SessionScreen(
         Row {
             Button(
                 onClick = { onSetTargetPower(120) },
-                enabled = canSendPower,
+                enabled = canSendManualPower,
                 colors = disabledVisibleButtonColors()
             ) { Text(stringResource(R.string.power_button, 120)) }
 
@@ -160,7 +165,7 @@ internal fun SessionScreen(
 
             Button(
                 onClick = { onSetTargetPower(160) },
-                enabled = canSendPower,
+                enabled = canSendManualPower,
                 colors = disabledVisibleButtonColors()
             ) { Text(stringResource(R.string.power_button, 160)) }
 
@@ -168,9 +173,32 @@ internal fun SessionScreen(
 
             Button(
                 onClick = { onSetTargetPower(200) },
-                enabled = canSendPower,
+                enabled = canSendManualPower,
                 colors = disabledVisibleButtonColors()
             ) { Text(stringResource(R.string.power_button, 200)) }
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        if (!workoutPaused) {
+            Text(
+                text = stringResource(R.string.session_workout_running_pause_manual),
+                fontSize = 14.sp
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Button(
+            onClick = if (workoutPaused) onResumeWorkout else onPauseWorkout,
+            enabled = workoutRunning,
+            colors = disabledVisibleButtonColors()
+        ) {
+            Text(
+                text = stringResource(
+                    if (workoutPaused) R.string.btn_resume_workout else R.string.btn_pause_workout
+                )
+            )
         }
 
         Spacer(Modifier.height(8.dp))
