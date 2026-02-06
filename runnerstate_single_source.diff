@@ -1,0 +1,288 @@
+diff --git a/app/src/main/java/com/example/ergometerapp/MainActivity.kt b/app/src/main/java/com/example/ergometerapp/MainActivity.kt
+index 3116ce2..12dde03 100644
+--- a/app/src/main/java/com/example/ergometerapp/MainActivity.kt
++++ b/app/src/main/java/com/example/ergometerapp/MainActivity.kt
+@@ -23,6 +23,7 @@ import com.example.ergometerapp.ui.SummaryScreen
+ import com.example.ergometerapp.ui.theme.ErgometerAppTheme
+ import com.example.ergometerapp.workout.Step
+ import com.example.ergometerapp.workout.WorkoutFile
++import com.example.ergometerapp.workout.runner.RunnerState
+ import com.example.ergometerapp.workout.runner.WorkoutRunner
+ import com.example.ergometerapp.workout.runner.WorkoutStepper
+ 
+@@ -54,8 +55,7 @@ class MainActivity : ComponentActivity() {
+ 
+     private val lastTargetPowerState = mutableStateOf<Int?>(null)
+ 
+-    private val workoutPausedState = mutableStateOf(false)
+-    private val workoutRunningState = mutableStateOf(false)
++    private val runnerState = mutableStateOf(RunnerState.stopped())
+ 
+     private lateinit var bleClient: FtmsBleClient
+ 
+@@ -90,8 +90,7 @@ class MainActivity : ComponentActivity() {
+                 val ftmsReady = ftmsReadyState.value
+                 val ftmsControlGranted = ftmsControlGrantedState.value
+                 val lastTargetPower = lastTargetPowerState.value
+-                val workoutPaused = workoutPausedState.value
+-                val workoutRunning = workoutRunningState.value
++                val currentRunnerState = runnerState.value
+ 
+                 when (screen) {
+                     AppScreen.MENU -> MenuScreen(
+@@ -99,7 +98,6 @@ class MainActivity : ComponentActivity() {
+                         onStartSession = {
+                             sessionManager.startSession()
+                             ensureWorkoutRunner().start()
+-                            workoutPausedState.value = false
+                             keepScreenOn()
+                             screenState.value = AppScreen.SESSION
+                         }
+@@ -112,16 +110,13 @@ class MainActivity : ComponentActivity() {
+                         durationSeconds = session?.durationSeconds,
+                         ftmsReady = ftmsReady,
+                         ftmsControlGranted = ftmsControlGranted,
+-                        workoutPaused = workoutPaused,
+-                        workoutRunning = workoutRunning,
++                        runnerState = currentRunnerState,
+                         lastTargetPower = lastTargetPower,
+                         onPauseWorkout = {
+                             workoutRunner?.pause()
+-                            workoutPausedState.value = true
+                         },
+                         onResumeWorkout = {
+                             workoutRunner?.resume()
+-                            workoutPausedState.value = false
+                         },
+                         onTakeControl = {
+                             ftmsController.requestControl()
+@@ -245,8 +240,6 @@ class MainActivity : ComponentActivity() {
+     private fun stopWorkout() {
+         workoutRunner?.stop()
+         lastTargetPowerState.value = null
+-        // "Paused" is the existing UI gate for manual target power actions.
+-        workoutPausedState.value = true
+     }
+ 
+     /**
+@@ -255,7 +248,6 @@ class MainActivity : ComponentActivity() {
+     private fun endSessionAndGoToSummary() {
+         stopWorkout()
+         workoutRunner = null
+-        workoutPausedState.value = false
+         sessionManager.stopSession()
+         releaseControl()
+ 
+@@ -302,12 +294,8 @@ class MainActivity : ComponentActivity() {
+                     lastTargetPowerState.value = null
+                 }
+             },
+-            onRunningChanged = { running ->
+-                workoutRunningState.value = running
+-                if (!running) {
+-                    // Keep stopped workouts compatible with manual-power UI rules.
+-                    workoutPausedState.value = true
+-                }
++            onStateChanged = { state ->
++                runnerState.value = state
+             }
+         )
+         workoutRunner = runner
+diff --git a/app/src/main/java/com/example/ergometerapp/ui/Screens.kt b/app/src/main/java/com/example/ergometerapp/ui/Screens.kt
+index 4f10a06..9919386 100644
+--- a/app/src/main/java/com/example/ergometerapp/ui/Screens.kt
++++ b/app/src/main/java/com/example/ergometerapp/ui/Screens.kt
+@@ -18,6 +18,7 @@ import com.example.ergometerapp.ftms.IndoorBikeData
+ import com.example.ergometerapp.session.SessionPhase
+ import com.example.ergometerapp.session.SessionSummary
+ import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
++import com.example.ergometerapp.workout.runner.RunnerState
+ 
+ 
+ /**
+@@ -70,8 +71,7 @@ internal fun SessionScreen(
+     durationSeconds: Int?,
+     ftmsReady: Boolean,
+     ftmsControlGranted: Boolean,
+-    workoutPaused: Boolean,
+-    workoutRunning: Boolean,
++    runnerState: RunnerState,
+     lastTargetPower: Int?,
+     onPauseWorkout: () -> Unit,
+     onResumeWorkout: () -> Unit,
+@@ -81,6 +81,8 @@ internal fun SessionScreen(
+     onStopWorkout: () -> Unit,
+     onEndSession: () -> Unit
+ ) {
++    val workoutPaused = runnerState.paused
++    val workoutRunning = runnerState.running
+     val canSendPower = ftmsReady && ftmsControlGranted
+     val canSendManualPower = canSendPower && workoutPaused
+     // External HR is preferred by the session layer; fall back to bike HR for display.
+diff --git a/app/src/main/java/com/example/ergometerapp/workout/runner/RunnerState.kt b/app/src/main/java/com/example/ergometerapp/workout/runner/RunnerState.kt
+new file mode 100644
+index 0000000..3690bab
+--- /dev/null
++++ b/app/src/main/java/com/example/ergometerapp/workout/runner/RunnerState.kt
+@@ -0,0 +1,29 @@
++package com.example.ergometerapp.workout.runner
++
++/**
++ * UI-facing snapshot of workout runner state.
++ *
++ * Invariants:
++ * - `running=true` means the workout has started and not reached a terminal state.
++ * - `paused=true` while `running=true` indicates the workout is paused in place.
++ * - `done=true` is terminal and must pair with `running=false`, `paused=true`, and cleared targets.
++ */
++data class RunnerState(
++    val running: Boolean,
++    val paused: Boolean,
++    val done: Boolean,
++    val label: String?,
++    val targetPowerWatts: Int?,
++    val targetCadence: Int?,
++) {
++    companion object {
++        fun stopped(): RunnerState = RunnerState(
++            running = false,
++            paused = true,
++            done = true,
++            label = "Done",
++            targetPowerWatts = null,
++            targetCadence = null,
++        )
++    }
++}
+diff --git a/app/src/main/java/com/example/ergometerapp/workout/runner/WorkoutRunner.kt b/app/src/main/java/com/example/ergometerapp/workout/runner/WorkoutRunner.kt
+index bf4a338..b7efa5e 100644
+--- a/app/src/main/java/com/example/ergometerapp/workout/runner/WorkoutRunner.kt
++++ b/app/src/main/java/com/example/ergometerapp/workout/runner/WorkoutRunner.kt
+@@ -15,51 +15,54 @@ import android.os.SystemClock
+ class WorkoutRunner(
+     private val stepper: WorkoutStepper,
+     private val applyTarget: (Int?) -> Unit,
+-    private val onRunningChanged: (Boolean) -> Unit = {},
++    private val onStateChanged: (RunnerState) -> Unit = {},
+     private val tickIntervalMs: Long = 250L,
+     private val nowUptimeMs: () -> Long = { SystemClock.uptimeMillis() },
+     private val handler: Handler = Handler(Looper.getMainLooper()),
+ ) {
+-    private var running = false
+-    private var paused = true
++    private var state = RunnerState.stopped()
+ 
+     private val tickRunnable = object : Runnable {
+         override fun run() {
+-            if (!running) return
++            if (!state.running || state.paused || state.done) return
+             val output = stepper.tick(nowUptimeMs())
+             output.targetPowerWatts?.let { applyTarget(it) }
+             if (output.done) {
+                 stopInternal(clearTarget = true, stopStepper = false)
+                 return
+             }
++            updateStateFromTick(output)
+             handler.postDelayed(this, tickIntervalMs)
+         }
+     }
+ 
+     fun start() {
+-        stopInternal(clearTarget = false, stopStepper = false)
++        handler.removeCallbacks(tickRunnable)
+         stepper.start()
+-        running = true
+-        paused = false
+-        onRunningChanged(true)
++        emitState(
++            RunnerState(
++                running = true,
++                paused = false,
++                done = false,
++                label = null,
++                targetPowerWatts = null,
++                targetCadence = null,
++            )
++        )
+         handler.post(tickRunnable)
+     }
+ 
+     fun pause() {
+-        if (!running || paused) return
++        if (!state.running || state.paused || state.done) return
+         stepper.pause()
+-        paused = true
+         handler.removeCallbacks(tickRunnable)
++        emitState(state.copy(paused = true))
+     }
+ 
+     fun resume() {
+-        if (!running) {
+-            running = true
+-            onRunningChanged(true)
+-        }
+-        if (!paused) return
++        if (!state.running || !state.paused || state.done) return
+         stepper.resume()
+-        paused = false
++        emitState(state.copy(paused = false))
+         handler.post(tickRunnable)
+     }
+ 
+@@ -69,24 +72,50 @@ class WorkoutRunner(
+ 
+     fun restore(state: StepperState) {
+         stepper.restore(state)
+-        running = false
+-        paused = state.paused
+-        onRunningChanged(false)
+         handler.removeCallbacks(tickRunnable)
++        emitState(
++            this.state.copy(
++                running = false,
++                paused = state.paused,
++                done = false,
++            )
++        )
+     }
+ 
+     fun getState(): StepperState = stepper.getState()
+ 
+     private fun stopInternal(clearTarget: Boolean, stopStepper: Boolean) {
+         handler.removeCallbacks(tickRunnable)
+-        running = false
+-        paused = true
+-        onRunningChanged(false)
+         if (stopStepper) {
+             stepper.stop()
+         }
+         if (clearTarget) {
+             applyTarget(null)
+         }
++        emitState(RunnerState.stopped())
++    }
++
++    private fun updateStateFromTick(output: StepperOutput) {
++        val nextState = state.copy(
++            running = true,
++            paused = false,
++            done = false,
++            label = output.label,
++            targetPowerWatts = output.targetPowerWatts,
++            targetCadence = output.targetCadence,
++        )
++        val labelOrTargetChanged =
++            nextState.label != state.label ||
++                nextState.targetPowerWatts != state.targetPowerWatts ||
++                nextState.targetCadence != state.targetCadence
++        state = nextState
++        if (labelOrTargetChanged) {
++            onStateChanged(nextState)
++        }
++    }
++
++    private fun emitState(nextState: RunnerState) {
++        state = nextState
++        onStateChanged(nextState)
+     }
+ }
