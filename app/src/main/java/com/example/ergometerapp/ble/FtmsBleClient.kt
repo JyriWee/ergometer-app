@@ -75,6 +75,12 @@ class FtmsBleClient(
             status: Int
         ) {
             Log.d("FTMS", "onDescriptorWrite step=$setupStep status=$status")
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.w("FTMS", "Descriptor write failed at step=$setupStep status=$status")
+                setupStep = SetupStep.NONE
+                onDisconnected()
+                return
+            }
 
             when (setupStep) {
                 SetupStep.CP_CCCD -> {
@@ -250,8 +256,7 @@ class FtmsBleClient(
 
         setupStep = SetupStep.BIKE_CCCD
         try {
-            // TODO: Confirm whether Indoor Bike Data should use notifications (0x0001) vs indications (0x0002).
-            val ok = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
+            val ok = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
             Log.d("FTMS", "Writing BIKE CCCD (notification) -> $ok")
         } catch (e: SecurityException) {
             Log.w("FTMS", "writeDescriptor failed: ${e.message}")

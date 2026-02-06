@@ -31,7 +31,8 @@
     <string name="btn_pause_workout">PAUSE WORKOUT</string>
     <string name="btn_resume_workout">RESUME WORKOUT</string>
     <string name="btn_release">RELEASE</string>
-    <string name="btn_stop_session">STOP SESSION</string>
+    <string name="btn_stop_workout">STOP WORKOUT</string>
+    <string name="btn_end_session">END SESSION</string>
 
     <!-- Summary -->
     <string name="no_summary">SUMMARY</string>

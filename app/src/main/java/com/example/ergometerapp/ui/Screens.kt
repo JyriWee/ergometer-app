@@ -78,7 +78,8 @@ internal fun SessionScreen(
     onTakeControl: () -> Unit,
     onSetTargetPower: (Int) -> Unit,
     onRelease: () -> Unit,
-    onStopSession: () -> Unit
+    onStopWorkout: () -> Unit,
+    onEndSession: () -> Unit
 ) {
     val canSendPower = ftmsReady && ftmsControlGranted
     val canSendManualPower = canSendPower && workoutPaused
@@ -215,11 +216,21 @@ internal fun SessionScreen(
 
         // Session control
         Button(
-            onClick = onStopSession,
+            onClick = onStopWorkout,
+            enabled = workoutRunning,
+            colors = disabledVisibleButtonColors()
+        ) {
+            Text(stringResource(R.string.btn_stop_workout))
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        Button(
+            onClick = onEndSession,
             enabled = phase == SessionPhase.RUNNING,
             colors = disabledVisibleButtonColors()
         ) {
-            Text(stringResource(R.string.btn_stop_session))
+            Text(stringResource(R.string.btn_end_session))
         }
     }
 }
