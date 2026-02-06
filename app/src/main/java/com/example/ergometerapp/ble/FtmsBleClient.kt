@@ -18,6 +18,9 @@ import java.util.UUID
  * GATT's single-operation-at-a-time constraint and FTMS expectations for
  * Control Point acknowledgements.
  */
+
+// TODO(bt-reliability): Centralize reconnect and FTMS control ownership handling.
+
 class FtmsBleClient(
     private val context: Context,
     private val onIndoorBikeData: (ByteArray) -> Unit,
