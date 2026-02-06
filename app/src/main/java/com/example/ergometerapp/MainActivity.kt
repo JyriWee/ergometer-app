@@ -133,8 +133,11 @@ class MainActivity : ComponentActivity() {
                         onRelease = {
                             releaseControl()
                         },
-                        onStopSession = {
-                            stopSessionAndGoToSummary()
+                        onStopWorkout = {
+                            stopWorkout()
+                        },
+                        onEndSession = {
+                            endSessionAndGoToSummary()
                         }
                     )
 
@@ -234,10 +237,23 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
+     * Ends only the structured workout.
+     *
+     * This intentionally keeps the BLE session alive so Indoor Bike Data and HR
+     * telemetry can continue while the user free-rides.
+     */
+    private fun stopWorkout() {
+        workoutRunner?.stop()
+        lastTargetPowerState.value = null
+        // "Paused" is the existing UI gate for manual target power actions.
+        workoutPausedState.value = true
+    }
+
+    /**
      * Finalizes the session and moves to the summary screen.
      */
-    private fun stopSessionAndGoToSummary() {
-        workoutRunner?.stop()
+    private fun endSessionAndGoToSummary() {
+        stopWorkout()
         workoutRunner = null
         workoutPausedState.value = false
         sessionManager.stopSession()
@@ -288,6 +304,10 @@ class MainActivity : ComponentActivity() {
             },
             onRunningChanged = { running ->
                 workoutRunningState.value = running
+                if (!running) {
+                    // Keep stopped workouts compatible with manual-power UI rules.
+                    workoutPausedState.value = true
+                }
             }
         )
         workoutRunner = runner
