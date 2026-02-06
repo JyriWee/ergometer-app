@@ -244,6 +244,7 @@ class MainActivity : ComponentActivity() {
      */
     private fun stopWorkout() {
         workoutRunner?.stop()
+        lastTargetPowerState.value = null
         // "Paused" is the existing UI gate for manual target power actions.
         workoutPausedState.value = true
     }
