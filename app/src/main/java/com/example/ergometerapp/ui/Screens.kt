@@ -18,6 +18,7 @@ import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
 import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
+import com.example.ergometerapp.workout.runner.RunnerState
 
 
 /**
@@ -70,8 +71,7 @@ internal fun SessionScreen(
     durationSeconds: Int?,
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
-    workoutPaused: Boolean,
-    workoutRunning: Boolean,
+    runnerState: RunnerState,
     lastTargetPower: Int?,
     onPauseWorkout: () -> Unit,
     onResumeWorkout: () -> Unit,
@@ -81,6 +81,8 @@ internal fun SessionScreen(
     onStopWorkout: () -> Unit,
     onEndSession: () -> Unit
 ) {
+    val workoutPaused = runnerState.paused
+    val workoutRunning = runnerState.running
     val canSendPower = ftmsReady && ftmsControlGranted
     val canSendManualPower = canSendPower && workoutPaused
     // External HR is preferred by the session layer; fall back to bike HR for display.

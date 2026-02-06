@@ -23,6 +23,7 @@ import com.example.ergometerapp.ui.SummaryScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
+import com.example.ergometerapp.workout.runner.RunnerState
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
 
@@ -54,8 +55,7 @@ class MainActivity : ComponentActivity() {
 
     private val lastTargetPowerState = mutableStateOf<Int?>(null)
 
-    private val workoutPausedState = mutableStateOf(false)
-    private val workoutRunningState = mutableStateOf(false)
+    private val runnerState = mutableStateOf(RunnerState.stopped())
 
     private lateinit var bleClient: FtmsBleClient
 
@@ -90,8 +90,7 @@ class MainActivity : ComponentActivity() {
                 val ftmsReady = ftmsReadyState.value
                 val ftmsControlGranted = ftmsControlGrantedState.value
                 val lastTargetPower = lastTargetPowerState.value
-                val workoutPaused = workoutPausedState.value
-                val workoutRunning = workoutRunningState.value
+                val currentRunnerState = runnerState.value
 
                 when (screen) {
                     AppScreen.MENU -> MenuScreen(
@@ -99,7 +98,6 @@ class MainActivity : ComponentActivity() {
                         onStartSession = {
                             sessionManager.startSession()
                             ensureWorkoutRunner().start()
-                            workoutPausedState.value = false
                             keepScreenOn()
                             screenState.value = AppScreen.SESSION
                         }
@@ -112,16 +110,13 @@ class MainActivity : ComponentActivity() {
                         durationSeconds = session?.durationSeconds,
                         ftmsReady = ftmsReady,
                         ftmsControlGranted = ftmsControlGranted,
-                        workoutPaused = workoutPaused,
-                        workoutRunning = workoutRunning,
+                        runnerState = currentRunnerState,
                         lastTargetPower = lastTargetPower,
                         onPauseWorkout = {
                             workoutRunner?.pause()
-                            workoutPausedState.value = true
                         },
                         onResumeWorkout = {
                             workoutRunner?.resume()
-                            workoutPausedState.value = false
                         },
                         onTakeControl = {
                             ftmsController.requestControl()
@@ -245,8 +240,6 @@ class MainActivity : ComponentActivity() {
     private fun stopWorkout() {
         workoutRunner?.stop()
         lastTargetPowerState.value = null
-        // "Paused" is the existing UI gate for manual target power actions.
-        workoutPausedState.value = true
     }
 
     /**
@@ -255,7 +248,6 @@ class MainActivity : ComponentActivity() {
     private fun endSessionAndGoToSummary() {
         stopWorkout()
         workoutRunner = null
-        workoutPausedState.value = false
         sessionManager.stopSession()
         releaseControl()
 
@@ -302,12 +294,8 @@ class MainActivity : ComponentActivity() {
                     lastTargetPowerState.value = null
                 }
             },
-            onRunningChanged = { running ->
-                workoutRunningState.value = running
-                if (!running) {
-                    // Keep stopped workouts compatible with manual-power UI rules.
-                    workoutPausedState.value = true
-                }
+            onStateChanged = { state ->
+                runnerState.value = state
             }
         )
         workoutRunner = runner
