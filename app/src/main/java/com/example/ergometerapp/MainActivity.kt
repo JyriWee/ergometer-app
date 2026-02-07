@@ -9,7 +9,13 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
+import com.example.ergometerapp.BuildConfig
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
 import com.example.ergometerapp.ble.HrBleClient
@@ -20,6 +26,7 @@ import com.example.ergometerapp.session.SessionSummary
 import com.example.ergometerapp.ui.MenuScreen
 import com.example.ergometerapp.ui.SessionScreen
 import com.example.ergometerapp.ui.SummaryScreen
+import com.example.ergometerapp.ui.debug.FtmsDebugTimelineScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
@@ -57,6 +64,8 @@ class MainActivity : ComponentActivity() {
 
     private val runnerState = mutableStateOf(RunnerState.stopped())
 
+    private val showDebugTimelineState = mutableStateOf(false)
+
     private lateinit var bleClient: FtmsBleClient
 
     private lateinit var sessionManager: SessionManager
@@ -91,59 +100,102 @@ class MainActivity : ComponentActivity() {
                 val ftmsControlGranted = ftmsControlGrantedState.value
                 val lastTargetPower = lastTargetPowerState.value
                 val currentRunnerState = runnerState.value
+                val showDebugTimeline = showDebugTimelineState.value
 
-                when (screen) {
-                    AppScreen.MENU -> MenuScreen(
-                        ftmsReady = ftmsReadyState.value,
-                        onStartSession = {
-                            sessionManager.startSession()
-                            ensureWorkoutRunner().start()
-                            keepScreenOn()
-                            screenState.value = AppScreen.SESSION
+                if (BuildConfig.DEBUG) {
+                    Box {
+                        when (screen) {
+                            AppScreen.MENU -> MenuScreen(
+                                ftmsReady = ftmsReady,
+                                onStartSession = {
+                                    sessionManager.startSession()
+                                    ensureWorkoutRunner().start()
+                                    keepScreenOn()
+                                    screenState.value = AppScreen.SESSION
+                                }
+                            )
+
+                            AppScreen.SESSION -> SessionScreen(
+                                phase = phase,
+                                bikeData = bikeData,
+                                heartRate = heartRate,
+                                durationSeconds = session?.durationSeconds,
+                                ftmsReady = ftmsReady,
+                                ftmsControlGranted = ftmsControlGranted,
+                                runnerState = currentRunnerState,
+                                lastTargetPower = lastTargetPower,
+                                onPauseWorkout = { workoutRunner?.pause() },
+                                onResumeWorkout = { workoutRunner?.resume() },
+                                onTakeControl = { ftmsController.requestControl() },
+                                onSetTargetPower = { watts ->
+                                    ftmsController.setTargetPower(watts)
+                                    lastTargetPowerState.value = watts
+                                },
+                                onRelease = { releaseControl() },
+                                onStopWorkout = { stopWorkout() },
+                                onEndSession = { endSessionAndGoToSummary() }
+                            )
+
+                            AppScreen.SUMMARY -> SummaryScreen(
+                                summary = summaryState.value,
+                                onBackToMenu = {
+                                    summaryState.value = null
+                                    screenState.value = AppScreen.MENU
+                                }
+                            )
                         }
-                    )
 
-                    AppScreen.SESSION -> SessionScreen(
-                        phase = phase,
-                        bikeData = bikeData,
-                        heartRate = heartRate,
-                        durationSeconds = session?.durationSeconds,
-                        ftmsReady = ftmsReady,
-                        ftmsControlGranted = ftmsControlGranted,
-                        runnerState = currentRunnerState,
-                        lastTargetPower = lastTargetPower,
-                        onPauseWorkout = {
-                            workoutRunner?.pause()
-                        },
-                        onResumeWorkout = {
-                            workoutRunner?.resume()
-                        },
-                        onTakeControl = {
-                            ftmsController.requestControl()
-                        },
-                        onSetTargetPower = { watts ->
-                            ftmsController.setTargetPower(watts)
-                            lastTargetPowerState.value = watts
-                        },
-                        onRelease = {
-                            releaseControl()
-                        },
-                        onStopWorkout = {
-                            stopWorkout()
-                        },
-                        onEndSession = {
-                            endSessionAndGoToSummary()
+                        Button(onClick = {
+                            showDebugTimelineState.value = !showDebugTimelineState.value
+                        }) {
+                            Text("Debug")
                         }
-                    )
 
-
-                    AppScreen.SUMMARY -> SummaryScreen(
-                        summary = summaryState.value,
-                        onBackToMenu = {
-                            summaryState.value = null
-                            screenState.value = AppScreen.MENU
+                        if (showDebugTimeline) {
+                            FtmsDebugTimelineScreen()
                         }
-                    )
+                    }
+                } else {
+                    when (screen) {
+                        AppScreen.MENU -> MenuScreen(
+                            ftmsReady = ftmsReady,
+                            onStartSession = {
+                                sessionManager.startSession()
+                                ensureWorkoutRunner().start()
+                                keepScreenOn()
+                                screenState.value = AppScreen.SESSION
+                            }
+                        )
+
+                        AppScreen.SESSION -> SessionScreen(
+                            phase = phase,
+                            bikeData = bikeData,
+                            heartRate = heartRate,
+                            durationSeconds = session?.durationSeconds,
+                            ftmsReady = ftmsReady,
+                            ftmsControlGranted = ftmsControlGranted,
+                            runnerState = currentRunnerState,
+                            lastTargetPower = lastTargetPower,
+                            onPauseWorkout = { workoutRunner?.pause() },
+                            onResumeWorkout = { workoutRunner?.resume() },
+                            onTakeControl = { ftmsController.requestControl() },
+                            onSetTargetPower = { watts ->
+                                ftmsController.setTargetPower(watts)
+                                lastTargetPowerState.value = watts
+                            },
+                            onRelease = { releaseControl() },
+                            onStopWorkout = { stopWorkout() },
+                            onEndSession = { endSessionAndGoToSummary() }
+                        )
+
+                        AppScreen.SUMMARY -> SummaryScreen(
+                            summary = summaryState.value,
+                            onBackToMenu = {
+                                summaryState.value = null
+                                screenState.value = AppScreen.MENU
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -197,10 +249,8 @@ class MainActivity : ComponentActivity() {
         }
 
         hrClient.connect("24:AC:AC:04:12:79")
-
     }
-
-    /**
+        /**
      * Keeps the screen awake during an active session to avoid lost telemetry
      * visibility when the user is mid-workout.
      */
