@@ -1,5 +1,8 @@
 package com.example.ergometerapp.ftms
 
+import com.example.ergometerapp.ble.debug.FtmsDebugBuffer
+import com.example.ergometerapp.ble.debug.FtmsDebugEvent
+
 /**
  * Parser for FTMS Indoor Bike Data (UUID 0x2AD2).
  *
@@ -62,6 +65,7 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
 
         val instantPower =
             if (flag(5)) u16() else null
+        instantPower?.let { FtmsDebugBuffer.record(FtmsDebugEvent.PowerSample(System.currentTimeMillis(), it)) }
 
         val avgPower =
             if (flag(6)) u16() else null

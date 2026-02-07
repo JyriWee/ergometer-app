@@ -3,6 +3,8 @@ package com.example.ergometerapp.ble
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
+import com.example.ergometerapp.ble.debug.FtmsDebugBuffer
+import com.example.ergometerapp.ble.debug.FtmsDebugEvent
 
 /**
  * Serializes FTMS Control Point commands and matches them to response opcodes.
@@ -78,6 +80,18 @@ class FtmsController(
      */
     fun setTargetPower(watts: Int) {
         val w = watts.coerceIn(0, 2000)
+
+        FtmsDebugBuffer.record(
+            FtmsDebugEvent.TargetPowerIssued(System.currentTimeMillis(), w)
+        )
+        handler.postDelayed(
+            {
+                FtmsDebugBuffer.record(
+                    FtmsDebugEvent.ObservationEnded(System.currentTimeMillis())
+                )
+            },
+            1000L
+        )
 
         // "Last wins" avoids a backlog that FTMS devices are unlikely to process.
         if (commandState == FtmsCommandState.BUSY) {
