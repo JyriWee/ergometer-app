@@ -81,13 +81,39 @@ internal fun SessionScreen(
     onStopWorkout: () -> Unit,
     onEndSession: () -> Unit
 ) {
+    val sessionActive = runnerState.running
     val workoutPaused = runnerState.paused
     val workoutRunning = runnerState.running
+    val workoutDone = runnerState.done
     val canSendPower = ftmsReady && ftmsControlGranted
-    val canSendManualPower = canSendPower && workoutPaused
+    val canSendManualPower = sessionActive && canSendPower && workoutPaused
     // External HR is preferred by the session layer; fall back to bike HR for display.
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
     val dur = durationSeconds ?: 0
+
+    val canTakeControl =
+        phase == SessionPhase.RUNNING &&
+                runnerState.running &&
+                ftmsReady &&
+                !ftmsControlGranted
+
+    val canManualPower =
+        ftmsControlGranted &&
+                runnerState.paused &&
+                !runnerState.done
+
+
+    val canPause = runnerState.running
+    val canResume = runnerState.paused
+
+    val canRelease =
+        ftmsControlGranted &&
+                runnerState.running
+
+
+    val canStopWorkout =
+        runnerState.running || runnerState.paused
+
     Column(Modifier.padding(24.dp)) {
         Text(stringResource(R.string.session_title), fontSize = 20.sp)
         Spacer(Modifier.height(12.dp))
@@ -143,13 +169,11 @@ internal fun SessionScreen(
 
         // Control buttons
         Button(
-            onClick = {
-                onTakeControl()
-                // Log.d("FTMS", "UI: requestControl()")
-            },
-            enabled = ftmsReady && !ftmsControlGranted,
+            onClick = onTakeControl,
+            enabled = canTakeControl,
             colors = disabledVisibleButtonColors()
-        ) {
+        )
+        {
             Text(stringResource(R.string.btn_take_control))
         }
 
@@ -160,25 +184,28 @@ internal fun SessionScreen(
         Row {
             Button(
                 onClick = { onSetTargetPower(120) },
-                enabled = canSendManualPower,
+                enabled = canManualPower,
                 colors = disabledVisibleButtonColors()
-            ) { Text(stringResource(R.string.power_button, 120)) }
+            )
+            { Text(stringResource(R.string.power_button, 120)) }
 
             Spacer(Modifier.width(8.dp))
 
             Button(
                 onClick = { onSetTargetPower(160) },
-                enabled = canSendManualPower,
+                enabled = canManualPower,
                 colors = disabledVisibleButtonColors()
-            ) { Text(stringResource(R.string.power_button, 160)) }
+            )
+            { Text(stringResource(R.string.power_button, 160)) }
 
             Spacer(Modifier.width(8.dp))
 
             Button(
                 onClick = { onSetTargetPower(200) },
-                enabled = canSendManualPower,
+                enabled = canManualPower,
                 colors = disabledVisibleButtonColors()
-            ) { Text(stringResource(R.string.power_button, 200)) }
+            )
+            { Text(stringResource(R.string.power_button, 200)) }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -208,9 +235,10 @@ internal fun SessionScreen(
 
         Button(
             onClick = onRelease,
-            enabled = ftmsReady && ftmsControlGranted,
+            enabled = canRelease,
             colors = disabledVisibleButtonColors()
-        ) {
+        )
+        {
             Text(stringResource(R.string.btn_release))
         }
 
@@ -219,9 +247,10 @@ internal fun SessionScreen(
         // Session control
         Button(
             onClick = onStopWorkout,
-            enabled = workoutRunning,
+            enabled = canStopWorkout,
             colors = disabledVisibleButtonColors()
-        ) {
+        )
+        {
             Text(stringResource(R.string.btn_stop_workout))
         }
 

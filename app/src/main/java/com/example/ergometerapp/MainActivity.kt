@@ -13,9 +13,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableStateOf
-import com.example.ergometerapp.BuildConfig
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.input.pointer.pointerInput
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
 import com.example.ergometerapp.ble.HrBleClient
@@ -131,7 +134,7 @@ class MainActivity : ComponentActivity() {
                                     ftmsController.setTargetPower(watts)
                                     lastTargetPowerState.value = watts
                                 },
-                                onRelease = { releaseControl() },
+                                onRelease = { releaseControl(false) },
                                 onStopWorkout = { stopWorkout() },
                                 onEndSession = { endSessionAndGoToSummary() }
                             )
@@ -152,8 +155,17 @@ class MainActivity : ComponentActivity() {
                         }
 
                         if (showDebugTimeline) {
-                            FtmsDebugTimelineScreen()
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                            ) {
+                                FtmsDebugTimelineScreen()
+                            }
                         }
+
+
                     }
                 } else {
                     when (screen) {
@@ -183,7 +195,7 @@ class MainActivity : ComponentActivity() {
                                 ftmsController.setTargetPower(watts)
                                 lastTargetPowerState.value = watts
                             },
-                            onRelease = { releaseControl() },
+                            onRelease = { releaseControl(false) },
                             onStopWorkout = { stopWorkout() },
                             onEndSession = { endSessionAndGoToSummary() }
                         )
@@ -271,14 +283,13 @@ class MainActivity : ComponentActivity() {
      * Some devices only acknowledge control release after a reset, so the UI
      * resets state optimistically and waits for the Control Point response.
      */
-    private fun releaseControl() {
+    private fun releaseControl(resetDevice: Boolean) {
         // FTMS: stop + reset (FtmsController handles queueing/timeouts)
         ftmsController.stop()
-        ftmsController.reset()
-
-        // Make the UI state immediately “optimistically” sensible:
+        if (resetDevice) {
+            ftmsController.reset()
+        }
         resetFtmsUiState(clearReady = false)
-        // CP reset-success confirms the release (idempotent)
     }
 
     /**
@@ -299,7 +310,7 @@ class MainActivity : ComponentActivity() {
         stopWorkout()
         workoutRunner = null
         sessionManager.stopSession()
-        releaseControl()
+        releaseControl(true)
 
         summaryState.value = sessionManager.lastSummary
         allowScreenOff()
@@ -337,7 +348,10 @@ class MainActivity : ComponentActivity() {
         val runner = WorkoutRunner(
             stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),
             applyTarget = { targetWatts ->
-                if (ftmsReadyState.value && ftmsControlGrantedState.value && targetWatts != null) {
+                if (ftmsReadyState.value &&
+                    ftmsControlGrantedState.value &&
+                    targetWatts != null &&
+                    !runnerState.value.done) {
                     ftmsController.setTargetPower(targetWatts)
                     lastTargetPowerState.value = targetWatts
                 } else {

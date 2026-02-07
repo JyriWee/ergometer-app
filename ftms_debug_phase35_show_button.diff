@@ -1,0 +1,35 @@
+diff --git a/app/src/main/java/com/example/ergometerapp/MainActivity.kt b/app/src/main/java/com/example/ergometerapp/MainActivity.kt
+index f1a2d8a..abcd123 100644
+--- a/app/src/main/java/com/example/ergometerapp/MainActivity.kt
++++ b/app/src/main/java/com/example/ergometerapp/MainActivity.kt
+@@ -16,6 +16,8 @@ import androidx.compose.foundation.layout.Box
+ import androidx.compose.material3.Button
+ import androidx.compose.material3.Text
+ import androidx.compose.runtime.mutableStateOf
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.input.pointer.pointerInput
+ import com.example.ergometerapp.ble.FtmsBleClient
+ import com.example.ergometerapp.ble.FtmsController
+ import com.example.ergometerapp.ble.HrBleClient
+@@ -154,7 +156,18 @@ class MainActivity : ComponentActivity() {
+                 Button(onClick = {
+                     showDebugTimelineState.value = !showDebugTimelineState.value
+                 }) {
+                     Text("Debug")
+                 }
+
+                 if (showDebugTimeline) {
+-                    FtmsDebugTimelineScreen()
++                    Box(
++                        modifier = Modifier.pointerInput(Unit) {
++                            awaitPointerEventScope {
++                                while (true) {
++                                    awaitPointerEvent()
++                                }
++                            }
++                        }
++                    ) {
++                        FtmsDebugTimelineScreen()
++                    }
+                 }
+             }

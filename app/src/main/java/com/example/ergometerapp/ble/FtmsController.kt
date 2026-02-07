@@ -17,12 +17,17 @@ import com.example.ergometerapp.ble.debug.FtmsDebugEvent
 class FtmsController(
     private val writeControlPoint: (ByteArray) -> Unit
 ) {
+
+    private var hasStopped = false
+
     private var pendingReset = false
 
     private var commandState = FtmsCommandState.IDLE
     private var pendingTargetPowerWatts: Int? = null
 
     private val handler = Handler(Looper.getMainLooper())
+
+    private var lastSentTargetPower: Int? = null
 
     private val commandTimeoutMs = 2500L
 
@@ -56,6 +61,11 @@ class FtmsController(
      * Some FTMS devices require this before accepting other Control Point commands.
      */
     fun requestControl() {
+        if (hasStopped) {
+            Log.d("FTMS", "requestControl() ignored (already stopped)")
+            return
+        }
+
         val payload = byteArrayOf(0x00.toByte())
         sendCommand(payload, "requestControl")
     }
@@ -80,6 +90,11 @@ class FtmsController(
      */
     fun setTargetPower(watts: Int) {
         val w = watts.coerceIn(0, 2000)
+
+        if (commandState == FtmsCommandState.BUSY) return
+        if (lastSentTargetPower == w) return
+
+        lastSentTargetPower = w
 
         FtmsDebugBuffer.record(
             FtmsDebugEvent.TargetPowerIssued(System.currentTimeMillis(), w)
@@ -111,6 +126,11 @@ class FtmsController(
      * Stops the current workout session if the device supports it.
      */
     fun stop() {
+        if (hasStopped) {
+            Log.d("FTMS", "stop() ignored (already stopped)")
+            return
+        }
+        hasStopped = true
         val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
         sendCommand(payload, "stop")
     }
@@ -120,9 +140,18 @@ class FtmsController(
      * Pauses the current workout session if the device supports it.
      */
     fun pause() {
+        if (hasStopped) {
+            Log.d("FTMS", "pause() ignored (already stopped)")
+            return
+        }
+        if (commandState == FtmsCommandState.BUSY) {
+            Log.d("FTMS", "pause() ignored (BUSY)")
+            return
+        }
         val payload = byteArrayOf(0x08.toByte(), 0x02.toByte())
         sendCommand(payload, "pause")
     }
+
 
     /**
      * Resets the device state.
@@ -131,12 +160,15 @@ class FtmsController(
      * Control Point command.
      */
     fun reset() {
+
+        hasStopped = false
+        lastSentTargetPower = null
+
         if (commandState == FtmsCommandState.BUSY) {
             pendingReset = true
             Log.d("FTMS", "Queued reset (pending)")
             return
         }
-
         val payload = byteArrayOf(0x01.toByte())
         sendCommand(payload, "reset")
     }
