@@ -332,8 +332,11 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        workoutRunner?.stop()
+        bleClient.close()
+        hrClient.close()
         allowScreenOff()
+        super.onDestroy()
     }
 
 }
