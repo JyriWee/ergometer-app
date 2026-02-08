@@ -8,6 +8,8 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.util.UUID
 
@@ -31,6 +33,7 @@ class FtmsBleClient(
 
     private var gatt: BluetoothGatt? = null
     private var controlPointCharacteristic: BluetoothGattCharacteristic? = null
+    private val mainThreadHandler = Handler(Looper.getMainLooper())
 
     private var indoorBikeDataCharacteristic: BluetoothGattCharacteristic? = null
 
@@ -65,7 +68,7 @@ class FtmsBleClient(
             Log.w("FTMS", "GATT disconnected (status=$status)")
             controlPointCharacteristic = null
             this@FtmsBleClient.gatt = null
-            onDisconnected()
+            mainThreadHandler.post { onDisconnected() }
             }
         }
 
@@ -78,7 +81,7 @@ class FtmsBleClient(
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w("FTMS", "Descriptor write failed at step=$setupStep status=$status")
                 setupStep = SetupStep.NONE
-                onDisconnected()
+                mainThreadHandler.post { onDisconnected() }
                 return
             }
 
@@ -89,7 +92,7 @@ class FtmsBleClient(
                 SetupStep.BIKE_CCCD -> {
                     setupStep = SetupStep.NONE
                     Log.d("FTMS", "FTMS notifications/indications setup done")
-                    onReady()
+                    mainThreadHandler.post { onReady() }
                 }
                 else -> {
                     // ignore
@@ -157,7 +160,7 @@ class FtmsBleClient(
             value: ByteArray
         ) {
             when (characteristic.uuid) {
-                INDOOR_BIKE_DATA_UUID -> onIndoorBikeData(value)
+                INDOOR_BIKE_DATA_UUID -> mainThreadHandler.post { onIndoorBikeData(value) }
                 FTMS_CONTROL_POINT_UUID -> {
                     Log.d("FTMS", "Control Point response: ${value.joinToString()}")
 
@@ -165,7 +168,7 @@ class FtmsBleClient(
                     if (value.size >= 3 && value[0] == 0x80.toByte()) {
                         val requestOpcode = value[1].toInt() and 0xFF
                         val resultCode = value[2].toInt() and 0xFF
-                        onControlPointResponse(requestOpcode, resultCode)
+                        mainThreadHandler.post { onControlPointResponse(requestOpcode, resultCode) }
                     }
                 }
 
