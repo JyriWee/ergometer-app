@@ -46,7 +46,7 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
         // Instantaneous Speed is always present per spec.
         val instantSpeed = u16() / 100.0
 
-        // Some devices (e.g., Tunturi E80) send Average Speed even with flag(0) cleared.
+        // Average Speed is optional and present only when flag(0) is set.
         val avgSpeed =
             if (flag(0)) u16() / 100.0 else u16() / 100.0
 
