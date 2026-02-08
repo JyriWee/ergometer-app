@@ -43,7 +43,7 @@ import com.example.ergometerapp.workout.runner.WorkoutStepper
  * This activity intentionally keeps protocol handling in the BLE/controller
  * layers and only reacts to their callbacks to update UI state.
  */
-class codexMainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity() {
     private enum class AppScreen { MENU, SESSION, SUMMARY }
 
     private val screenState = mutableStateOf(AppScreen.MENU)
@@ -106,7 +106,7 @@ class codexMainActivity : ComponentActivity() {
                 val currentRunnerState = runnerState.value
                 val showDebugTimeline = showDebugTimelineState.value
 
-                if (BuildConfig.DEBUG) {
+                if (com.example.ergometerapp.BuildConfig.DEBUG) {
                     Box {
                         when (screen) {
                             AppScreen.MENU -> MenuScreen(
