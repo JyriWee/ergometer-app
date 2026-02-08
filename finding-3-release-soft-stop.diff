@@ -1,0 +1,49 @@
+diff --git a/app/src/main/java/com/example/ergometerapp/MainActivity.kt b/app/src/main/java/com/example/ergometerapp/MainActivity.kt
+index f83d8dd..fcb3957 100644
+--- a/app/src/main/java/com/example/ergometerapp/MainActivity.kt
++++ b/app/src/main/java/com/example/ergometerapp/MainActivity.kt
+@@ -278,16 +278,17 @@ class MainActivity : ComponentActivity() {
+     }
+ 
+     /**
+-     * Releases FTMS control using the stop+reset pattern.
++     * Releases FTMS control while preserving session semantics.
+      *
+-     * Some devices only acknowledge control release after a reset, so the UI
+-     * resets state optimistically and waits for the Control Point response.
++     * Hard release uses stop+reset for full session termination. Soft release
++     * only relinquishes FTMS control so it can be reacquired later.
+      */
+     private fun releaseControl(resetDevice: Boolean) {
+-        // FTMS: stop + reset (FtmsController handles queueing/timeouts)
+-        ftmsController.stop()
+         if (resetDevice) {
++            ftmsController.stop()
+             ftmsController.reset()
++        } else {
++            ftmsController.releaseControl()
+         }
+         resetFtmsUiState(clearReady = false)
+     }
+diff --git a/app/src/main/java/com/example/ergometerapp/ble/FtmsController.kt b/app/src/main/java/com/example/ergometerapp/ble/FtmsController.kt
+index bb943e3..a9c9840 100644
+--- a/app/src/main/java/com/example/ergometerapp/ble/FtmsController.kt
++++ b/app/src/main/java/com/example/ergometerapp/ble/FtmsController.kt
+@@ -140,6 +140,17 @@ class FtmsController(
+         sendCommand(payload, "stop")
+     }
+ 
++    /**
++     * Releases FTMS control without marking the session as hard-stopped.
++     *
++     * This keeps requestControl() available for reacquisition within the same
++     * workout session.
++     */
++    fun releaseControl() {
++        val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
++        sendCommand(payload, "releaseControl")
++    }
++
+     @Suppress("unused")
+     /**
+      * Pauses the current workout session if the device supports it.

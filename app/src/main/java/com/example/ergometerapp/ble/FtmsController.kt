@@ -140,6 +140,17 @@ class FtmsController(
         sendCommand(payload, "stop")
     }
 
+    /**
+     * Releases FTMS control without marking the session as hard-stopped.
+     *
+     * This keeps requestControl() available for reacquisition within the same
+     * workout session.
+     */
+    fun releaseControl() {
+        val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
+        sendCommand(payload, "releaseControl")
+    }
+
     @Suppress("unused")
     /**
      * Pauses the current workout session if the device supports it.

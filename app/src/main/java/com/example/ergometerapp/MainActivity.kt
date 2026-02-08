@@ -278,16 +278,17 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Releases FTMS control using the stop+reset pattern.
+     * Releases FTMS control while preserving session semantics.
      *
-     * Some devices only acknowledge control release after a reset, so the UI
-     * resets state optimistically and waits for the Control Point response.
+     * Hard release uses stop+reset for full session termination. Soft release
+     * only relinquishes FTMS control so it can be reacquired later.
      */
     private fun releaseControl(resetDevice: Boolean) {
-        // FTMS: stop + reset (FtmsController handles queueing/timeouts)
-        ftmsController.stop()
         if (resetDevice) {
+            ftmsController.stop()
             ftmsController.reset()
+        } else {
+            ftmsController.releaseControl()
         }
         resetFtmsUiState(clearReady = false)
     }
