@@ -48,7 +48,7 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
 
         // Average Speed is optional and present only when flag(0) is set.
         val avgSpeed =
-            if (flag(0)) u16() / 100.0 else u16() / 100.0
+            if (flag(0)) u16() / 100.0 else null
 
         // Cadence fields are optional; missing fields are preserved as null.
         val instantCadence =
