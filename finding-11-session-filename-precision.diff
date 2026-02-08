@@ -1,0 +1,12 @@
+diff --git a/app/src/main/java/com/example/ergometerapp/session/SessionStorage.kt b/app/src/main/java/com/example/ergometerapp/session/SessionStorage.kt
+--- a/app/src/main/java/com/example/ergometerapp/session/SessionStorage.kt
++++ b/app/src/main/java/com/example/ergometerapp/session/SessionStorage.kt
+@@ -20,7 +20,7 @@ object SessionStorage {
+      */
+     fun save(context: Context, summary: SessionSummary) {
+         val formatter =
+-            SimpleDateFormat("yyyy-MM-dd_HH-mm", Locale.US)
++            SimpleDateFormat("yyyy-MM-dd_HH-mm-ss-SSS", Locale.US)
+ 
+         val filename =
+             "session_${formatter.format(Date())}.txt"
