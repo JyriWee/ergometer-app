@@ -33,6 +33,15 @@ class SessionManager(
     private var lastDistanceMeters: Int? = null
 
     private var sessionPhase: SessionPhase = SessionPhase.IDLE
+    private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    private fun runOnMainThread(block: () -> Unit) {
+        if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+            block()
+        } else {
+            mainHandler.post(block)
+        }
+    }
 
     /**
      * Current session phase used by UI for state rendering and controls.
@@ -40,30 +49,31 @@ class SessionManager(
     fun getPhase(): SessionPhase = sessionPhase
 
     fun updateBikeData(bikeData: IndoorBikeData) {
-        latestBikeData = bikeData
+        runOnMainThread {
+            latestBikeData = bikeData
 
-        if (sessionPhase == SessionPhase.RUNNING) {
+            if (sessionPhase == SessionPhase.RUNNING) {
 
-            // Power values at or below zero are treated as invalid samples.
-            latestBikeData?.instantaneousPowerW
-                ?.takeIf { it > 0 }
-                ?.let { powerSamples.add(it) }
+                // Power values at or below zero are treated as invalid samples.
+                latestBikeData?.instantaneousPowerW
+                    ?.takeIf { it > 0 }
+                    ?.let { powerSamples.add(it) }
 
-            // Distance is cumulative; store the latest for the summary.
-            latestBikeData?.totalDistanceMeters
-                ?.let { lastDistanceMeters = it }
+                // Distance is cumulative; store the latest for the summary.
+                latestBikeData?.totalDistanceMeters
+                    ?.let { lastDistanceMeters = it }
 
-            // Prefer external HR strap if present; fall back to bike HR otherwise.
-            // This avoids mixing two sensors with different latencies.
-            if (latestHeartRate == null) {
-                latestBikeData?.heartRateBpm
-                    ?.takeIf { it in 30..220 }
-                    ?.let { heartRateSamples.add(it) }
+                // Prefer external HR strap if present; fall back to bike HR otherwise.
+                // This avoids mixing two sensors with different latencies.
+                if (latestHeartRate == null) {
+                    latestBikeData?.heartRateBpm
+                        ?.takeIf { it in 30..220 }
+                        ?.let { heartRateSamples.add(it) }
+                }
+                latestBikeData?.instantaneousCadenceRpm?.let { cadenceSamples.add(it.toInt()) }
             }
-            latestBikeData?.instantaneousCadenceRpm?.let { cadenceSamples.add(it.toInt()) }
+            emitState()
         }
-
-        emitState()
     }
 
     /**
@@ -73,13 +83,15 @@ class SessionManager(
      * the data source consistent for statistics.
      */
     fun updateHeartRate(hr: Int?) {
-        latestHeartRate = hr
+        runOnMainThread {
+            latestHeartRate = hr
 
-        if (sessionPhase == SessionPhase.RUNNING) {
-            hr?.let { heartRateSamples.add(it) }
+            if (sessionPhase == SessionPhase.RUNNING) {
+                hr?.let { heartRateSamples.add(it) }
+            }
+
+            emitState()
         }
-
-        emitState()
     }
 
 
@@ -118,19 +130,21 @@ class SessionManager(
      * Starts a new session and clears any prior aggregates.
      */
     fun startSession() {
-        sessionPhase = SessionPhase.RUNNING
-        sessionStartMillis = System.currentTimeMillis()
+        runOnMainThread {
+            sessionPhase = SessionPhase.RUNNING
+            sessionStartMillis = System.currentTimeMillis()
 
-        powerSamples.clear()
-        cadenceSamples.clear()
-        heartRateSamples.clear()
-        lastDistanceMeters = null
-        lastSummary = null
-        latestBikeData = null
-        latestHeartRate = null
-        lastDistanceMeters = null
-        durationAtStopSec = null
-        emitState()
+            powerSamples.clear()
+            cadenceSamples.clear()
+            heartRateSamples.clear()
+            lastDistanceMeters = null
+            lastSummary = null
+            latestBikeData = null
+            latestHeartRate = null
+            lastDistanceMeters = null
+            durationAtStopSec = null
+            emitState()
+        }
     }
 
     /**
@@ -140,48 +154,50 @@ class SessionManager(
      * choosing sampling frequency elsewhere.
      */
     fun stopSession() {
-        if (sessionPhase != SessionPhase.RUNNING) return
+        runOnMainThread {
+            if (sessionPhase != SessionPhase.RUNNING) return@runOnMainThread
 
-        val start = sessionStartMillis ?: return
+            val start = sessionStartMillis ?: return@runOnMainThread
 
-        val durationSec = ((System.currentTimeMillis() - start) / 1000).toInt()
+            val durationSec = ((System.currentTimeMillis() - start) / 1000).toInt()
 
-        durationAtStopSec = durationSec
+            durationAtStopSec = durationSec
 
-        val avgPower =
-            powerSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
+            val avgPower =
+                powerSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
 
-        val maxPower =
-            powerSamples.maxOrNull()
+            val maxPower =
+                powerSamples.maxOrNull()
 
-        val avgCadence =
-            cadenceSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
+            val avgCadence =
+                cadenceSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
 
-        val maxCadence =
-            cadenceSamples.maxOrNull()
+            val maxCadence =
+                cadenceSamples.maxOrNull()
 
-        val avgHeartRate =
-            heartRateSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
+            val avgHeartRate =
+                heartRateSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
 
-        val maxHeartRate =
-            heartRateSamples.maxOrNull()
+            val maxHeartRate =
+                heartRateSamples.maxOrNull()
 
-        val summary = SessionSummary(
-            durationSeconds = durationSec,
-            avgPower = avgPower,
-            maxPower = maxPower,
-            avgCadence = avgCadence,
-            maxCadence = maxCadence,
-            avgHeartRate = avgHeartRate,
-            maxHeartRate = maxHeartRate,
-            distanceMeters = lastDistanceMeters
-        )
+            val summary = SessionSummary(
+                durationSeconds = durationSec,
+                avgPower = avgPower,
+                maxPower = maxPower,
+                avgCadence = avgCadence,
+                maxCadence = maxCadence,
+                avgHeartRate = avgHeartRate,
+                maxHeartRate = maxHeartRate,
+                distanceMeters = lastDistanceMeters
+            )
 
-        lastSummary = summary
-        sessionPhase = SessionPhase.STOPPED
+            lastSummary = summary
+            sessionPhase = SessionPhase.STOPPED
 
-        lastSummary?.let {
-            SessionStorage.save(context, it)
+            lastSummary?.let {
+                SessionStorage.save(context, it)
+            }
         }
     }
 }

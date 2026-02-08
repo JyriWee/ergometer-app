@@ -9,6 +9,8 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import java.util.UUID
 
@@ -23,6 +25,7 @@ class HrBleClient(
     private val onHeartRate: (Int) -> Unit
 ) {
     private var gatt: BluetoothGatt? = null
+    private val mainThreadHandler = Handler(Looper.getMainLooper())
 
     private val HR_SERVICE_UUID =
         UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")
@@ -74,8 +77,8 @@ class HrBleClient(
             value: ByteArray
         ) {
             if (characteristic.uuid == HR_MEASUREMENT_UUID) {
-                val bpm = parseHeartRate(value)
-                onHeartRate(bpm)
+                val bpm = parseHeartRate(value) ?: return
+                mainThreadHandler.post { onHeartRate(bpm) }
             }
         }
 
@@ -127,10 +130,13 @@ class HrBleClient(
      *
      * TODO: Validate payload length before indexing to avoid malformed packets.
      */
-    private fun parseHeartRate(bytes: ByteArray): Int {
+    private fun parseHeartRate(bytes: ByteArray): Int? {
+        if (bytes.size < 2) return null
+
         val flags = bytes[0].toInt()
         val hr16bit = flags and 0x01 != 0
         return if (hr16bit) {
+            if (bytes.size < 3) return null
             (bytes[1].toInt() and 0xFF) or ((bytes[2].toInt() and 0xFF) shl 8)
         } else {
             bytes[1].toInt() and 0xFF

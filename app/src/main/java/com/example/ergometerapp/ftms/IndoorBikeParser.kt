@@ -1,5 +1,8 @@
 package com.example.ergometerapp.ftms
 
+import com.example.ergometerapp.ble.debug.FtmsDebugBuffer
+import com.example.ergometerapp.ble.debug.FtmsDebugEvent
+
 /**
  * Parser for FTMS Indoor Bike Data (UUID 0x2AD2).
  *
@@ -43,9 +46,9 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
         // Instantaneous Speed is always present per spec.
         val instantSpeed = u16() / 100.0
 
-        // Some devices (e.g., Tunturi E80) send Average Speed even with flag(0) cleared.
+        // Average Speed is optional and present only when flag(0) is set.
         val avgSpeed =
-            if (flag(0)) u16() / 100.0 else u16() / 100.0
+            if (flag(0)) u16() / 100.0 else null
 
         // Cadence fields are optional; missing fields are preserved as null.
         val instantCadence =
@@ -62,6 +65,7 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
 
         val instantPower =
             if (flag(5)) u16() else null
+        instantPower?.let { FtmsDebugBuffer.record(FtmsDebugEvent.PowerSample(System.currentTimeMillis(), it)) }
 
         val avgPower =
             if (flag(6)) u16() else null

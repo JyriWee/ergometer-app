@@ -16,6 +16,9 @@ Thumbs.db
 
 # Log/OS Files
 *.log
+*.stderr.log
+*.stdout.log
+*.codex.log
 
 # Android Studio generated files and folders
 captures/

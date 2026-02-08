@@ -9,7 +9,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material3.Button
+import androidx.compose.material3.Text
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
 import com.example.ergometerapp.ble.HrBleClient
@@ -20,9 +28,11 @@ import com.example.ergometerapp.session.SessionSummary
 import com.example.ergometerapp.ui.MenuScreen
 import com.example.ergometerapp.ui.SessionScreen
 import com.example.ergometerapp.ui.SummaryScreen
+import com.example.ergometerapp.ui.debug.FtmsDebugTimelineScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
+import com.example.ergometerapp.workout.runner.RunnerState
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
 
@@ -33,7 +43,7 @@ import com.example.ergometerapp.workout.runner.WorkoutStepper
  * This activity intentionally keeps protocol handling in the BLE/controller
  * layers and only reacts to their callbacks to update UI state.
  */
-class MainActivity : ComponentActivity() {
+class codexMainActivity : ComponentActivity() {
     private enum class AppScreen { MENU, SESSION, SUMMARY }
 
     private val screenState = mutableStateOf(AppScreen.MENU)
@@ -54,8 +64,9 @@ class MainActivity : ComponentActivity() {
 
     private val lastTargetPowerState = mutableStateOf<Int?>(null)
 
-    private val workoutPausedState = mutableStateOf(false)
-    private val workoutRunningState = mutableStateOf(false)
+    private val runnerState = mutableStateOf(RunnerState.stopped())
+
+    private val showDebugTimelineState = mutableStateOf(false)
 
     private lateinit var bleClient: FtmsBleClient
 
@@ -68,6 +79,8 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 Log.d("BLE", "BLUETOOTH_CONNECT granted")
+                bleClient.connect("E0:DF:01:46:14:2F")
+                hrClient.connect("24:AC:AC:04:12:79")
             } else {
                 Log.d("BLE", "BLUETOOTH_CONNECT denied")
             }
@@ -90,69 +103,115 @@ class MainActivity : ComponentActivity() {
                 val ftmsReady = ftmsReadyState.value
                 val ftmsControlGranted = ftmsControlGrantedState.value
                 val lastTargetPower = lastTargetPowerState.value
-                val workoutPaused = workoutPausedState.value
-                val workoutRunning = workoutRunningState.value
+                val currentRunnerState = runnerState.value
+                val showDebugTimeline = showDebugTimelineState.value
 
-                when (screen) {
-                    AppScreen.MENU -> MenuScreen(
-                        ftmsReady = ftmsReadyState.value,
-                        onStartSession = {
-                            sessionManager.startSession()
-                            ensureWorkoutRunner().start()
-                            workoutPausedState.value = false
-                            keepScreenOn()
-                            screenState.value = AppScreen.SESSION
+                if (BuildConfig.DEBUG) {
+                    Box {
+                        when (screen) {
+                            AppScreen.MENU -> MenuScreen(
+                                ftmsReady = ftmsReady,
+                                onStartSession = {
+                                    sessionManager.startSession()
+                                    ensureWorkoutRunner().start()
+                                    keepScreenOn()
+                                    screenState.value = AppScreen.SESSION
+                                }
+                            )
+
+                            AppScreen.SESSION -> SessionScreen(
+                                phase = phase,
+                                bikeData = bikeData,
+                                heartRate = heartRate,
+                                durationSeconds = session?.durationSeconds,
+                                ftmsReady = ftmsReady,
+                                ftmsControlGranted = ftmsControlGranted,
+                                runnerState = currentRunnerState,
+                                lastTargetPower = lastTargetPower,
+                                onPauseWorkout = { workoutRunner?.pause() },
+                                onResumeWorkout = { workoutRunner?.resume() },
+                                onTakeControl = { ftmsController.requestControl() },
+                                onSetTargetPower = { watts ->
+                                    ftmsController.setTargetPower(watts)
+                                    lastTargetPowerState.value = watts
+                                },
+                                onRelease = { releaseControl(false) },
+                                onStopWorkout = { stopWorkout() },
+                                onEndSession = { endSessionAndGoToSummary() }
+                            )
+
+                            AppScreen.SUMMARY -> SummaryScreen(
+                                summary = summaryState.value,
+                                onBackToMenu = {
+                                    summaryState.value = null
+                                    screenState.value = AppScreen.MENU
+                                }
+                            )
                         }
-                    )
 
-                    AppScreen.SESSION -> SessionScreen(
-                        phase = phase,
-                        bikeData = bikeData,
-                        heartRate = heartRate,
-                        durationSeconds = session?.durationSeconds,
-                        ftmsReady = ftmsReady,
-                        ftmsControlGranted = ftmsControlGranted,
-                        workoutPaused = workoutPaused,
-                        workoutRunning = workoutRunning,
-                        lastTargetPower = lastTargetPower,
-                        onPauseWorkout = {
-                            workoutRunner?.pause()
-                            workoutPausedState.value = true
-                        },
-                        onResumeWorkout = {
-                            workoutRunner?.resume()
-                            workoutPausedState.value = false
-                        },
-                        onTakeControl = {
-                            ftmsController.requestControl()
-                        },
-                        onSetTargetPower = { watts ->
-                            ftmsController.setTargetPower(watts)
-                            lastTargetPowerState.value = watts
-                        },
-                        onRelease = {
-                            releaseControl()
-                        },
-                        onStopWorkout = {
-                            stopWorkout()
-                        },
-                        onEndSession = {
-                            endSessionAndGoToSummary()
+                        Button(onClick = {
+                            showDebugTimelineState.value = !showDebugTimelineState.value
+                        }) {
+                            Text("Debug")
                         }
-                    )
 
-
-                    AppScreen.SUMMARY -> SummaryScreen(
-                        summary = summaryState.value,
-                        onBackToMenu = {
-                            summaryState.value = null
-                            screenState.value = AppScreen.MENU
+                        if (showDebugTimeline) {
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .fillMaxWidth()
+                                    .height(200.dp)
+                            ) {
+                                FtmsDebugTimelineScreen()
+                            }
                         }
-                    )
+
+
+                    }
+                } else {
+                    when (screen) {
+                        AppScreen.MENU -> MenuScreen(
+                            ftmsReady = ftmsReady,
+                            onStartSession = {
+                                sessionManager.startSession()
+                                ensureWorkoutRunner().start()
+                                keepScreenOn()
+                                screenState.value = AppScreen.SESSION
+                            }
+                        )
+
+                        AppScreen.SESSION -> SessionScreen(
+                            phase = phase,
+                            bikeData = bikeData,
+                            heartRate = heartRate,
+                            durationSeconds = session?.durationSeconds,
+                            ftmsReady = ftmsReady,
+                            ftmsControlGranted = ftmsControlGranted,
+                            runnerState = currentRunnerState,
+                            lastTargetPower = lastTargetPower,
+                            onPauseWorkout = { workoutRunner?.pause() },
+                            onResumeWorkout = { workoutRunner?.resume() },
+                            onTakeControl = { ftmsController.requestControl() },
+                            onSetTargetPower = { watts ->
+                                ftmsController.setTargetPower(watts)
+                                lastTargetPowerState.value = watts
+                            },
+                            onRelease = { releaseControl(false) },
+                            onStopWorkout = { stopWorkout() },
+                            onEndSession = { endSessionAndGoToSummary() }
+                        )
+
+                        AppScreen.SUMMARY -> SummaryScreen(
+                            summary = summaryState.value,
+                            onBackToMenu = {
+                                summaryState.value = null
+                                screenState.value = AppScreen.MENU
+                            }
+                        )
+                    }
                 }
             }
         }
-        ensureBluetoothPermission()
 
         bleClient = FtmsBleClient(
             context = this,
@@ -192,8 +251,6 @@ class MainActivity : ComponentActivity() {
         }
 
         // TODO: Move hardcoded MACs to configuration or device discovery flow.
-        bleClient.connect("E0:DF:01:46:14:2F")
-
         hrClient = HrBleClient(this)
         { bpm ->
             heartRateState.value = bpm
@@ -201,11 +258,9 @@ class MainActivity : ComponentActivity() {
 
         }
 
-        hrClient.connect("24:AC:AC:04:12:79")
-
+        ensureBluetoothPermission()
     }
-
-    /**
+        /**
      * Keeps the screen awake during an active session to avoid lost telemetry
      * visibility when the user is mid-workout.
      */
@@ -221,19 +276,19 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Releases FTMS control using the stop+reset pattern.
+     * Releases FTMS control while preserving session semantics.
      *
-     * Some devices only acknowledge control release after a reset, so the UI
-     * resets state optimistically and waits for the Control Point response.
+     * Hard release uses stop+reset for full session termination. Soft release
+     * only relinquishes FTMS control so it can be reacquired later.
      */
-    private fun releaseControl() {
-        // FTMS: stop + reset (FtmsController handles queueing/timeouts)
-        ftmsController.stop()
-        ftmsController.reset()
-
-        // Make the UI state immediately “optimistically” sensible:
+    private fun releaseControl(resetDevice: Boolean) {
+        if (resetDevice) {
+            ftmsController.stop()
+            ftmsController.reset()
+        } else {
+            ftmsController.releaseControl()
+        }
         resetFtmsUiState(clearReady = false)
-        // CP reset-success confirms the release (idempotent)
     }
 
     /**
@@ -245,8 +300,6 @@ class MainActivity : ComponentActivity() {
     private fun stopWorkout() {
         workoutRunner?.stop()
         lastTargetPowerState.value = null
-        // "Paused" is the existing UI gate for manual target power actions.
-        workoutPausedState.value = true
     }
 
     /**
@@ -255,9 +308,8 @@ class MainActivity : ComponentActivity() {
     private fun endSessionAndGoToSummary() {
         stopWorkout()
         workoutRunner = null
-        workoutPausedState.value = false
         sessionManager.stopSession()
-        releaseControl()
+        releaseControl(true)
 
         summaryState.value = sessionManager.lastSummary
         allowScreenOff()
@@ -283,6 +335,9 @@ class MainActivity : ComponentActivity() {
             != PackageManager.PERMISSION_GRANTED
         ) {
             requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            bleClient.connect("E0:DF:01:46:14:2F")
+            hrClient.connect("24:AC:AC:04:12:79")
         }
     }
 
@@ -295,19 +350,18 @@ class MainActivity : ComponentActivity() {
         val runner = WorkoutRunner(
             stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),
             applyTarget = { targetWatts ->
-                if (ftmsReadyState.value && ftmsControlGrantedState.value && targetWatts != null) {
+                if (ftmsReadyState.value &&
+                    ftmsControlGrantedState.value &&
+                    targetWatts != null &&
+                    !runnerState.value.done) {
                     ftmsController.setTargetPower(targetWatts)
                     lastTargetPowerState.value = targetWatts
                 } else {
                     lastTargetPowerState.value = null
                 }
             },
-            onRunningChanged = { running ->
-                workoutRunningState.value = running
-                if (!running) {
-                    // Keep stopped workouts compatible with manual-power UI rules.
-                    workoutPausedState.value = true
-                }
+            onStateChanged = { state ->
+                runnerState.value = state
             }
         )
         workoutRunner = runner
@@ -332,8 +386,11 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        workoutRunner?.stop()
+        bleClient.close()
+        hrClient.close()
         allowScreenOff()
+        super.onDestroy()
     }
 
 }

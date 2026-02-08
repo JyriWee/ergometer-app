@@ -15,51 +15,54 @@ import android.os.SystemClock
 class WorkoutRunner(
     private val stepper: WorkoutStepper,
     private val applyTarget: (Int?) -> Unit,
-    private val onRunningChanged: (Boolean) -> Unit = {},
+    private val onStateChanged: (RunnerState) -> Unit = {},
     private val tickIntervalMs: Long = 250L,
     private val nowUptimeMs: () -> Long = { SystemClock.uptimeMillis() },
     private val handler: Handler = Handler(Looper.getMainLooper()),
 ) {
-    private var running = false
-    private var paused = true
+    private var state = RunnerState.stopped()
 
     private val tickRunnable = object : Runnable {
         override fun run() {
-            if (!running) return
+            if (!state.running || state.paused || state.done) return
             val output = stepper.tick(nowUptimeMs())
             output.targetPowerWatts?.let { applyTarget(it) }
             if (output.done) {
                 stopInternal(clearTarget = true, stopStepper = false)
                 return
             }
+            updateStateFromTick(output)
             handler.postDelayed(this, tickIntervalMs)
         }
     }
 
     fun start() {
-        stopInternal(clearTarget = false, stopStepper = false)
+        handler.removeCallbacks(tickRunnable)
         stepper.start()
-        running = true
-        paused = false
-        onRunningChanged(true)
+        emitState(
+            RunnerState(
+                running = true,
+                paused = false,
+                done = false,
+                label = null,
+                targetPowerWatts = null,
+                targetCadence = null,
+            )
+        )
         handler.post(tickRunnable)
     }
 
     fun pause() {
-        if (!running || paused) return
+        if (!state.running || state.paused || state.done) return
         stepper.pause()
-        paused = true
         handler.removeCallbacks(tickRunnable)
+        emitState(state.copy(paused = true))
     }
 
     fun resume() {
-        if (!running) {
-            running = true
-            onRunningChanged(true)
-        }
-        if (!paused) return
+        if (!state.running || !state.paused || state.done) return
         stepper.resume()
-        paused = false
+        emitState(state.copy(paused = false))
         handler.post(tickRunnable)
     }
 
@@ -69,24 +72,50 @@ class WorkoutRunner(
 
     fun restore(state: StepperState) {
         stepper.restore(state)
-        running = false
-        paused = state.paused
-        onRunningChanged(false)
         handler.removeCallbacks(tickRunnable)
+        emitState(
+            this.state.copy(
+                running = false,
+                paused = state.paused,
+                done = false,
+            )
+        )
     }
 
     fun getState(): StepperState = stepper.getState()
 
     private fun stopInternal(clearTarget: Boolean, stopStepper: Boolean) {
         handler.removeCallbacks(tickRunnable)
-        running = false
-        paused = true
-        onRunningChanged(false)
         if (stopStepper) {
             stepper.stop()
         }
         if (clearTarget) {
             applyTarget(null)
         }
+        emitState(RunnerState.stopped())
+    }
+
+    private fun updateStateFromTick(output: StepperOutput) {
+        val nextState = state.copy(
+            running = true,
+            paused = false,
+            done = false,
+            label = output.label,
+            targetPowerWatts = output.targetPowerWatts,
+            targetCadence = output.targetCadence,
+        )
+        val labelOrTargetChanged =
+            nextState.label != state.label ||
+                nextState.targetPowerWatts != state.targetPowerWatts ||
+                nextState.targetCadence != state.targetCadence
+        state = nextState
+        if (labelOrTargetChanged) {
+            onStateChanged(nextState)
+        }
+    }
+
+    private fun emitState(nextState: RunnerState) {
+        state = nextState
+        onStateChanged(nextState)
     }
 }
