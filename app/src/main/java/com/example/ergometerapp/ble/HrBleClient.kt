@@ -77,7 +77,7 @@ class HrBleClient(
             value: ByteArray
         ) {
             if (characteristic.uuid == HR_MEASUREMENT_UUID) {
-                val bpm = parseHeartRate(value)
+                val bpm = parseHeartRate(value) ?: return
                 mainThreadHandler.post { onHeartRate(bpm) }
             }
         }
@@ -130,10 +130,13 @@ class HrBleClient(
      *
      * TODO: Validate payload length before indexing to avoid malformed packets.
      */
-    private fun parseHeartRate(bytes: ByteArray): Int {
+    private fun parseHeartRate(bytes: ByteArray): Int? {
+        if (bytes.size < 2) return null
+
         val flags = bytes[0].toInt()
         val hr16bit = flags and 0x01 != 0
         return if (hr16bit) {
+            if (bytes.size < 3) return null
             (bytes[1].toInt() and 0xFF) or ((bytes[2].toInt() and 0xFF) shl 8)
         } else {
             bytes[1].toInt() and 0xFF
