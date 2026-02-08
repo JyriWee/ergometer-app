@@ -43,7 +43,7 @@ import com.example.ergometerapp.workout.runner.WorkoutStepper
  * This activity intentionally keeps protocol handling in the BLE/controller
  * layers and only reacts to their callbacks to update UI state.
  */
-class MainActivity : ComponentActivity() {
+class codexMainActivity : ComponentActivity() {
     private enum class AppScreen { MENU, SESSION, SUMMARY }
 
     private val screenState = mutableStateOf(AppScreen.MENU)
@@ -387,12 +387,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         workoutRunner?.stop()
-        if (::bleClient.isInitialized) {
-            bleClient.close()
-        }
-        if (::hrClient.isInitialized) {
-            hrClient.close()
-        }
+        bleClient.close()
+        hrClient.close()
         allowScreenOff()
         super.onDestroy()
     }
