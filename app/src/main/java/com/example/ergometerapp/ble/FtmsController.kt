@@ -91,7 +91,12 @@ class FtmsController(
     fun setTargetPower(watts: Int) {
         val w = watts.coerceIn(0, 2000)
 
-        if (commandState == FtmsCommandState.BUSY) return
+        if (commandState == FtmsCommandState.BUSY) {
+            pendingTargetPowerWatts = w
+            Log.d("FTMS", "Queued target power (last wins): $w W")
+            return
+        }
+
         if (lastSentTargetPower == w) return
 
         lastSentTargetPower = w
