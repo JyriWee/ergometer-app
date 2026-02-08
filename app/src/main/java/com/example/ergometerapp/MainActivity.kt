@@ -18,7 +18,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.ui.input.pointer.pointerInput
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
 import com.example.ergometerapp.ble.HrBleClient
@@ -385,8 +384,15 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        super.onDestroy()
+        workoutRunner?.stop()
+        if (::bleClient.isInitialized) {
+            bleClient.close()
+        }
+        if (::hrClient.isInitialized) {
+            hrClient.close()
+        }
         allowScreenOff()
+        super.onDestroy()
     }
 
 }
