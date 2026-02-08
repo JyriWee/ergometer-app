@@ -1,8 +1,8 @@
 package com.example.ergometerapp.workout
 
-import android.util.Xml
 import org.xmlpull.v1.XmlPullParser
 import org.xmlpull.v1.XmlPullParserException
+import org.xmlpull.v1.XmlPullParserFactory
 import java.io.IOException
 import java.io.StringReader
 
@@ -41,7 +41,7 @@ import java.io.StringReader
  * ```
  */
 fun parseZwo(xml: String): WorkoutFile {
-    val parser = Xml.newPullParser()
+    val parser = XmlPullParserFactory.newInstance().newPullParser()
     parser.setInput(StringReader(xml))
 
     var name: String? = null
