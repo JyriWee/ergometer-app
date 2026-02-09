@@ -272,6 +272,10 @@ internal fun SessionScreen(
                                 metrics = metrics,
                                 isWide = true
                             )
+                            WorkoutStatusSection(
+                                runnerState = runnerState,
+                                unknown = unknown
+                            )
                             MachineStatusSection(
                                 ftmsStatusText = ftmsStatusText,
                                 controlStatusText = controlStatusText,
@@ -307,6 +311,10 @@ internal fun SessionScreen(
                         bikeData = bikeData,
                         metrics = metrics,
                         isWide = false
+                    )
+                    WorkoutStatusSection(
+                        runnerState = runnerState,
+                        unknown = unknown
                     )
 
                     MachineStatusSection(
@@ -466,7 +474,7 @@ private fun TelemetrySection(
     metrics: List<MetricItem>,
     isWide: Boolean
 ) {
-    SectionCard(title = stringResource(R.string.session_title)) {
+    SectionCard(title = stringResource(R.string.session_metrics_title)) {
         if (bikeData == null) {
             Text(
                 text = stringResource(R.string.session_waiting),
@@ -477,6 +485,32 @@ private fun TelemetrySection(
         MetricsGrid(
             items = metrics,
             columns = if (isWide) 2 else 1
+        )
+    }
+}
+
+@Composable
+private fun WorkoutStatusSection(
+    runnerState: RunnerState,
+    unknown: String
+) {
+    SectionCard(title = stringResource(R.string.session_workout_status_title)) {
+        LabeledValueRow(
+            label = stringResource(R.string.session_workout_state),
+            value = workoutStateLabel(runnerState)
+        )
+
+        LabeledValueRow(
+            label = stringResource(R.string.session_workout_step),
+            value = runnerState.label ?: unknown
+        )
+
+        LabeledValueRow(
+            label = stringResource(R.string.session_workout_target_cadence),
+            value = stringResource(
+                R.string.session_workout_target_cadence_value,
+                format0(runnerState.targetCadence, unknown)
+            )
         )
     }
 }
@@ -529,25 +563,7 @@ private fun WorkoutControlsSection(
     val workoutPaused = runnerState.paused
 
     SectionCard(title = stringResource(R.string.session_workout_title)) {
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_state),
-            value = workoutStateLabel(runnerState)
-        )
-
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_step),
-            value = runnerState.label ?: unknown
-        )
-
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_target_cadence),
-            value = stringResource(
-                R.string.session_workout_target_cadence_value,
-                format0(runnerState.targetCadence, unknown)
-            )
-        )
-
-        HorizontalDivider()
+        SectionLabel(text = stringResource(R.string.session_workout_controls_section_trainer))
 
         Button(
             onClick = onTakeControl,
@@ -557,6 +573,19 @@ private fun WorkoutControlsSection(
         ) {
             Text(stringResource(R.string.btn_take_control))
         }
+
+        Button(
+            onClick = onRelease,
+            enabled = canRelease,
+            modifier = Modifier.fillMaxWidth(),
+            colors = disabledVisibleButtonColors()
+        ) {
+            Text(stringResource(R.string.btn_release))
+        }
+
+        HorizontalDivider()
+
+        SectionLabel(text = stringResource(R.string.session_workout_controls_section_power))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -590,6 +619,10 @@ private fun WorkoutControlsSection(
             )
         }
 
+        HorizontalDivider()
+
+        SectionLabel(text = stringResource(R.string.session_workout_controls_section_workout))
+
         Button(
             onClick = if (workoutPaused) onResumeWorkout else onPauseWorkout,
             enabled = runnerState.running,
@@ -604,17 +637,6 @@ private fun WorkoutControlsSection(
         }
 
         Button(
-            onClick = onRelease,
-            enabled = canRelease,
-            modifier = Modifier.fillMaxWidth(),
-            colors = disabledVisibleButtonColors()
-        ) {
-            Text(stringResource(R.string.btn_release))
-        }
-
-        HorizontalDivider()
-
-        Button(
             onClick = onStopWorkout,
             enabled = canStopWorkout,
             modifier = Modifier.fillMaxWidth(),
@@ -622,6 +644,10 @@ private fun WorkoutControlsSection(
         ) {
             Text(stringResource(R.string.btn_stop_workout))
         }
+
+        HorizontalDivider()
+
+        SectionLabel(text = stringResource(R.string.session_workout_controls_section_session))
 
         Button(
             onClick = onEndSession,
@@ -632,6 +658,15 @@ private fun WorkoutControlsSection(
             Text(stringResource(R.string.btn_end_session))
         }
     }
+}
+
+@Composable
+private fun SectionLabel(text: String) {
+    Text(
+        text = text,
+        style = MaterialTheme.typography.labelLarge,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 }
 
 @Composable

@@ -18,6 +18,7 @@
 
     <!-- Session -->
     <string name="session_title">Session</string>
+    <string name="session_metrics_title">Session metrics</string>
     <string name="session_phase">Phase: %1$s</string>
     <string name="session_phase_idle">Idle</string>
     <string name="session_phase_running">Running</string>
@@ -41,6 +42,11 @@
     <string name="session_target_value">%1$s W</string>
 
     <string name="session_workout_title">Workout controls</string>
+    <string name="session_workout_status_title">Workout status</string>
+    <string name="session_workout_controls_section_trainer">Trainer control</string>
+    <string name="session_workout_controls_section_power">Manual power</string>
+    <string name="session_workout_controls_section_workout">Workout actions</string>
+    <string name="session_workout_controls_section_session">Session actions</string>
     <string name="session_workout_state">Workout state</string>
     <string name="session_workout_state_running">Running</string>
     <string name="session_workout_state_paused">Paused</string>
