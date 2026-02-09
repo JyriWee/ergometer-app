@@ -28,17 +28,13 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
                 ((bytes[offset + 1].toInt() and 0xFF) shl 8)
         offset += 2
         return v
-
-        fun s16(): Int {
-            val v = (bytes[offset].toInt() and 0xFF) or
-                    ((bytes[offset + 1].toInt() and 0xFF) shl 8)
-            offset += 2
-            return v.toShort().toInt()
-        }
-
-
     }
-
+    fun s16(): Int {
+        val v = (bytes[offset].toInt() and 0xFF) or
+                ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+        offset += 2
+        return v.toShort().toInt()
+    }
     fun u24(): Int {
         val v = (bytes[offset].toInt() and 0xFF) or
                 ((bytes[offset + 1].toInt() and 0xFF) shl 8) or

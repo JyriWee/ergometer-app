@@ -107,9 +107,7 @@ internal fun SessionScreen(
     val canResume = runnerState.paused
 
     val canRelease =
-        ftmsControlGranted &&
-                runnerState.running
-
+        ftmsReady && ftmsControlGranted
 
     val canStopWorkout =
         runnerState.running || runnerState.paused
