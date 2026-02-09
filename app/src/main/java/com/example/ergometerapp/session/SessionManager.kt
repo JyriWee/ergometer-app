@@ -194,6 +194,7 @@ class SessionManager(
 
             lastSummary = summary
             sessionPhase = SessionPhase.STOPPED
+            emitState()
 
             lastSummary?.let {
                 SessionStorage.save(context, it)
