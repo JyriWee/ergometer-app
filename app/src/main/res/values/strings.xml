@@ -1,47 +1,82 @@
 <resources>
     <string name="app_name">ERGOMETER</string>
 
+    <!-- Shared -->
+    <string name="status_connected">Connected</string>
+    <string name="status_connecting">Connecting</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_control">Control Granted</string>
+    <string name="status_unavailable">Not available</string>
+    <string name="value_unknown">--</string>
+
     <!-- Menu -->
-    <string name="menu_title">ERGOMETER</string>
-    <string name="menu_ftms_ready">FTMS: READY</string>
-    <string name="menu_ftms_connecting">FTMS: CONNECTING</string>
-    <string name="menu_start_session">START SESSION</string>
+    <string name="menu_title">Ergometer</string>
+    <string name="menu_subtitle">Indoor bike control and live telemetry.</string>
+    <string name="menu_connection_title">Trainer connection</string>
+    <string name="menu_connection_hint">Session start is enabled after FTMS setup is complete.</string>
+    <string name="menu_start_session">Start Session</string>
 
     <!-- Session -->
-    <string name="session_title">SESSION</string>
+    <string name="session_title">Session</string>
     <string name="session_phase">Phase: %1$s</string>
-    <string name="session_waiting">Waiting for ergometer…</string>
+    <string name="session_phase_idle">Idle</string>
+    <string name="session_phase_running">Running</string>
+    <string name="session_phase_stopped">Stopped</string>
+    <string name="session_waiting">Waiting for trainer telemetry…</string>
+    <string name="session_elapsed_time">Elapsed time</string>
 
-    <string name="session_speed">Speed: %1$s km/h</string>
-    <string name="session_cadence">Cadence: %1$s rpm</string>
-    <string name="session_power">Power: %1$s W</string>
-    <string name="session_time">Time: %1$s</string>
-    <string name="session_hr">HR: %1$s bpm</string>
+    <string name="session_speed_label">Speed</string>
+    <string name="session_speed_value">%1$s km/h</string>
+    <string name="session_cadence_label">Cadence</string>
+    <string name="session_cadence_value">%1$s rpm</string>
+    <string name="session_power_label">Power</string>
+    <string name="session_power_value">%1$s W</string>
+    <string name="session_hr_label">Heart rate</string>
+    <string name="session_hr_value">%1$s bpm</string>
 
-    <string name="session_ftms_status">FTMS: %1$s</string>
-    <string name="session_ftms_connecting">CONNECTING</string>
-    <string name="session_ftms_ready">READY</string>
-    <string name="session_ftms_control">CONTROL</string>
+    <string name="session_status_title">Machine status</string>
+    <string name="session_status_ftms">FTMS</string>
+    <string name="session_status_control">Control</string>
+    <string name="session_target_label">Current target</string>
+    <string name="session_target_value">%1$s W</string>
 
-    <string name="session_target">Target: %1$s W</string>
-    <string name="session_workout_running_pause_manual">Workout running: pause to set manual watts.</string>
+    <string name="session_workout_title">Workout controls</string>
+    <string name="session_workout_state">Workout state</string>
+    <string name="session_workout_state_running">Running</string>
+    <string name="session_workout_state_paused">Paused</string>
+    <string name="session_workout_state_done">Done</string>
+    <string name="session_workout_state_stopped">Stopped</string>
+    <string name="session_workout_step">Current step</string>
+    <string name="session_workout_target_cadence">Target cadence</string>
+    <string name="session_workout_target_cadence_value">%1$s rpm</string>
+    <string name="session_workout_hint">Pause workout before setting manual target power.</string>
     <string name="power_button">%1$d W</string>
 
-    <string name="btn_take_control">TAKE CONTROL</string>
-    <string name="btn_pause_workout">PAUSE WORKOUT</string>
-    <string name="btn_resume_workout">RESUME WORKOUT</string>
-    <string name="btn_release">RELEASE</string>
-    <string name="btn_stop_workout">STOP WORKOUT</string>
-    <string name="btn_end_session">END SESSION</string>
+    <string name="btn_take_control">Take Control</string>
+    <string name="btn_pause_workout">Pause Workout</string>
+    <string name="btn_resume_workout">Resume Workout</string>
+    <string name="btn_release">Release Control</string>
+    <string name="btn_stop_workout">Stop Workout</string>
+    <string name="btn_end_session">End Session</string>
 
     <!-- Summary -->
-    <string name="no_summary">No summary yet.</string>
-    <string name="summary">SUMMARY</string>
-    <string name="duration">Duration: %1$s s</string>
-    <string name="avg_power">Avg power: %1$s W</string>
-    <string name="max_power">Max power: %1$s W</string>
-    <string name="avg_cadence">Avg cadence: %1$s rpm</string>
-    <string name="max_cadence">Max cadence: %1$s rpm</string>
-    <string name="avg_hr">Avg HR: %1$s bpm</string>
-    <string name="back_to_menu">BACK TO MENU</string>
+    <string name="summary_title">Summary</string>
+    <string name="no_summary">No summary available yet.</string>
+    <string name="summary_duration">Duration</string>
+    <string name="summary_avg_power">Average power</string>
+    <string name="summary_max_power">Maximum power</string>
+    <string name="summary_avg_cadence">Average cadence</string>
+    <string name="summary_max_cadence">Maximum cadence</string>
+    <string name="summary_avg_hr">Average heart rate</string>
+    <string name="summary_max_hr">Maximum heart rate</string>
+    <string name="summary_distance">Distance</string>
+    <string name="summary_power_value">%1$s W</string>
+    <string name="summary_cadence_value">%1$s rpm</string>
+    <string name="summary_hr_value">%1$s bpm</string>
+    <string name="summary_distance_value">%1$s m</string>
+    <string name="back_to_menu">Back to Menu</string>
+
+    <!-- Debug -->
+    <string name="debug_toggle">Debug</string>
+    <string name="debug_toggle_content_description">Toggle FTMS debug timeline</string>
 </resources>
