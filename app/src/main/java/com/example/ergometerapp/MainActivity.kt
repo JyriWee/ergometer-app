@@ -10,14 +10,18 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Box
-import androidx.compose.material3.Button
-import androidx.compose.material3.Text
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Text
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
 import com.example.ergometerapp.ble.HrBleClient
@@ -107,6 +111,8 @@ class MainActivity : ComponentActivity() {
                 val showDebugTimeline = showDebugTimelineState.value
 
                 if (BuildConfig.DEBUG) {
+                    val debugToggleContentDescription =
+                        stringResource(R.string.debug_toggle_content_description)
                     Box {
                         when (screen) {
                             AppScreen.MENU -> MenuScreen(
@@ -149,10 +155,18 @@ class MainActivity : ComponentActivity() {
                             )
                         }
 
-                        Button(onClick = {
-                            showDebugTimelineState.value = !showDebugTimelineState.value
-                        }) {
-                            Text("Debug")
+                        FloatingActionButton(
+                            onClick = {
+                                showDebugTimelineState.value = !showDebugTimelineState.value
+                            },
+                            modifier = Modifier
+                                .align(Alignment.TopEnd)
+                                .padding(16.dp)
+                                .semantics {
+                                    contentDescription = debugToggleContentDescription
+                                }
+                        ) {
+                            Text(stringResource(R.string.debug_toggle))
                         }
 
                         if (showDebugTimeline) {
@@ -347,18 +361,24 @@ class MainActivity : ComponentActivity() {
     private fun ensureWorkoutRunner(): WorkoutRunner {
         val existing = workoutRunner
         if (existing != null) return existing
-        val runner = WorkoutRunner(stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),targetWriter = { targetWatts ->
-            if (ftmsReadyState.value && ftmsControlGrantedState.value) {
-                if (targetWatts == null) {
-                    ftmsController.setTargetPower(null)   // ERG release
-                } else {
-                    ftmsController.setTargetPower(targetWatts)
+        val runner = WorkoutRunner(
+            stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),
+            targetWriter = { targetWatts ->
+                if (ftmsReadyState.value && ftmsControlGrantedState.value) {
+                    if (targetWatts == null) {
+                        ftmsController.setTargetPower(null) // ERG release
+                    } else {
+                        ftmsController.setTargetPower(targetWatts)
+                    }
                 }
+                lastTargetPowerState.value = targetWatts
+            },
+            onStateChanged = { state ->
+                runnerState.value = state
             }
-            lastTargetPowerState.value = targetWatts
-        })
+        )
 
-                workoutRunner = runner
+        workoutRunner = runner
         return runner
     }
 

@@ -10,36 +10,50 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = Cyan80,
+    onPrimary = Cyan30,
+    primaryContainer = Cyan30,
+    onPrimaryContainer = Cyan90,
+    secondary = Steel80,
+    onSecondary = Slate20,
+    secondaryContainer = Slate40,
+    onSecondaryContainer = Slate90,
+    background = Slate10,
+    onBackground = Slate90,
+    surface = Slate20,
+    onSurface = Slate90,
+    surfaceVariant = Slate40,
+    onSurfaceVariant = Slate80,
+    outline = Slate80
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
-    onPrimary = Color.White,
-    onSecondary = Color.White,
-    onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    primary = Cyan40,
+    onPrimary = Slate95,
+    primaryContainer = Cyan90,
+    onPrimaryContainer = Cyan30,
+    secondary = Steel40,
+    onSecondary = Slate95,
+    secondaryContainer = Cyan90,
+    onSecondaryContainer = Slate20,
+    background = Slate95,
+    onBackground = Slate20,
+    surface = Slate95,
+    onSurface = Slate20,
+    surfaceVariant = Slate90,
+    onSurfaceVariant = Slate40,
+    outline = Steel40
 )
 
 @Composable
 fun ErgometerAppTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Keep custom palette by default to preserve a stable brand look.
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
-        dynamicColor && true -> {
+        dynamicColor -> {
             val context = LocalContext.current
             if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
         }
