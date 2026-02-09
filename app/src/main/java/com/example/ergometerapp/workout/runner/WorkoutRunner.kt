@@ -3,6 +3,7 @@ package com.example.ergometerapp.workout.runner
 import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
+import com.example.ergometerapp.ftms.FtmsTargetWriter
 
 /**
  * Drives a [WorkoutStepper] on a fixed tick and forwards target power updates.
@@ -10,11 +11,11 @@ import android.os.SystemClock
  * Invariants and edge cases:
  * - Uses [SystemClock.uptimeMillis] deltas for deterministic progression across pauses.
  * - Applies target power only when non-null to avoid overriding free-ride steps.
- * - Stops ticking once the workout is done and clears targets via [applyTarget].
+ * - Stops ticking once the workout is done and clears targets via [targetWriter].
  */
 class WorkoutRunner(
     private val stepper: WorkoutStepper,
-    private val applyTarget: (Int?) -> Unit,
+    private val targetWriter: FtmsTargetWriter,
     private val onStateChanged: (RunnerState) -> Unit = {},
     private val tickIntervalMs: Long = 250L,
     private val nowUptimeMs: () -> Long = { SystemClock.uptimeMillis() },
@@ -26,7 +27,8 @@ class WorkoutRunner(
         override fun run() {
             if (!state.running || state.paused || state.done) return
             val output = stepper.tick(nowUptimeMs())
-            output.targetPowerWatts?.let { applyTarget(it) }
+            output.targetPowerWatts?.let { targetWriter.setTargetWatts(it)
+            }
             if (output.done) {
                 stopInternal(clearTarget = true, stopStepper = false)
                 return
@@ -90,7 +92,7 @@ class WorkoutRunner(
             stepper.stop()
         }
         if (clearTarget) {
-            applyTarget(null)
+            targetWriter.setTargetWatts(null)
         }
         emitState(RunnerState.stopped())
     }

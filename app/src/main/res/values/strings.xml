@@ -35,8 +35,8 @@
     <string name="btn_end_session">END SESSION</string>
 
     <!-- Summary -->
-    <string name="no_summary">SUMMARY</string>
-    <string name="summary">No summary yet.</string>
+    <string name="no_summary">No summary yet.</string>
+    <string name="summary">SUMMARY</string>
     <string name="duration">Duration: %1$s s</string>
     <string name="avg_power">Avg power: %1$s W</string>
     <string name="max_power">Max power: %1$s W</string>

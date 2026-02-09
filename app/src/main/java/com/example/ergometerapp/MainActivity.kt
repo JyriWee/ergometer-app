@@ -106,7 +106,7 @@ class MainActivity : ComponentActivity() {
                 val currentRunnerState = runnerState.value
                 val showDebugTimeline = showDebugTimelineState.value
 
-                if (com.example.ergometerapp.BuildConfig.DEBUG) {
+                if (BuildConfig.DEBUG) {
                     Box {
                         when (screen) {
                             AppScreen.MENU -> MenuScreen(
@@ -347,24 +347,18 @@ class MainActivity : ComponentActivity() {
     private fun ensureWorkoutRunner(): WorkoutRunner {
         val existing = workoutRunner
         if (existing != null) return existing
-        val runner = WorkoutRunner(
-            stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),
-            applyTarget = { targetWatts ->
-                if (ftmsReadyState.value &&
-                    ftmsControlGrantedState.value &&
-                    targetWatts != null &&
-                    !runnerState.value.done) {
-                    ftmsController.setTargetPower(targetWatts)
-                    lastTargetPowerState.value = targetWatts
+        val runner = WorkoutRunner(stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),targetWriter = { targetWatts ->
+            if (ftmsReadyState.value && ftmsControlGrantedState.value) {
+                if (targetWatts == null) {
+                    ftmsController.setTargetPower(null)   // ERG release
                 } else {
-                    lastTargetPowerState.value = null
+                    ftmsController.setTargetPower(targetWatts)
                 }
-            },
-            onStateChanged = { state ->
-                runnerState.value = state
             }
-        )
-        workoutRunner = runner
+            lastTargetPowerState.value = targetWatts
+        })
+
+                workoutRunner = runner
         return runner
     }
 

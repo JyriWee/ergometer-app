@@ -88,7 +88,12 @@ class FtmsController(
      * "Last wins" ensures rapid UI updates do not queue stale targets while the
      * device is processing the previous command.
      */
-    fun setTargetPower(watts: Int) {
+    fun setTargetPower(watts: Int?) {
+
+        if (watts == null) {
+            releaseControl()
+            return
+        }
         val w = watts.coerceIn(0, 2000)
 
         if (commandState == FtmsCommandState.BUSY) {

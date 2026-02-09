@@ -48,7 +48,6 @@ class ZwoParserTest {
               <workout/>
             </workout_file>
         """.trimIndent()
-
         val result = parseZwo(xml)
 
         assertEquals(listOf("name"), result.tags)
