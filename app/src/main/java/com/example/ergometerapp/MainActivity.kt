@@ -349,7 +349,7 @@ class MainActivity : ComponentActivity() {
         if (existing != null) return existing
         val runner = WorkoutRunner(
             stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),
-            targetWriter = com.example.ergometerapp.ftms.FtmsTargetWriter { targetWatts ->
+            targetWriter = { targetWatts ->
                 if (ftmsReadyState.value &&
                     ftmsControlGrantedState.value &&
                     targetWatts != null &&
