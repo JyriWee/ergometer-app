@@ -25,6 +25,8 @@
     <string name="session_waiting">Waiting for trainer telemetry…</string>
     <string name="session_elapsed_time">Elapsed time</string>
 
+    <string name="session_metrics_title">Live metrics</string>
+
     <string name="session_speed_label">Speed</string>
     <string name="session_speed_value">%1$s km/h</string>
     <string name="session_cadence_label">Cadence</string>
@@ -40,7 +42,12 @@
     <string name="session_target_label">Current target</string>
     <string name="session_target_value">%1$s W</string>
 
+    <string name="session_workout_status_title">Workout status</string>
     <string name="session_workout_title">Workout controls</string>
+    <string name="session_workout_controls_section_trainer">Trainer control</string>
+    <string name="session_workout_controls_section_power">Quick power presets</string>
+    <string name="session_workout_controls_section_workout">Workout actions</string>
+    <string name="session_workout_controls_section_session">Session actions</string>
     <string name="session_workout_state">Workout state</string>
     <string name="session_workout_state_running">Running</string>
     <string name="session_workout_state_paused">Paused</string>
