@@ -28,6 +28,15 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
                 ((bytes[offset + 1].toInt() and 0xFF) shl 8)
         offset += 2
         return v
+
+        fun s16(): Int {
+            val v = (bytes[offset].toInt() and 0xFF) or
+                    ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+            offset += 2
+            return v.toShort().toInt()
+        }
+
+
     }
 
     fun u24(): Int {
@@ -64,11 +73,16 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
             if (flag(4)) u16() else null
 
         val instantPower =
-            if (flag(5)) u16() else null
-        instantPower?.let { FtmsDebugBuffer.record(FtmsDebugEvent.PowerSample(System.currentTimeMillis(), it)) }
+            if (flag(5)) s16() else null
+        instantPower?.let {
+            FtmsDebugBuffer.record(
+                FtmsDebugEvent.PowerSample(System.currentTimeMillis(), it)
+            )
+        }
 
         val avgPower =
-            if (flag(6)) u16() else null
+            if (flag(6)) s16() else null
+
 
         val totalEnergy =
             if (flag(7)) u16() else null
