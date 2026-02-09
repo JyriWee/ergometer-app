@@ -19,6 +19,10 @@ class WorkoutStepper private constructor(
     private val ftpWatts: Int?,
     private val executionWorkout: ExecutionWorkout?,
 ) {
+    init {
+        require((workout != null && ftpWatts != null) xor (executionWorkout != null))
+    }
+
     constructor(
         workout: WorkoutFile,
         ftpWatts: Int,
@@ -456,7 +460,7 @@ class WorkoutStepper private constructor(
         executionCurrentTargetWatts = when (segment) {
             is ExecutionSegment.Steady -> segment.targetWatts
             is ExecutionSegment.Ramp -> {
-                val t = executionSecondsIntoSegment.toDouble() / segment.durationSec.toDouble()
+                val t = (executionSecondsIntoSegment + 1).toDouble() / segment.durationSec.toDouble()
                 (segment.startWatts + (segment.endWatts - segment.startWatts) * t).roundToInt()
             }
         }
