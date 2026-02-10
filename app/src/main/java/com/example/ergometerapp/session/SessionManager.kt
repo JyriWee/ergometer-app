@@ -51,13 +51,15 @@ class SessionManager(
     fun updateBikeData(bikeData: IndoorBikeData) {
         runOnMainThread {
             latestBikeData = bikeData
-
+            emitState()
+            /*
             if (sessionPhase == SessionPhase.RUNNING) {
-
                 // Power values at or below zero are treated as invalid samples.
-                latestBikeData?.instantaneousPowerW
-                    ?.takeIf { it > 0 }
+                latestBikeData
+                    ?.takeIf { it.valid && it.instantaneousPowerW != null }
+                    ?.instantaneousPowerW
                     ?.let { powerSamples.add(it) }
+
 
                 // Distance is cumulative; store the latest for the summary.
                 latestBikeData?.totalDistanceMeters
@@ -73,6 +75,7 @@ class SessionManager(
                 latestBikeData?.instantaneousCadenceRpm?.let { cadenceSamples.add(it.toInt()) }
             }
             emitState()
+             */
         }
     }
 
@@ -85,7 +88,6 @@ class SessionManager(
     fun updateHeartRate(hr: Int?) {
         runOnMainThread {
             latestHeartRate = hr
-
             if (sessionPhase == SessionPhase.RUNNING) {
                 hr?.let { heartRateSamples.add(it) }
             }

@@ -1,5 +1,6 @@
 package com.example.ergometerapp.ui
 
+import android.util.Log
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -22,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -61,7 +63,7 @@ internal fun MenuScreen(
         if (ftmsReady) stringResource(R.string.status_connected)
         else stringResource(R.string.status_connecting)
 
-    BoxWithConstraints(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
@@ -140,6 +142,10 @@ internal fun SessionScreen(
     onStopWorkout: () -> Unit,
     onEndSession: () -> Unit
 ) {
+    LaunchedEffect(bikeData) {
+        Log.d("UI", "SessionScreen bikeData updated: $bikeData")
+    }
+
     val unknown = stringResource(R.string.value_unknown)
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
     val elapsedTime = formatTime(durationSeconds, unknown)

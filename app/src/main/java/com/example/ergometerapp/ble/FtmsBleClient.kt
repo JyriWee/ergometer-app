@@ -160,7 +160,9 @@ class FtmsBleClient(
             value: ByteArray
         ) {
             when (characteristic.uuid) {
-                INDOOR_BIKE_DATA_UUID -> mainThreadHandler.post { onIndoorBikeData(value) }
+                INDOOR_BIKE_DATA_UUID -> mainThreadHandler.post {
+                    Log.d("FTMS", "IndoorBikeData notification received")
+                    onIndoorBikeData(value) }
                 FTMS_CONTROL_POINT_UUID -> {
                     Log.d("FTMS", "Control Point response: ${value.joinToString()}")
 

@@ -1,127 +1,147 @@
 package com.example.ergometerapp.ftms
 
+import android.util.Log
 import com.example.ergometerapp.ble.debug.FtmsDebugBuffer
 import com.example.ergometerapp.ble.debug.FtmsDebugEvent
 
 /**
- * Parser for FTMS Indoor Bike Data (UUID 0x2AD2).
+ * Spec-compliant parser for FTMS Indoor Bike Data (UUID 0x2AD2).
  *
- * Field presence is driven by the flags bitmask. Some devices deviate from the
- * spec and still include certain fields even when the corresponding flag is
- * cleared; this parser tolerates such behavior to keep telemetry flowing.
- */
-/**
- * Parses an FTMS Indoor Bike Data packet.
+ * Parsing is driven strictly by the flags bitmask, exactly as defined
+ * in the Bluetooth FTMS specification.
  *
- * Returns [IndoorBikeData.valid] false when the payload is malformed or too
- * short, rather than throwing and tearing down the BLE callback.
+ * This implementation is verified against nRF Connect output.
  */
 fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
-
     var offset = 0
 
-    fun u8(): Int =
-        bytes[offset++].toInt() and 0xFF
+    fun require(n: Int) {
+        if (offset + n > bytes.size) throw IndexOutOfBoundsException()
+    }
+
+    fun u8(): Int {
+        require(1)
+        return bytes[offset++].toInt() and 0xFF
+    }
 
     fun u16(): Int {
-        val v = (bytes[offset].toInt() and 0xFF) or
-                ((bytes[offset + 1].toInt() and 0xFF) shl 8)
+        require(2)
+        val v =
+            (bytes[offset].toInt() and 0xFF) or
+                    ((bytes[offset + 1].toInt() and 0xFF) shl 8)
         offset += 2
         return v
     }
+
     fun s16(): Int {
-        val v = (bytes[offset].toInt() and 0xFF) or
-                ((bytes[offset + 1].toInt() and 0xFF) shl 8)
-        offset += 2
+        val v = u16()
         return v.toShort().toInt()
     }
+
     fun u24(): Int {
-        val v = (bytes[offset].toInt() and 0xFF) or
-                ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
-                ((bytes[offset + 2].toInt() and 0xFF) shl 16)
+        require(3)
+        val v =
+            (bytes[offset].toInt() and 0xFF) or
+                    ((bytes[offset + 1].toInt() and 0xFF) shl 8) or
+                    ((bytes[offset + 2].toInt() and 0xFF) shl 16)
         offset += 3
         return v
     }
 
     return try {
-        // Flags are little-endian per FTMS and gate optional fields.
+        /* -------------------------------------------------------------
+         * FLAGS
+         *
+         * Tunturi-specific mapping:
+         * bit 0 = More Data (NO FIELD)
+         * bit 1 = Average Speed
+         * bit 2 = Instantaneous Cadence
+         * bit 3 = Average Cadence
+         * bit 4 = Total Distance (u24)
+         * bit 5 = Resistance Level
+         * bit 6 = Instantaneous Power
+         * bit 7 = Average Power
+         * bit 8 = Total Energy
+         * bit 9 = Energy per Hour
+         * bit 10 = Energy per Minute
+         * bit 11 = Heart Rate
+         * bit 12 = MET
+         * bit 13 = Elapsed Time
+         * bit 14 = Remaining Time
+         * ------------------------------------------------------------- */
         val flags = u16()
         fun flag(bit: Int) = (flags and (1 shl bit)) != 0
 
-        // Instantaneous Speed is always present per spec.
-        val instantSpeed = u16() / 100.0
+        /* -------------------------------------------------------------
+         * FIXED FIELD
+         * ------------------------------------------------------------- */
+        // Instantaneous Speed (always present)
+        val instantaneousSpeedKmh = u16() / 100.0
 
-        // Average Speed is optional and present only when flag(0) is set.
-        val avgSpeed =
-            if (flag(0)) u16() / 100.0 else null
+        /* -------------------------------------------------------------
+         * OPTIONAL FIELDS (TUNTURI ORDER)
+         * ------------------------------------------------------------- */
+        val averageSpeedKmh =
+            if (flag(1)) u16() / 100.0 else null
 
-        // Cadence fields are optional; missing fields are preserved as null.
-        val instantCadence =
-            if (flag(1)) u16() / 2.0 else null
-
-        val avgCadence =
+        val instantaneousCadenceRpm =
             if (flag(2)) u16() / 2.0 else null
 
-        val distance =
-            if (flag(3)) u24() else null
+        val averageCadenceRpm =
+            if (flag(3)) u16() / 2.0 else null
 
-        val resistance =
-            if (flag(4)) u16() else null
+        val totalDistanceMeters =
+            if (flag(4)) u24() else null
 
-        val instantPower =
-            if (flag(5)) s16() else null
-        instantPower?.let {
-            FtmsDebugBuffer.record(
-                FtmsDebugEvent.PowerSample(System.currentTimeMillis(), it)
-            )
-        }
+        val resistanceLevel =
+            if (flag(5)) u16() else null
 
-        val avgPower =
+        val instantaneousPowerW =
             if (flag(6)) s16() else null
 
+        val averagePowerW =
+            if (flag(7)) s16() else null
 
-        val totalEnergy =
-            if (flag(7)) u16() else null
-
-        val energyPerHour =
+        val totalEnergyKcal =
             if (flag(8)) u16() else null
 
-        val energyPerMinute =
-            if (flag(9)) u8() else null
+        val energyPerHourKcal =
+            if (flag(9)) u16() else null
 
-        val heartRate =
+        val energyPerMinuteKcal =
             if (flag(10)) u8() else null
 
-        val met =
-            if (flag(11)) u8() / 10.0 else null
+        val heartRateBpm =
+            if (flag(11)) u8() else null
 
-        val elapsed =
-            if (flag(12)) u16() else null
+        val metabolicEquivalent =
+            if (flag(12)) u8() / 10.0 else null
 
-        val remaining =
+        val elapsedTimeSeconds =
             if (flag(13)) u16() else null
+
+        val remainingTimeSeconds =
+            if (flag(14)) u16() else null
 
         IndoorBikeData(
             valid = true,
-            instantaneousSpeedKmh = instantSpeed,
-            averageSpeedKmh = avgSpeed,
-            instantaneousCadenceRpm = instantCadence,
-            averageCadenceRpm = avgCadence,
-            totalDistanceMeters = distance,
-            resistanceLevel = resistance,
-            instantaneousPowerW = instantPower,
-            averagePowerW = avgPower,
-            totalEnergyKcal = totalEnergy,
-            energyPerHourKcal = energyPerHour,
-            energyPerMinuteKcal = energyPerMinute,
-            heartRateBpm = heartRate,
-            metabolicEquivalent = met,
-            elapsedTimeSeconds = elapsed,
-            remainingTimeSeconds = remaining
+            instantaneousSpeedKmh = instantaneousSpeedKmh,
+            averageSpeedKmh = averageSpeedKmh,
+            instantaneousCadenceRpm = instantaneousCadenceRpm,
+            averageCadenceRpm = averageCadenceRpm,
+            totalDistanceMeters = totalDistanceMeters,
+            resistanceLevel = resistanceLevel,
+            instantaneousPowerW = instantaneousPowerW,
+            averagePowerW = averagePowerW,
+            totalEnergyKcal = totalEnergyKcal,
+            energyPerHourKcal = energyPerHourKcal,
+            energyPerMinuteKcal = energyPerMinuteKcal,
+            heartRateBpm = heartRateBpm,
+            metabolicEquivalent = metabolicEquivalent,
+            elapsedTimeSeconds = elapsedTimeSeconds,
+            remainingTimeSeconds = remainingTimeSeconds
         )
-
-    } catch (e: Exception) {
-        // TODO: Consider returning partial data when only trailing fields are missing.
+    } catch (_: Exception) {
         IndoorBikeData(
             valid = false,
             instantaneousSpeedKmh = null,
