@@ -97,6 +97,7 @@
         <string name="summary_hr_value">%1$s bpm</string>
 
     <!-- Debug -->
+
     <string name="debug_toggle">Debug</string>
     <string name="debug_toggle_content_description">Toggle FTMS debug timeline</string>
 </resources>
