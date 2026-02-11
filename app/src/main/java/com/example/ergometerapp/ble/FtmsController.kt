@@ -136,9 +136,18 @@ class FtmsController(
             return
         }
         hasStopped = true
+
+        // STOP is terminal: do not enter BUSY state and do not wait for CP response
+        cancelTimeoutTimer()
+        commandState = FtmsCommandState.IDLE
+        pendingTargetPowerWatts = null
+        pendingReset = false
+
         val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
-        sendCommand(payload, "stopWorkout")
+        Log.d("FTMS", "Sending: stopWorkout payload=${payload.joinToString()}")
+        writeControlPoint(payload)
     }
+
 
     /**
      * Clears the active ERG target without marking the session as hard-stopped.

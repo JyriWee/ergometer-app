@@ -65,11 +65,20 @@ class FtmsBleClient(
                     Log.w("FTMS", "discoverServices failed: ${e.message}")
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-            Log.w("FTMS", "GATT disconnected (status=$status)")
-            controlPointCharacteristic = null
-            this@FtmsBleClient.gatt = null
-            mainThreadHandler.post { onDisconnected() }
+                Log.w("FTMS", "GATT disconnected (status=$status)")
+                controlPointCharacteristic = null
+                this@FtmsBleClient.gatt = null
+
+                // Notify UI/state layer first
+                mainThreadHandler.post { onDisconnected() }
+
+                // Allow BLE stack to fully settle before any reconnect attempt
+                mainThreadHandler.postDelayed({
+                    // Signal that reconnect is now safe
+                    onDisconnected()
+                }, 1000)
             }
+
         }
 
         override fun onDescriptorWrite(
@@ -214,13 +223,28 @@ class FtmsBleClient(
      * Safe to call multiple times; exceptions can occur if permissions change.
      */
     fun close() {
+        val currentGatt = gatt ?: return
+
         try {
-            gatt?.close()
+            // Ask for a graceful disconnect first
+            currentGatt.disconnect()
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "disconnect failed: ${e.message}")
+        }
+
+        try {
+            // Always close to release resources
+            currentGatt.close()
         } catch (e: SecurityException) {
             Log.w("FTMS", "close failed: ${e.message}")
         }
+
         gatt = null
+
+        // Ensure UI/state is notified even if Android skips callbacks
+        mainThreadHandler.post { onDisconnected() }
     }
+
     private fun writeControlPointCccd(gatt: BluetoothGatt, cp: BluetoothGattCharacteristic) {
         if (!hasBluetoothConnectPermission()) {
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write CP CCCD")

@@ -85,6 +85,7 @@ class MainActivity : ComponentActivity() {
             if (granted) {
                 Log.d("BLE", "BLUETOOTH_CONNECT granted")
                 bleClient.connect("E0:DF:01:46:14:2F")
+                reconnectBleOnNextSessionStart = false
                 hrClient.connect("24:AC:AC:04:12:79")
             } else {
                 Log.d("BLE", "BLUETOOTH_CONNECT denied")
@@ -116,16 +117,18 @@ class MainActivity : ComponentActivity() {
                         stringResource(R.string.debug_toggle_content_description)
                     Box {
                         when (screen) {
-                            AppScreen.MENU -> MenuScreen(
-                                ftmsReady = ftmsReady,
-                                onStartSession = {
-                                    reconnectBleIfNeeded()
-                                    sessionManager.startSession()
-                                    ensureWorkoutRunner().start()
-                                    keepScreenOn()
-                                    screenState.value = AppScreen.SESSION
-                                }
-                            )
+                            AppScreen.MENU -> {
+                                MenuScreen(
+                                    ftmsReady = ftmsReady,
+                                    onStartSession = {
+                                        sessionManager.startSession()
+                                        ensureWorkoutRunner().start()
+                                        keepScreenOn()
+                                        screenState.value = AppScreen.SESSION
+                                    }
+                                )
+                            }
+
 
                             AppScreen.SESSION -> SessionScreen(
                                 phase = phase,
@@ -186,16 +189,17 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     when (screen) {
-                        AppScreen.MENU -> MenuScreen(
-                            ftmsReady = ftmsReady,
-                            onStartSession = {
-                                reconnectBleIfNeeded()
-                                sessionManager.startSession()
-                                ensureWorkoutRunner().start()
-                                keepScreenOn()
-                                screenState.value = AppScreen.SESSION
-                            }
-                        )
+                        AppScreen.MENU -> {
+                            MenuScreen(
+                                ftmsReady = ftmsReady,
+                                onStartSession = {
+                                     sessionManager.startSession()
+                                    ensureWorkoutRunner().start()
+                                    keepScreenOn()
+                                    screenState.value = AppScreen.SESSION
+                                }
+                            )
+                        }
 
                         AppScreen.SESSION -> SessionScreen(
                             phase = phase,
@@ -222,8 +226,7 @@ class MainActivity : ComponentActivity() {
                             summary = summaryState.value,
                             onBackToMenu = {
                                 summaryState.value = null
-                                screenState.value = AppScreen.MENU
-                            }
+                                screenState.value = AppScreen.MENU                            }
                         )
                     }
                 }
@@ -348,7 +351,6 @@ class MainActivity : ComponentActivity() {
     private fun reconnectBleIfNeeded() {
         if (!reconnectBleOnNextSessionStart) return
         ensureBluetoothPermission()
-        reconnectBleOnNextSessionStart = false
     }
 
     /**
@@ -372,6 +374,7 @@ class MainActivity : ComponentActivity() {
             requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
         } else {
             bleClient.connect("E0:DF:01:46:14:2F")
+            reconnectBleOnNextSessionStart = false
             hrClient.connect("24:AC:AC:04:12:79")
         }
     }
