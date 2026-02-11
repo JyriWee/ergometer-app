@@ -88,12 +88,7 @@ class FtmsController(
      * "Last wins" ensures rapid UI updates do not queue stale targets while the
      * device is processing the previous command.
      */
-    fun setTargetPower(watts: Int?) {
-
-        if (watts == null) {
-            releaseControl()
-            return
-        }
+    fun setTargetPower(watts: Int) {
         val w = watts.coerceIn(0, 2000)
 
         if (commandState == FtmsCommandState.BUSY) {
@@ -135,25 +130,34 @@ class FtmsController(
     /**
      * Stops the current workout session if the device supports it.
      */
-    fun stop() {
+    fun stopWorkout() {
         if (hasStopped) {
-            Log.d("FTMS", "stop() ignored (already stopped)")
+            Log.d("FTMS", "stopWorkout() ignored (already stopped)")
             return
         }
         hasStopped = true
         val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
-        sendCommand(payload, "stop")
+        sendCommand(payload, "stopWorkout")
     }
 
     /**
-     * Releases FTMS control without marking the session as hard-stopped.
+     * Clears the active ERG target without marking the session as hard-stopped.
      *
-     * This keeps requestControl() available for reacquisition within the same
-     * workout session.
+     * FTMS ERG release on this trainer is done by setting target power to zero
+     * (0x05 0x00 0x00), which keeps telemetry/session running.
+     */
+    fun clearTargetPower() {
+        setTargetPower(0)
+    }
+
+    /**
+     * Compatibility alias for soft release paths.
+     *
+     * This method must remain STOP-free; explicit workout stop is handled only by
+     * [stopWorkout].
      */
     fun releaseControl() {
-        val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
-        sendCommand(payload, "releaseControl")
+        clearTargetPower()
     }
 
     @Suppress("unused")

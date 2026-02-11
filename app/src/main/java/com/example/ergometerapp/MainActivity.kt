@@ -79,6 +79,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var ftmsController: FtmsController
 
     private var workoutRunner: WorkoutRunner? = null
+    private var reconnectBleOnNextSessionStart = false
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
                             AppScreen.MENU -> MenuScreen(
                                 ftmsReady = ftmsReady,
                                 onStartSession = {
+                                    reconnectBleIfNeeded()
                                     sessionManager.startSession()
                                     ensureWorkoutRunner().start()
                                     keepScreenOn()
@@ -187,6 +189,7 @@ class MainActivity : ComponentActivity() {
                         AppScreen.MENU -> MenuScreen(
                             ftmsReady = ftmsReady,
                             onStartSession = {
+                                reconnectBleIfNeeded()
                                 sessionManager.startSession()
                                 ensureWorkoutRunner().start()
                                 keepScreenOn()
@@ -260,9 +263,7 @@ class MainActivity : ComponentActivity() {
         )
 
 
-        ftmsController = FtmsController { payload ->
-            bleClient.writeControlPoint(payload)
-        }
+        ftmsController = createFtmsController()
 
         // TODO: Move hardcoded MACs to configuration or device discovery flow.
         hrClient = HrBleClient(this)
@@ -292,15 +293,14 @@ class MainActivity : ComponentActivity() {
     /**
      * Releases FTMS control while preserving session semantics.
      *
-     * Hard release uses stop+reset for full session termination. Soft release
-     * only relinquishes FTMS control so it can be reacquired later.
+     * Hard release uses STOP for full session termination. Soft release
+     * clears ERG target without sending STOP so telemetry can continue.
      */
     private fun releaseControl(resetDevice: Boolean) {
         if (resetDevice) {
-            ftmsController.stop()
-            ftmsController.reset()
+            ftmsController.stopWorkout()
         } else {
-            ftmsController.releaseControl()
+            ftmsController.clearTargetPower()
         }
         resetFtmsUiState(clearReady = false)
     }
@@ -324,10 +324,31 @@ class MainActivity : ComponentActivity() {
         workoutRunner = null
         sessionManager.stopSession()
         releaseControl(true)
+        forceBleReconnectOnNextSession()
 
         summaryState.value = sessionManager.lastSummary
         allowScreenOff()
         screenState.value = AppScreen.SUMMARY
+    }
+
+    /**
+     * Enforces fresh BLE state after FTMS STOP by tearing down active GATT links.
+     */
+    private fun forceBleReconnectOnNextSession() {
+        bleClient.close()
+        hrClient.close()
+        ftmsController = createFtmsController()
+        resetFtmsUiState(clearReady = true)
+        reconnectBleOnNextSessionStart = true
+    }
+
+    /**
+     * Reconnects BLE links only when a previous STOP forced a session reset.
+     */
+    private fun reconnectBleIfNeeded() {
+        if (!reconnectBleOnNextSessionStart) return
+        ensureBluetoothPermission()
+        reconnectBleOnNextSessionStart = false
     }
 
     /**
@@ -366,7 +387,7 @@ class MainActivity : ComponentActivity() {
             targetWriter = { targetWatts ->
                 if (ftmsReadyState.value && ftmsControlGrantedState.value) {
                     if (targetWatts == null) {
-                        ftmsController.setTargetPower(null) // ERG release
+                        ftmsController.clearTargetPower() // ERG release
                     } else {
                         ftmsController.setTargetPower(targetWatts)
                     }
@@ -405,6 +426,15 @@ class MainActivity : ComponentActivity() {
         hrClient.close()
         allowScreenOff()
         super.onDestroy()
+    }
+
+    /**
+     * Creates a fresh FTMS command controller bound to the active BLE client.
+     */
+    private fun createFtmsController(): FtmsController {
+        return FtmsController { payload ->
+            bleClient.writeControlPoint(payload)
+        }
     }
 
 }
