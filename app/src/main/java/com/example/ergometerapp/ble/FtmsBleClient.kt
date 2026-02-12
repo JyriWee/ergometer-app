@@ -95,6 +95,19 @@ class FtmsBleClient(
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w("FTMS", "Descriptor write failed at step=$setupStep status=$status")
                 setupStep = SetupStep.NONE
+                indoorBikeDataCharacteristic = null
+                controlPointCharacteristic = null
+                this@FtmsBleClient.gatt = null
+                try {
+                    gatt.disconnect()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "disconnect failed during setup failure: ${e.message}")
+                }
+                try {
+                    gatt.close()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "close failed during setup failure: ${e.message}")
+                }
                 emitDisconnectedOnce()
                 return
             }
@@ -215,16 +228,22 @@ class FtmsBleClient(
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot connect")
             return
         }
+        if (gatt != null) {
+            Log.d("FTMS", "connect ignored (already connected or connecting)")
+            return
+        }
         disconnectEventEmitted = false
         try {
             val bluetoothManager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
             val adapter = bluetoothManager.adapter
             val device = adapter.getRemoteDevice(mac)
-            gatt = device.connectGatt(context, false, gattCallback)
-            if (gatt != null) {
-                Log.d("FTMS", "connect ignored (already connected or connecting)")
+            val newGatt = device.connectGatt(context, false, gattCallback)
+            if (newGatt == null) {
+                Log.w("FTMS", "connectGatt returned null; connection not started")
                 return
             }
+            gatt = newGatt
+            Log.d("FTMS", "connectGatt started for $mac")
         } catch (e: SecurityException) {
             Log.w("FTMS", "connectGatt failed: ${e.message}")
         }

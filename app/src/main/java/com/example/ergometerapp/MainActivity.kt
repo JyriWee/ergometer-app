@@ -75,7 +75,7 @@ class MainActivity : ComponentActivity() {
 
     private val showDebugTimelineState = mutableStateOf(false)
 
-    private lateinit var bleClient: FtmsBleClient
+    private var bleClient: FtmsBleClient? = null
 
     private lateinit var sessionManager: SessionManager
 
@@ -84,15 +84,21 @@ class MainActivity : ComponentActivity() {
     private var workoutRunner: WorkoutRunner? = null
     private var reconnectBleOnNextSessionStart = false
     private var awaitingStopResponseBeforeBleClose = false
+    private var pendingSessionStartAfterPermission = false
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 Log.d("BLE", "BLUETOOTH_CONNECT granted")
-                bleClient.connect("E0:DF:01:46:14:2F")
+                bleClient?.connect("E0:DF:01:46:14:2F")
                 reconnectBleOnNextSessionStart = false
                 hrClient.connect("24:AC:AC:04:12:79")
+                if (pendingSessionStartAfterPermission) {
+                    pendingSessionStartAfterPermission = false
+                    screenState.value = AppScreen.CONNECTING
+                }
                 dumpUiState("permissionResult(granted=true)")
             } else {
+                pendingSessionStartAfterPermission = false
                 Log.d("BLE", "BLUETOOTH_CONNECT denied")
                 dumpUiState("permissionResult(granted=false)")
             }
@@ -126,9 +132,7 @@ class MainActivity : ComponentActivity() {
                             AppScreen.MENU -> {
                                 MenuScreen(
                                     onStartSession = {
-                                        ftmsController = createFtmsController()
-                                        bleClient.connect("E0:DF:01:46:14:2F")
-                                        screenState.value = AppScreen.CONNECTING
+                                        startSessionConnection()
                                     }
                                 )
                             }
@@ -199,9 +203,7 @@ class MainActivity : ComponentActivity() {
                         AppScreen.MENU -> {
                             MenuScreen(
                                 onStartSession = {
-                                    ftmsController = createFtmsController()
-                                    bleClient.connect("E0:DF:01:46:14:2F")
-                                    screenState.value = AppScreen.CONNECTING
+                                    startSessionConnection()
                                 }
                             )
                         }
@@ -241,8 +243,50 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        bleClient = FtmsBleClient(
-            context = this,
+        bleClient = createFtmsBleClient()
+
+
+        ftmsController = createFtmsController()
+
+        // TODO: Move hardcoded MACs to configuration or device discovery flow.
+        hrClient = HrBleClient(this)
+        { bpm ->
+            heartRateState.value = bpm
+            sessionManager.updateHeartRate(bpm)
+
+        }
+
+        ensureBluetoothPermission()
+    }
+
+    private fun dumpUiState(event: String) {
+        Log.d(
+            "FTMS",
+            "UI_DUMP event=$event screen=${screenState.value} " +
+                "ready=${ftmsReadyState.value} controlGranted=${ftmsControlGrantedState.value} " +
+                "lastTarget=${lastTargetPowerState.value} runnerState=${runnerState.value} " +
+                "reconnectPending=$reconnectBleOnNextSessionStart " +
+                "awaitingStopClose=$awaitingStopResponseBeforeBleClose " +
+                "pendingSessionStart=$pendingSessionStartAfterPermission"
+        )
+    }
+
+    private fun startSessionConnection() {
+        pendingSessionStartAfterPermission = true
+        bleClient?.close()
+        bleClient = createFtmsBleClient()
+        ftmsController = createFtmsController()
+        val connectInitiated = ensureBluetoothPermission()
+        if (connectInitiated) {
+            pendingSessionStartAfterPermission = false
+            screenState.value = AppScreen.CONNECTING
+        }
+        dumpUiState("startSessionConnection(connectInitiated=$connectInitiated)")
+    }
+
+    private fun createFtmsBleClient(): FtmsBleClient {
+        return FtmsBleClient(
+            context = this@MainActivity,
             onIndoorBikeData = { bytes ->
                 val parsedData = parseIndoorBikeData(bytes)
                 bikeDataState.value = parsedData
@@ -286,30 +330,6 @@ class MainActivity : ComponentActivity() {
                 Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
                 dumpUiState("bleOnDisconnected")
             }
-        )
-
-
-        ftmsController = createFtmsController()
-
-        // TODO: Move hardcoded MACs to configuration or device discovery flow.
-        hrClient = HrBleClient(this)
-        { bpm ->
-            heartRateState.value = bpm
-            sessionManager.updateHeartRate(bpm)
-
-        }
-
-        ensureBluetoothPermission()
-    }
-
-    private fun dumpUiState(event: String) {
-        Log.d(
-            "FTMS",
-            "UI_DUMP event=$event screen=${screenState.value} " +
-                "ready=${ftmsReadyState.value} controlGranted=${ftmsControlGrantedState.value} " +
-                "lastTarget=${lastTargetPowerState.value} runnerState=${runnerState.value} " +
-                "reconnectPending=$reconnectBleOnNextSessionStart " +
-                "awaitingStopClose=$awaitingStopResponseBeforeBleClose"
         )
     }
 
@@ -375,7 +395,7 @@ class MainActivity : ComponentActivity() {
      * Enforces fresh BLE state after FTMS STOP by tearing down active GATT links.
      */
     private fun forceBleReconnectOnNextSession() {
-        bleClient.close()
+        bleClient!!.close()
         hrClient.close()
         ftmsController = createFtmsController()
         resetFtmsUiState(clearReady = true)
@@ -406,17 +426,19 @@ class MainActivity : ComponentActivity() {
     /**
      * Requests BLUETOOTH_CONNECT when needed; required for GATT operations on Android 12+.
      */
-    private fun ensureBluetoothPermission() {
+    private fun ensureBluetoothPermission(): Boolean {
         if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
             != PackageManager.PERMISSION_GRANTED
         ) {
             requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
             dumpUiState("ensureBluetoothPermission(requested=true)")
+            return false
         } else {
-            bleClient.connect("E0:DF:01:46:14:2F")
+            bleClient!!.connect("E0:DF:01:46:14:2F")
             reconnectBleOnNextSessionStart = false
             hrClient.connect("24:AC:AC:04:12:79")
             dumpUiState("ensureBluetoothPermission(requested=false)")
+            return true
         }
     }
 
@@ -467,7 +489,7 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         dumpUiState("onDestroy")
         workoutRunner?.stop()
-        bleClient.close()
+        bleClient?.close()
         hrClient.close()
         allowScreenOff()
         super.onDestroy()
@@ -479,12 +501,12 @@ class MainActivity : ComponentActivity() {
     private fun createFtmsController(): FtmsController {
         return FtmsController(
             writeControlPoint = { payload ->
-                bleClient.writeControlPoint(payload)
+                bleClient?.writeControlPoint(payload)
             },
             onStopAcknowledged = {
                 Handler(Looper.getMainLooper()).post {
                     dumpUiState("onStopAcknowledged")
-                    bleClient.close()
+                    bleClient?.close()
                 }
             }
         )

@@ -86,7 +86,7 @@ class SessionManager(
         runOnMainThread {
             latestHeartRate = hr
             if (sessionPhase == SessionPhase.RUNNING) {
-                hr?.let { heartRateSamples.add(it) }
+                hr?.takeIf { it in 30..220 }?.let { heartRateSamples.add(it) }
             }
 
             emitState()
