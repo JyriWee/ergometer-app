@@ -56,13 +56,8 @@ private data class MetricItem(
  */
 @Composable
 internal fun MenuScreen(
-    ftmsReady: Boolean,
-    onStartSession: () -> Unit
+     onStartSession: () -> Unit
 ) {
-    val connectionStatus =
-        if (ftmsReady) stringResource(R.string.status_connected)
-        else stringResource(R.string.status_connecting)
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -92,21 +87,8 @@ internal fun MenuScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                SectionCard(title = stringResource(R.string.menu_connection_title)) {
-                    LabeledValueRow(
-                        label = stringResource(R.string.session_status_ftms),
-                        value = connectionStatus
-                    )
-                    Text(
-                        text = stringResource(R.string.menu_connection_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
                 Button(
                     onClick = onStartSession,
-                    enabled = ftmsReady,
                     modifier = Modifier.fillMaxWidth(),
                     colors = disabledVisibleButtonColors()
                 ) {

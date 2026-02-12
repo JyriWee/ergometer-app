@@ -221,6 +221,10 @@ class FtmsBleClient(
             val adapter = bluetoothManager.adapter
             val device = adapter.getRemoteDevice(mac)
             gatt = device.connectGatt(context, false, gattCallback)
+            if (gatt != null) {
+                Log.d("FTMS", "connect ignored (already connected or connecting)")
+                return
+            }
         } catch (e: SecurityException) {
             Log.w("FTMS", "connectGatt failed: ${e.message}")
         }

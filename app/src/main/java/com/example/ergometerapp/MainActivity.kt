@@ -125,8 +125,8 @@ class MainActivity : ComponentActivity() {
                         when (screen) {
                             AppScreen.MENU -> {
                                 MenuScreen(
-                                    ftmsReady = ftmsReady,
                                     onStartSession = {
+                                        ftmsController = createFtmsController()
                                         bleClient.connect("E0:DF:01:46:14:2F")
                                         screenState.value = AppScreen.CONNECTING
                                     }
@@ -198,8 +198,8 @@ class MainActivity : ComponentActivity() {
                     when (screen) {
                         AppScreen.MENU -> {
                             MenuScreen(
-                                ftmsReady = ftmsReady,
                                 onStartSession = {
+                                    ftmsController = createFtmsController()
                                     bleClient.connect("E0:DF:01:46:14:2F")
                                     screenState.value = AppScreen.CONNECTING
                                 }
