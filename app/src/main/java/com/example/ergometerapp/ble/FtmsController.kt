@@ -35,6 +35,16 @@ class FtmsController(
 
     private var timeoutRunnable: Runnable? = null
 
+    private fun dumpControllerState(event: String) {
+        Log.d(
+            "FTMS",
+            "CTRL_DUMP event=$event state=$commandState hasStopped=$hasStopped " +
+                "pendingTarget=$pendingTargetPowerWatts pendingReset=$pendingReset " +
+                "pendingStop=$pendingStopWorkout lastSentTarget=$lastSentTargetPower " +
+                "timeoutArmed=${timeoutRunnable != null}"
+        )
+    }
+
     @Suppress("unused")
     /**
      * Indicates whether the controller is ready to send commands.
@@ -46,6 +56,7 @@ class FtmsController(
     private fun sendCommand(payload: ByteArray, label: String) {
         if (commandState == FtmsCommandState.BUSY) {
             Log.w("FTMS", "Command ignored (BUSY): $label payload=${payload.joinToString()}")
+            dumpControllerState("sendCommandIgnoredBusy(label=$label)")
             return
         }
 
@@ -54,6 +65,7 @@ class FtmsController(
 
         Log.d("FTMS", "Sending: $label payload=${payload.joinToString()}")
         writeControlPoint(payload)
+        dumpControllerState("sendCommandSent(label=$label)")
         // BUSY is released only after a Control Point response or timeout.
     }
 
@@ -65,6 +77,7 @@ class FtmsController(
     fun requestControl() {
         if (hasStopped) {
             Log.d("FTMS", "requestControl() ignored (already stopped)")
+            dumpControllerState("requestControlIgnoredAlreadyStopped")
             return
         }
 
@@ -96,6 +109,7 @@ class FtmsController(
         if (commandState == FtmsCommandState.BUSY) {
             pendingTargetPowerWatts = w
             Log.d("FTMS", "Queued target power (last wins): $w W")
+            dumpControllerState("setTargetPowerQueuedBusy(watts=$w)")
             return
         }
 
@@ -119,6 +133,7 @@ class FtmsController(
         if (commandState == FtmsCommandState.BUSY) {
             pendingTargetPowerWatts = w
             Log.d("FTMS", "Queued target power (last wins): $w W")
+            dumpControllerState("setTargetPowerQueuedBusyPostObservation(watts=$w)")
             return
         }
 
@@ -139,6 +154,7 @@ class FtmsController(
     fun stopWorkout() {
         if (hasStopped) {
             Log.d("FTMS", "stopWorkout() ignored (already stopped)")
+            dumpControllerState("stopWorkoutIgnoredAlreadyStopped")
             return
         }
         hasStopped = true
@@ -150,6 +166,7 @@ class FtmsController(
 
         if (commandState == FtmsCommandState.BUSY) {
             Log.d("FTMS", "Queued stopWorkout (pending)")
+            dumpControllerState("stopWorkoutQueuedBusy")
             return
         }
 
@@ -158,6 +175,7 @@ class FtmsController(
 
     private fun sendStopWorkout() {
         pendingStopWorkout = false
+        dumpControllerState("sendStopWorkout")
         val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
         sendCommand(payload, "stopWorkout")
     }
@@ -190,10 +208,12 @@ class FtmsController(
     fun pause() {
         if (hasStopped) {
             Log.d("FTMS", "pause() ignored (already stopped)")
+            dumpControllerState("pauseIgnoredAlreadyStopped")
             return
         }
         if (commandState == FtmsCommandState.BUSY) {
             Log.d("FTMS", "pause() ignored (BUSY)")
+            dumpControllerState("pauseIgnoredBusy")
             return
         }
         val payload = byteArrayOf(0x08.toByte(), 0x02.toByte())
@@ -216,6 +236,7 @@ class FtmsController(
         if (commandState == FtmsCommandState.BUSY) {
             pendingReset = true
             Log.d("FTMS", "Queued reset (pending)")
+            dumpControllerState("resetQueuedBusy")
             return
         }
         val payload = byteArrayOf(0x01.toByte())
@@ -232,6 +253,7 @@ class FtmsController(
         val ok = (resultCode == 0x01)
         commandState = if (ok) FtmsCommandState.SUCCESS else FtmsCommandState.ERROR
         Log.d("FTMS", "CP response opcode=$requestOpcode result=$resultCode state=$commandState")
+        dumpControllerState("onControlPointResponse(op=$requestOpcode,result=$resultCode,ok=$ok)")
         if (requestOpcode == 0x08 && ok) {
 
             onStopAcknowledged()
@@ -242,6 +264,7 @@ class FtmsController(
 
         if (pendingStopWorkout) {
             Log.d("FTMS", "Sending queued stopWorkout")
+            dumpControllerState("onControlPointResponseSendingQueuedStop")
             sendStopWorkout()
             return
         }
@@ -249,6 +272,7 @@ class FtmsController(
         if (pendingReset) {
             pendingReset = false
             Log.d("FTMS", "Sending queued reset")
+            dumpControllerState("onControlPointResponseSendingQueuedReset")
             reset()
             return
         }
@@ -258,9 +282,11 @@ class FtmsController(
         if (pending != null) {
             pendingTargetPowerWatts = null
             Log.d("FTMS", "Sending queued target power: $pending W")
+            dumpControllerState("onControlPointResponseSendingQueuedTarget(watts=$pending)")
             setTargetPower(pending) // this will go through now because commandState is IDLE
         }
 
+        dumpControllerState("onControlPointResponseDone")
     }
 
     /**
@@ -282,6 +308,7 @@ class FtmsController(
             Log.d("FTMS", "Disconnected during STOP; cleared BUSY without timeout recovery")
         }
         commandState = FtmsCommandState.IDLE
+        dumpControllerState("onDisconnected")
     }
 
     private fun startTimeoutTimer() {
@@ -293,19 +320,23 @@ class FtmsController(
             if (commandState == FtmsCommandState.BUSY) {
                 Log.w("FTMS", "Control Point command timeout -> forcing IDLE")
                 commandState = FtmsCommandState.IDLE
+                dumpControllerState("commandTimeoutForcedIdle")
 
                 if (pendingStopWorkout) {
                     Log.d("FTMS", "Sending queued stopWorkout after timeout")
+                    dumpControllerState("commandTimeoutSendingQueuedStop")
                     sendStopWorkout()
                 } else if (pendingReset) {
                     pendingReset = false
                     Log.d("FTMS", "Sending queued reset after timeout")
+                    dumpControllerState("commandTimeoutSendingQueuedReset")
                     reset()
                 } else {
                     val pending = pendingTargetPowerWatts
                     if (pending != null) {
                         pendingTargetPowerWatts = null
                         Log.d("FTMS", "Sending queued target power after timeout: $pending W")
+                        dumpControllerState("commandTimeoutSendingQueuedTarget(watts=$pending)")
                         setTargetPower(pending)
                     }
                 }

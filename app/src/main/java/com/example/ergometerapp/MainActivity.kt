@@ -91,8 +91,10 @@ class MainActivity : ComponentActivity() {
                 bleClient.connect("E0:DF:01:46:14:2F")
                 reconnectBleOnNextSessionStart = false
                 hrClient.connect("24:AC:AC:04:12:79")
+                dumpUiState("permissionResult(granted=true)")
             } else {
                 Log.d("BLE", "BLUETOOTH_CONNECT denied")
+                dumpUiState("permissionResult(granted=false)")
             }
         }
 
@@ -252,6 +254,7 @@ class MainActivity : ComponentActivity() {
                     // Session starts only after Request Control is acknowledged.
                     ftmsController.requestControl()
                 }
+                dumpUiState("bleOnReady")
             },
             onControlPointResponse = { requestOpcode, resultCode ->
 
@@ -274,12 +277,14 @@ class MainActivity : ComponentActivity() {
                 if (requestOpcode == 0x01 && resultCode == 0x01) {
                     resetFtmsUiState(clearReady = false)
                 }
+                dumpUiState("bleOnControlPointResponse(op=$requestOpcode,result=$resultCode)")
             },
             onDisconnected = {
                 ftmsController.onDisconnected()
                 awaitingStopResponseBeforeBleClose = false
                 resetFtmsUiState(clearReady = true)
                 Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
+                dumpUiState("bleOnDisconnected")
             }
         )
 
@@ -296,6 +301,18 @@ class MainActivity : ComponentActivity() {
 
         ensureBluetoothPermission()
     }
+
+    private fun dumpUiState(event: String) {
+        Log.d(
+            "FTMS",
+            "UI_DUMP event=$event screen=${screenState.value} " +
+                "ready=${ftmsReadyState.value} controlGranted=${ftmsControlGrantedState.value} " +
+                "lastTarget=${lastTargetPowerState.value} runnerState=${runnerState.value} " +
+                "reconnectPending=$reconnectBleOnNextSessionStart " +
+                "awaitingStopClose=$awaitingStopResponseBeforeBleClose"
+        )
+    }
+
         /**
      * Keeps the screen awake during an active session to avoid lost telemetry
      * visibility when the user is mid-workout.
@@ -324,6 +341,7 @@ class MainActivity : ComponentActivity() {
             ftmsController.clearTargetPower()
         }
         resetFtmsUiState(clearReady = false)
+        dumpUiState("releaseControl(resetDevice=$resetDevice)")
     }
 
     /**
@@ -350,6 +368,7 @@ class MainActivity : ComponentActivity() {
         summaryState.value = sessionManager.lastSummary
         allowScreenOff()
         screenState.value = AppScreen.SUMMARY
+        dumpUiState("endSessionAndGoToSummary")
     }
 
     /**
@@ -361,6 +380,7 @@ class MainActivity : ComponentActivity() {
         ftmsController = createFtmsController()
         resetFtmsUiState(clearReady = true)
         reconnectBleOnNextSessionStart = true
+        dumpUiState("forceBleReconnectOnNextSession")
     }
 
     /**
@@ -380,6 +400,7 @@ class MainActivity : ComponentActivity() {
         }
         ftmsControlGrantedState.value = false
         lastTargetPowerState.value = null
+        dumpUiState("resetFtmsUiState(clearReady=$clearReady)")
     }
 
     /**
@@ -390,10 +411,12 @@ class MainActivity : ComponentActivity() {
             != PackageManager.PERMISSION_GRANTED
         ) {
             requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+            dumpUiState("ensureBluetoothPermission(requested=true)")
         } else {
             bleClient.connect("E0:DF:01:46:14:2F")
             reconnectBleOnNextSessionStart = false
             hrClient.connect("24:AC:AC:04:12:79")
+            dumpUiState("ensureBluetoothPermission(requested=false)")
         }
     }
 
@@ -442,6 +465,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        dumpUiState("onDestroy")
         workoutRunner?.stop()
         bleClient.close()
         hrClient.close()
@@ -459,6 +483,7 @@ class MainActivity : ComponentActivity() {
             },
             onStopAcknowledged = {
                 Handler(Looper.getMainLooper()).post {
+                    dumpUiState("onStopAcknowledged")
                     bleClient.close()
                 }
             }
