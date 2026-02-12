@@ -3,6 +3,8 @@ package com.example.ergometerapp
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -29,6 +31,7 @@ import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.ftms.parseIndoorBikeData
 import com.example.ergometerapp.session.SessionManager
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.ui.ConnectingScreen
 import com.example.ergometerapp.ui.MenuScreen
 import com.example.ergometerapp.ui.SessionScreen
 import com.example.ergometerapp.ui.SummaryScreen
@@ -48,7 +51,7 @@ import com.example.ergometerapp.workout.runner.WorkoutStepper
  * layers and only reacts to their callbacks to update UI state.
  */
 class MainActivity : ComponentActivity() {
-    private enum class AppScreen { MENU, SESSION, SUMMARY }
+    private enum class AppScreen { MENU, CONNECTING, SESSION, SUMMARY }
 
     private val screenState = mutableStateOf(AppScreen.MENU)
 
@@ -80,6 +83,7 @@ class MainActivity : ComponentActivity() {
 
     private var workoutRunner: WorkoutRunner? = null
     private var reconnectBleOnNextSessionStart = false
+    private var awaitingStopResponseBeforeBleClose = false
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -121,12 +125,14 @@ class MainActivity : ComponentActivity() {
                                 MenuScreen(
                                     ftmsReady = ftmsReady,
                                     onStartSession = {
-                                        sessionManager.startSession()
-                                        ensureWorkoutRunner().start()
-                                        keepScreenOn()
-                                        screenState.value = AppScreen.SESSION
+                                        bleClient.connect("E0:DF:01:46:14:2F")
+                                        screenState.value = AppScreen.CONNECTING
                                     }
                                 )
+                            }
+
+                            AppScreen.CONNECTING -> {
+                                ConnectingScreen()
                             }
 
 
@@ -141,13 +147,12 @@ class MainActivity : ComponentActivity() {
                                 lastTargetPower = lastTargetPower,
                                 onPauseWorkout = { workoutRunner?.pause() },
                                 onResumeWorkout = { workoutRunner?.resume() },
-                                onTakeControl = { ftmsController.requestControl() },
                                 onSetTargetPower = { watts ->
                                     ftmsController.setTargetPower(watts)
                                     lastTargetPowerState.value = watts
                                 },
                                 onRelease = { releaseControl(false) },
-                                onStopWorkout = { stopWorkout() },
+                                onStopWorkout = { endSessionAndGoToSummary() },
                                 onEndSession = { endSessionAndGoToSummary() }
                             )
 
@@ -193,12 +198,14 @@ class MainActivity : ComponentActivity() {
                             MenuScreen(
                                 ftmsReady = ftmsReady,
                                 onStartSession = {
-                                     sessionManager.startSession()
-                                    ensureWorkoutRunner().start()
-                                    keepScreenOn()
-                                    screenState.value = AppScreen.SESSION
+                                    bleClient.connect("E0:DF:01:46:14:2F")
+                                    screenState.value = AppScreen.CONNECTING
                                 }
                             )
+                        }
+
+                        AppScreen.CONNECTING -> {
+                            ConnectingScreen()
                         }
 
                         AppScreen.SESSION -> SessionScreen(
@@ -212,13 +219,12 @@ class MainActivity : ComponentActivity() {
                             lastTargetPower = lastTargetPower,
                             onPauseWorkout = { workoutRunner?.pause() },
                             onResumeWorkout = { workoutRunner?.resume() },
-                            onTakeControl = { ftmsController.requestControl() },
                             onSetTargetPower = { watts ->
                                 ftmsController.setTargetPower(watts)
                                 lastTargetPowerState.value = watts
                             },
                             onRelease = { releaseControl(false) },
-                            onStopWorkout = { stopWorkout() },
+                            onStopWorkout = { endSessionAndGoToSummary() },
                             onEndSession = { endSessionAndGoToSummary() }
                         )
 
@@ -242,6 +248,10 @@ class MainActivity : ComponentActivity() {
             },
             onReady = {
                 ftmsReadyState.value = true
+                if (screenState.value == AppScreen.CONNECTING) {
+                    // Session starts only after Request Control is acknowledged.
+                    ftmsController.requestControl()
+                }
             },
             onControlPointResponse = { requestOpcode, resultCode ->
 
@@ -252,6 +262,12 @@ class MainActivity : ComponentActivity() {
                 // FTMS: Request Control success unlocks power control in the UI.
                 if (requestOpcode == 0x00 && resultCode == 0x01) {
                     ftmsControlGrantedState.value = true
+                    if (screenState.value == AppScreen.CONNECTING) {
+                        sessionManager.startSession()
+                        ensureWorkoutRunner().start()
+                        keepScreenOn()
+                        screenState.value = AppScreen.SESSION
+                    }
                 }
 
                 // Reset success is treated as a definitive "release done" signal.
@@ -260,6 +276,8 @@ class MainActivity : ComponentActivity() {
                 }
             },
             onDisconnected = {
+                ftmsController.onDisconnected()
+                awaitingStopResponseBeforeBleClose = false
                 resetFtmsUiState(clearReady = true)
                 Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
             }
@@ -326,8 +344,8 @@ class MainActivity : ComponentActivity() {
         stopWorkout()
         workoutRunner = null
         sessionManager.stopSession()
+        awaitingStopResponseBeforeBleClose = true
         releaseControl(true)
-        forceBleReconnectOnNextSession()
 
         summaryState.value = sessionManager.lastSummary
         allowScreenOff()
@@ -435,9 +453,30 @@ class MainActivity : ComponentActivity() {
      * Creates a fresh FTMS command controller bound to the active BLE client.
      */
     private fun createFtmsController(): FtmsController {
-        return FtmsController { payload ->
-            bleClient.writeControlPoint(payload)
-        }
+        return FtmsController(
+            writeControlPoint = { payload ->
+                bleClient.writeControlPoint(payload)
+            },
+            onStopAcknowledged = {
+                Handler(Looper.getMainLooper()).post {
+                    bleClient.close()
+                }
+            }
+        )
     }
-
+    /*
+    private fun createFtmsController(): FtmsController {
+        return FtmsController(
+            writeControlPoint = { payload ->
+                bleClient.writeControlPoint(payload)
+            },
+            onStopAcknowledged = {
+                if (awaitingStopResponseBeforeBleClose) {
+                    awaitingStopResponseBeforeBleClose = false
+                    forceBleReconnectOnNextSession()
+                }
+            }
+        )
+    }
+*/
 }

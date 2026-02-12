@@ -37,6 +37,9 @@ class FtmsBleClient(
 
     private var indoorBikeDataCharacteristic: BluetoothGattCharacteristic? = null
 
+    @Volatile
+    private var disconnectEventEmitted = false
+
     private enum class SetupStep { NONE, CP_CCCD, BIKE_CCCD }
     private var setupStep: SetupStep = SetupStep.NONE
 
@@ -55,6 +58,7 @@ class FtmsBleClient(
             this@FtmsBleClient.gatt = gatt
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                disconnectEventEmitted = false
                 if (!hasBluetoothConnectPermission()) {
                     Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
                     return
@@ -66,18 +70,19 @@ class FtmsBleClient(
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 Log.w("FTMS", "GATT disconnected (status=$status)")
+                indoorBikeDataCharacteristic = null
+                try {
+                    gatt.close()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "close failed: ${e.message}")
+                }
+
                 controlPointCharacteristic = null
                 this@FtmsBleClient.gatt = null
 
-                // Notify UI/state layer first
-                mainThreadHandler.post { onDisconnected() }
-
-                // Allow BLE stack to fully settle before any reconnect attempt
-                mainThreadHandler.postDelayed({
-                    // Signal that reconnect is now safe
-                    onDisconnected()
-                }, 1000)
+                emitDisconnectedOnce()
             }
+
 
         }
 
@@ -90,7 +95,7 @@ class FtmsBleClient(
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w("FTMS", "Descriptor write failed at step=$setupStep status=$status")
                 setupStep = SetupStep.NONE
-                mainThreadHandler.post { onDisconnected() }
+                emitDisconnectedOnce()
                 return
             }
 
@@ -168,6 +173,10 @@ class FtmsBleClient(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
+            if (this@FtmsBleClient.gatt == null) {
+                Log.d("FTMS", "Notification ignored (GATT closed)")
+                return
+            }
             when (characteristic.uuid) {
                 INDOOR_BIKE_DATA_UUID -> mainThreadHandler.post {
                     Log.d("FTMS", "IndoorBikeData notification received")
@@ -206,6 +215,7 @@ class FtmsBleClient(
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot connect")
             return
         }
+        disconnectEventEmitted = false
         try {
             val bluetoothManager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
             val adapter = bluetoothManager.adapter
@@ -224,24 +234,27 @@ class FtmsBleClient(
      */
     fun close() {
         val currentGatt = gatt ?: return
-
         try {
-            // Ask for a graceful disconnect first
             currentGatt.disconnect()
         } catch (e: SecurityException) {
             Log.w("FTMS", "disconnect failed: ${e.message}")
         }
+        // ÄLÄ kutsu close() tässä
+    }
 
-        try {
-            // Always close to release resources
-            currentGatt.close()
-        } catch (e: SecurityException) {
-            Log.w("FTMS", "close failed: ${e.message}")
+
+    /**
+     * Emits a single semantic disconnect event per connection lifecycle.
+     *
+     * Android can surface multiple low-level teardown signals (explicit close,
+     * callback disconnect, setup failure). Callers should observe one stable
+     * disconnect transition regardless of source.
+     */
+    private fun emitDisconnectedOnce() {
+        synchronized(this) {
+            if (disconnectEventEmitted) return
+            disconnectEventEmitted = true
         }
-
-        gatt = null
-
-        // Ensure UI/state is notified even if Android skips callbacks
         mainThreadHandler.post { onDisconnected() }
     }
 

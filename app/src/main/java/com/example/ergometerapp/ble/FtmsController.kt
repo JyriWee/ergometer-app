@@ -15,7 +15,8 @@ import com.example.ergometerapp.ble.debug.FtmsDebugEvent
  * state on either a response or a timeout to avoid permanent deadlock.
  */
 class FtmsController(
-    private val writeControlPoint: (ByteArray) -> Unit
+    private val writeControlPoint: (ByteArray) -> Unit,
+    private val onStopAcknowledged: () -> Unit = {}
 ) {
 
     private var hasStopped = false
@@ -24,6 +25,7 @@ class FtmsController(
 
     private var commandState = FtmsCommandState.IDLE
     private var pendingTargetPowerWatts: Int? = null
+    private var pendingStopWorkout = false
 
     private val handler = Handler(Looper.getMainLooper())
 
@@ -129,6 +131,10 @@ class FtmsController(
 
     /**
      * Stops the current workout session if the device supports it.
+     *
+     * STOP is serialized through the same Control Point pipeline as other
+     * commands. If another command is in flight, STOP is queued and sent as
+     * soon as BUSY clears.
      */
     fun stopWorkout() {
         if (hasStopped) {
@@ -137,15 +143,23 @@ class FtmsController(
         }
         hasStopped = true
 
-        // STOP is terminal: do not enter BUSY state and do not wait for CP response
-        cancelTimeoutTimer()
-        commandState = FtmsCommandState.IDLE
+        // STOP is terminal for queued work in this lifecycle.
         pendingTargetPowerWatts = null
         pendingReset = false
+        pendingStopWorkout = true
 
+        if (commandState == FtmsCommandState.BUSY) {
+            Log.d("FTMS", "Queued stopWorkout (pending)")
+            return
+        }
+
+        sendStopWorkout()
+    }
+
+    private fun sendStopWorkout() {
+        pendingStopWorkout = false
         val payload = byteArrayOf(0x08.toByte(), 0x01.toByte())
-        Log.d("FTMS", "Sending: stopWorkout payload=${payload.joinToString()}")
-        writeControlPoint(payload)
+        sendCommand(payload, "stopWorkout")
     }
 
 
@@ -197,6 +211,7 @@ class FtmsController(
 
         hasStopped = false
         lastSentTargetPower = null
+        pendingStopWorkout = false
 
         if (commandState == FtmsCommandState.BUSY) {
             pendingReset = true
@@ -217,9 +232,19 @@ class FtmsController(
         val ok = (resultCode == 0x01)
         commandState = if (ok) FtmsCommandState.SUCCESS else FtmsCommandState.ERROR
         Log.d("FTMS", "CP response opcode=$requestOpcode result=$resultCode state=$commandState")
+        if (requestOpcode == 0x08 && ok) {
+
+            onStopAcknowledged()
+        }
 
         // Release for the next command after a definitive response.
         commandState = FtmsCommandState.IDLE
+
+        if (pendingStopWorkout) {
+            Log.d("FTMS", "Sending queued stopWorkout")
+            sendStopWorkout()
+            return
+        }
 
         if (pendingReset) {
             pendingReset = false
@@ -238,6 +263,27 @@ class FtmsController(
 
     }
 
+    /**
+     * Clears command pipeline state after a GATT disconnect.
+     *
+     * If disconnect happens while STOP is pending/in flight, timeout recovery
+     * is bypassed and BUSY is cleared immediately.
+     */
+    fun onDisconnected() {
+        val stopWasPendingOrInFlight =
+            hasStopped && (pendingStopWorkout || commandState == FtmsCommandState.BUSY)
+        cancelTimeoutTimer()
+
+        pendingTargetPowerWatts = null
+        pendingReset = false
+        pendingStopWorkout = false
+
+        if (stopWasPendingOrInFlight) {
+            Log.d("FTMS", "Disconnected during STOP; cleared BUSY without timeout recovery")
+        }
+        commandState = FtmsCommandState.IDLE
+    }
+
     private fun startTimeoutTimer() {
         cancelTimeoutTimer()
 
@@ -248,7 +294,10 @@ class FtmsController(
                 Log.w("FTMS", "Control Point command timeout -> forcing IDLE")
                 commandState = FtmsCommandState.IDLE
 
-                if (pendingReset) {
+                if (pendingStopWorkout) {
+                    Log.d("FTMS", "Sending queued stopWorkout after timeout")
+                    sendStopWorkout()
+                } else if (pendingReset) {
                     pendingReset = false
                     Log.d("FTMS", "Sending queued reset after timeout")
                     reset()
