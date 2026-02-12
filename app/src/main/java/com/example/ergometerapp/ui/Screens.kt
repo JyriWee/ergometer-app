@@ -51,13 +51,33 @@ private data class MetricItem(
 /**
  * Entry screen for starting a session.
  *
- * The start action is gated on FTMS readiness because Control Point writes are
- * undefined until the device is connected and notifications/indications are set.
+ * The start action is gated on successful workout import so runner execution
+ * always starts from a validated file-backed workout definition.
  */
 @Composable
 internal fun MenuScreen(
-     onStartSession: () -> Unit
+    selectedWorkoutFileName: String?,
+    selectedWorkoutStepCount: Int?,
+    selectedWorkoutImportError: String?,
+    startEnabled: Boolean,
+    onSelectWorkoutFile: () -> Unit,
+    onStartSession: () -> Unit
 ) {
+    val statusText =
+        when {
+            selectedWorkoutImportError != null -> {
+                stringResource(R.string.menu_workout_import_failed, selectedWorkoutImportError)
+            }
+            selectedWorkoutFileName != null && selectedWorkoutStepCount != null -> {
+                stringResource(
+                    R.string.menu_workout_selected,
+                    selectedWorkoutFileName,
+                    selectedWorkoutStepCount
+                )
+            }
+            else -> stringResource(R.string.menu_workout_not_selected)
+        }
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -88,7 +108,22 @@ internal fun MenuScreen(
                 )
 
                 Button(
+                    onClick = onSelectWorkoutFile,
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = disabledVisibleButtonColors()
+                ) {
+                    Text(stringResource(R.string.menu_select_workout_file))
+                }
+
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Button(
                     onClick = onStartSession,
+                    enabled = startEnabled,
                     modifier = Modifier.fillMaxWidth(),
                     colors = disabledVisibleButtonColors()
                 ) {

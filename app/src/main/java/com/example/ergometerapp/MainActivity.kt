@@ -1,10 +1,12 @@
 package com.example.ergometerapp
 
 import android.Manifest
+import android.net.Uri
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.OpenableColumns
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -86,6 +88,10 @@ class MainActivity : ComponentActivity() {
     private var workoutRunner: WorkoutRunner? = null
     private val workoutImportService = WorkoutImportService()
     private var importedWorkoutForRunner: WorkoutFile? = null
+    private val selectedWorkoutFileNameState = mutableStateOf<String?>(null)
+    private val selectedWorkoutStepCountState = mutableStateOf<Int?>(null)
+    private val selectedWorkoutImportErrorState = mutableStateOf<String?>(null)
+    private val workoutReadyState = mutableStateOf(false)
     private var reconnectBleOnNextSessionStart = false
     private var awaitingStopResponseBeforeBleClose = false
     private var pendingSessionStartAfterPermission = false
@@ -107,6 +113,14 @@ class MainActivity : ComponentActivity() {
                 dumpUiState("permissionResult(granted=false)")
             }
         }
+    private val selectWorkoutFile =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri == null) {
+                dumpUiState("workoutSelection(cancelled)")
+                return@registerForActivityResult
+            }
+            importWorkoutFromUri(uri)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -127,6 +141,10 @@ class MainActivity : ComponentActivity() {
                 val lastTargetPower = lastTargetPowerState.value
                 val currentRunnerState = runnerState.value
                 val showDebugTimeline = showDebugTimelineState.value
+                val selectedWorkoutFileName = selectedWorkoutFileNameState.value
+                val selectedWorkoutStepCount = selectedWorkoutStepCountState.value
+                val selectedWorkoutImportError = selectedWorkoutImportErrorState.value
+                val workoutReady = workoutReadyState.value
 
                 if (BuildConfig.DEBUG) {
                     val debugToggleContentDescription =
@@ -135,6 +153,11 @@ class MainActivity : ComponentActivity() {
                         when (screen) {
                             AppScreen.MENU -> {
                                 MenuScreen(
+                                    selectedWorkoutFileName = selectedWorkoutFileName,
+                                    selectedWorkoutStepCount = selectedWorkoutStepCount,
+                                    selectedWorkoutImportError = selectedWorkoutImportError,
+                                    startEnabled = workoutReady,
+                                    onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                     onStartSession = {
                                         startSessionConnection()
                                     }
@@ -206,6 +229,11 @@ class MainActivity : ComponentActivity() {
                     when (screen) {
                         AppScreen.MENU -> {
                             MenuScreen(
+                                selectedWorkoutFileName = selectedWorkoutFileName,
+                                selectedWorkoutStepCount = selectedWorkoutStepCount,
+                                selectedWorkoutImportError = selectedWorkoutImportError,
+                                startEnabled = workoutReady,
+                                onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                 onStartSession = {
                                     startSessionConnection()
                                 }
@@ -276,6 +304,11 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun startSessionConnection() {
+        if (!workoutReadyState.value) {
+            Log.w("WORKOUT", "Start ignored: no valid workout selected")
+            dumpUiState("startSessionConnectionIgnored(noWorkout)")
+            return
+        }
         pendingSessionStartAfterPermission = true
         bleClient?.close()
         bleClient = createFtmsBleClient()
@@ -286,6 +319,67 @@ class MainActivity : ComponentActivity() {
             screenState.value = AppScreen.CONNECTING
         }
         dumpUiState("startSessionConnection(connectInitiated=$connectInitiated)")
+    }
+
+    private fun importWorkoutFromUri(uri: Uri) {
+        val sourceName = resolveDisplayName(uri) ?: "selected_workout"
+        val content = try {
+            contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8).use { reader ->
+                reader?.readText()
+            }
+        } catch (e: Exception) {
+            Log.w("WORKOUT", "Failed reading selected workout file: ${e.message}")
+            null
+        }
+
+        if (content.isNullOrBlank()) {
+            importedWorkoutForRunner = null
+            workoutRunner = null
+            selectedWorkoutFileNameState.value = sourceName
+            selectedWorkoutStepCountState.value = null
+            selectedWorkoutImportErrorState.value = "Unable to read file content."
+            workoutReadyState.value = false
+            dumpUiState("workoutImportReadFailed(name=$sourceName)")
+            return
+        }
+
+        when (val result = workoutImportService.importFromText(sourceName = sourceName, content = content)) {
+            is WorkoutImportResult.Success -> {
+                importedWorkoutForRunner = result.workoutFile
+                workoutRunner = null
+                selectedWorkoutFileNameState.value = sourceName
+                selectedWorkoutStepCountState.value = result.workoutFile.steps.size
+                selectedWorkoutImportErrorState.value = null
+                workoutReadyState.value = true
+                Log.d(
+                    "WORKOUT",
+                    "Selected workout imported name=$sourceName steps=${result.workoutFile.steps.size}"
+                )
+                dumpUiState("workoutImportSuccess(name=$sourceName)")
+            }
+            is WorkoutImportResult.Failure -> {
+                importedWorkoutForRunner = null
+                workoutRunner = null
+                selectedWorkoutFileNameState.value = sourceName
+                selectedWorkoutStepCountState.value = null
+                selectedWorkoutImportErrorState.value = result.error.message
+                workoutReadyState.value = false
+                Log.w(
+                    "WORKOUT",
+                    "Selected workout import failed code=${result.error.code} format=${result.error.detectedFormat}"
+                )
+                dumpUiState("workoutImportFailure(name=$sourceName,code=${result.error.code})")
+            }
+        }
+    }
+
+    private fun resolveDisplayName(uri: Uri): String? {
+        return contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)
+            ?.use { cursor ->
+                if (!cursor.moveToFirst()) return@use null
+                val index = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+                if (index < 0) null else cursor.getString(index)
+            }
     }
 
     private fun createFtmsBleClient(): FtmsBleClient {
@@ -477,28 +571,8 @@ class MainActivity : ComponentActivity() {
         val cached = importedWorkoutForRunner
         if (cached != null) return cached
 
-        val xmlContent = try {
-            assets.open("Workout_Test.xml").bufferedReader(Charsets.UTF_8).use { it.readText() }
-        } catch (e: Exception) {
-            Log.w("WORKOUT", "Failed to load Workout_Test.xml: ${e.message}")
-            return createTestWorkout()
-        }
-
-        return when (val result = workoutImportService.importFromText("Workout_Test.xml", xmlContent)) {
-            is WorkoutImportResult.Success -> {
-                importedWorkoutForRunner = result.workoutFile
-                Log.d("WORKOUT", "Loaded Workout_Test.xml with ${result.workoutFile.steps.size} steps")
-                result.workoutFile
-            }
-            is WorkoutImportResult.Failure -> {
-                Log.w(
-                    "WORKOUT",
-                    "Workout import failed code=${result.error.code} " +
-                        "format=${result.error.detectedFormat}; using fallback workout"
-                )
-                createTestWorkout()
-            }
-        }
+        Log.w("WORKOUT", "No selected workout imported; using fallback workout")
+        return createTestWorkout()
     }
 
     /**
