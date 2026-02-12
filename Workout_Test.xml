@@ -1,0 +1,14 @@
+<workout_file>
+  <author>Jwe</author>
+  <name>HIIT Session 5c – Neuromuscular Density</name>
+  <description>Short neuromuscular spikes with aerobic floor</description>
+  <sportType>bike</sportType>
+  <durationType>time</durationType>
+  <workout>
+    <Warmup Duration="10" PowerLow="0.2" PowerHigh="0.4"/>
+    <IntervalsT Repeat="2" OnDuration="10" OffDuration="10" OnPower="0.6" OffPower="0.2"/>
+    <SteadyState Duration="15" Power="0.4"/>
+    <Cooldown Duration="15" PowerLow="0.4" PowerHigh="0.1"/>
+  </workout>
+</workout_file>
+
