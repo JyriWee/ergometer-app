@@ -37,6 +37,8 @@ import com.example.ergometerapp.ui.SessionScreen
 import com.example.ergometerapp.ui.SummaryScreen
 import com.example.ergometerapp.ui.debug.FtmsDebugTimelineScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
+import com.example.ergometerapp.workout.WorkoutImportResult
+import com.example.ergometerapp.workout.WorkoutImportService
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.RunnerState
@@ -82,6 +84,8 @@ class MainActivity : ComponentActivity() {
     private lateinit var ftmsController: FtmsController
 
     private var workoutRunner: WorkoutRunner? = null
+    private val workoutImportService = WorkoutImportService()
+    private var importedWorkoutForRunner: WorkoutFile? = null
     private var reconnectBleOnNextSessionStart = false
     private var awaitingStopResponseBeforeBleClose = false
     private var pendingSessionStartAfterPermission = false
@@ -449,7 +453,7 @@ class MainActivity : ComponentActivity() {
         val existing = workoutRunner
         if (existing != null) return existing
         val runner = WorkoutRunner(
-            stepper = WorkoutStepper(createTestWorkout(), ftpWatts = 200),
+            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = 100),
             targetWriter = { targetWatts ->
                 if (ftmsReadyState.value && ftmsControlGrantedState.value) {
                     if (targetWatts == null) {
@@ -467,6 +471,34 @@ class MainActivity : ComponentActivity() {
 
         workoutRunner = runner
         return runner
+    }
+
+    private fun getWorkoutForRunner(): WorkoutFile {
+        val cached = importedWorkoutForRunner
+        if (cached != null) return cached
+
+        val xmlContent = try {
+            assets.open("Workout_Test.xml").bufferedReader(Charsets.UTF_8).use { it.readText() }
+        } catch (e: Exception) {
+            Log.w("WORKOUT", "Failed to load Workout_Test.xml: ${e.message}")
+            return createTestWorkout()
+        }
+
+        return when (val result = workoutImportService.importFromText("Workout_Test.xml", xmlContent)) {
+            is WorkoutImportResult.Success -> {
+                importedWorkoutForRunner = result.workoutFile
+                Log.d("WORKOUT", "Loaded Workout_Test.xml with ${result.workoutFile.steps.size} steps")
+                result.workoutFile
+            }
+            is WorkoutImportResult.Failure -> {
+                Log.w(
+                    "WORKOUT",
+                    "Workout import failed code=${result.error.code} " +
+                        "format=${result.error.detectedFormat}; using fallback workout"
+                )
+                createTestWorkout()
+            }
+        }
     }
 
     /**
@@ -511,19 +543,4 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
-    /*
-    private fun createFtmsController(): FtmsController {
-        return FtmsController(
-            writeControlPoint = { payload ->
-                bleClient.writeControlPoint(payload)
-            },
-            onStopAcknowledged = {
-                if (awaitingStopResponseBeforeBleClose) {
-                    awaitingStopResponseBeforeBleClose = false
-                    forceBleReconnectOnNextSession()
-                }
-            }
-        )
-    }
-*/
 }
