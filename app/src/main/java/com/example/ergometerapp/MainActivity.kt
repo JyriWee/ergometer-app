@@ -453,7 +453,7 @@ class MainActivity : ComponentActivity() {
         val existing = workoutRunner
         if (existing != null) return existing
         val runner = WorkoutRunner(
-            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = 120),
+            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = 100),
             targetWriter = { targetWatts ->
                 if (ftmsReadyState.value && ftmsControlGrantedState.value) {
                     if (targetWatts == null) {
@@ -543,19 +543,4 @@ class MainActivity : ComponentActivity() {
             }
         )
     }
-    /*
-    private fun createFtmsController(): FtmsController {
-        return FtmsController(
-            writeControlPoint = { payload ->
-                bleClient.writeControlPoint(payload)
-            },
-            onStopAcknowledged = {
-                if (awaitingStopResponseBeforeBleClose) {
-                    awaitingStopResponseBeforeBleClose = false
-                    forceBleReconnectOnNextSession()
-                }
-            }
-        )
-    }
-*/
 }

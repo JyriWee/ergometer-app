@@ -237,8 +237,8 @@ class WorkoutStepper private constructor(
             )
 
             is Step.Cooldown -> interpolatedWatts(
-                step.powerLow,
                 step.powerHigh,
+                step.powerLow,
                 step.durationSec,
                 state.stepElapsedMs
             )
