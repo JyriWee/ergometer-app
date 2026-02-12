@@ -3,6 +3,8 @@ package com.example.ergometerapp
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
@@ -29,6 +31,7 @@ import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.ftms.parseIndoorBikeData
 import com.example.ergometerapp.session.SessionManager
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.ui.ConnectingScreen
 import com.example.ergometerapp.ui.MenuScreen
 import com.example.ergometerapp.ui.SessionScreen
 import com.example.ergometerapp.ui.SummaryScreen
@@ -48,7 +51,7 @@ import com.example.ergometerapp.workout.runner.WorkoutStepper
  * layers and only reacts to their callbacks to update UI state.
  */
 class MainActivity : ComponentActivity() {
-    private enum class AppScreen { MENU, SESSION, SUMMARY }
+    private enum class AppScreen { MENU, CONNECTING, SESSION, SUMMARY }
 
     private val screenState = mutableStateOf(AppScreen.MENU)
 
@@ -72,21 +75,32 @@ class MainActivity : ComponentActivity() {
 
     private val showDebugTimelineState = mutableStateOf(false)
 
-    private lateinit var bleClient: FtmsBleClient
+    private var bleClient: FtmsBleClient? = null
 
     private lateinit var sessionManager: SessionManager
 
     private lateinit var ftmsController: FtmsController
 
     private var workoutRunner: WorkoutRunner? = null
+    private var reconnectBleOnNextSessionStart = false
+    private var awaitingStopResponseBeforeBleClose = false
+    private var pendingSessionStartAfterPermission = false
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 Log.d("BLE", "BLUETOOTH_CONNECT granted")
-                bleClient.connect("E0:DF:01:46:14:2F")
+                bleClient?.connect("E0:DF:01:46:14:2F")
+                reconnectBleOnNextSessionStart = false
                 hrClient.connect("24:AC:AC:04:12:79")
+                if (pendingSessionStartAfterPermission) {
+                    pendingSessionStartAfterPermission = false
+                    screenState.value = AppScreen.CONNECTING
+                }
+                dumpUiState("permissionResult(granted=true)")
             } else {
+                pendingSessionStartAfterPermission = false
                 Log.d("BLE", "BLUETOOTH_CONNECT denied")
+                dumpUiState("permissionResult(granted=false)")
             }
         }
 
@@ -115,15 +129,18 @@ class MainActivity : ComponentActivity() {
                         stringResource(R.string.debug_toggle_content_description)
                     Box {
                         when (screen) {
-                            AppScreen.MENU -> MenuScreen(
-                                ftmsReady = ftmsReady,
-                                onStartSession = {
-                                    sessionManager.startSession()
-                                    ensureWorkoutRunner().start()
-                                    keepScreenOn()
-                                    screenState.value = AppScreen.SESSION
-                                }
-                            )
+                            AppScreen.MENU -> {
+                                MenuScreen(
+                                    onStartSession = {
+                                        startSessionConnection()
+                                    }
+                                )
+                            }
+
+                            AppScreen.CONNECTING -> {
+                                ConnectingScreen()
+                            }
+
 
                             AppScreen.SESSION -> SessionScreen(
                                 phase = phase,
@@ -136,13 +153,12 @@ class MainActivity : ComponentActivity() {
                                 lastTargetPower = lastTargetPower,
                                 onPauseWorkout = { workoutRunner?.pause() },
                                 onResumeWorkout = { workoutRunner?.resume() },
-                                onTakeControl = { ftmsController.requestControl() },
                                 onSetTargetPower = { watts ->
                                     ftmsController.setTargetPower(watts)
                                     lastTargetPowerState.value = watts
                                 },
                                 onRelease = { releaseControl(false) },
-                                onStopWorkout = { stopWorkout() },
+                                onStopWorkout = { endSessionAndGoToSummary() },
                                 onEndSession = { endSessionAndGoToSummary() }
                             )
 
@@ -184,15 +200,17 @@ class MainActivity : ComponentActivity() {
                     }
                 } else {
                     when (screen) {
-                        AppScreen.MENU -> MenuScreen(
-                            ftmsReady = ftmsReady,
-                            onStartSession = {
-                                sessionManager.startSession()
-                                ensureWorkoutRunner().start()
-                                keepScreenOn()
-                                screenState.value = AppScreen.SESSION
-                            }
-                        )
+                        AppScreen.MENU -> {
+                            MenuScreen(
+                                onStartSession = {
+                                    startSessionConnection()
+                                }
+                            )
+                        }
+
+                        AppScreen.CONNECTING -> {
+                            ConnectingScreen()
+                        }
 
                         AppScreen.SESSION -> SessionScreen(
                             phase = phase,
@@ -205,13 +223,12 @@ class MainActivity : ComponentActivity() {
                             lastTargetPower = lastTargetPower,
                             onPauseWorkout = { workoutRunner?.pause() },
                             onResumeWorkout = { workoutRunner?.resume() },
-                            onTakeControl = { ftmsController.requestControl() },
                             onSetTargetPower = { watts ->
                                 ftmsController.setTargetPower(watts)
                                 lastTargetPowerState.value = watts
                             },
                             onRelease = { releaseControl(false) },
-                            onStopWorkout = { stopWorkout() },
+                            onStopWorkout = { endSessionAndGoToSummary() },
                             onEndSession = { endSessionAndGoToSummary() }
                         )
 
@@ -219,50 +236,17 @@ class MainActivity : ComponentActivity() {
                             summary = summaryState.value,
                             onBackToMenu = {
                                 summaryState.value = null
-                                screenState.value = AppScreen.MENU
-                            }
+                                screenState.value = AppScreen.MENU                            }
                         )
                     }
                 }
             }
         }
 
-        bleClient = FtmsBleClient(
-            context = this,
-            onIndoorBikeData = { bytes ->
-                val parsedData = parseIndoorBikeData(bytes)
-                bikeDataState.value = parsedData
-                sessionManager.updateBikeData(parsedData)
-            },
-            onReady = {
-                ftmsReadyState.value = true
-            },
-            onControlPointResponse = { requestOpcode, resultCode ->
-
-                ftmsController.onControlPointResponse(requestOpcode, resultCode)
-
-                Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
-
-                // FTMS: Request Control success unlocks power control in the UI.
-                if (requestOpcode == 0x00 && resultCode == 0x01) {
-                    ftmsControlGrantedState.value = true
-                }
-
-                // Reset success is treated as a definitive "release done" signal.
-                if (requestOpcode == 0x01 && resultCode == 0x01) {
-                    resetFtmsUiState(clearReady = false)
-                }
-            },
-            onDisconnected = {
-                resetFtmsUiState(clearReady = true)
-                Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
-            }
-        )
+        bleClient = createFtmsBleClient()
 
 
-        ftmsController = FtmsController { payload ->
-            bleClient.writeControlPoint(payload)
-        }
+        ftmsController = createFtmsController()
 
         // TODO: Move hardcoded MACs to configuration or device discovery flow.
         hrClient = HrBleClient(this)
@@ -274,6 +258,81 @@ class MainActivity : ComponentActivity() {
 
         ensureBluetoothPermission()
     }
+
+    private fun dumpUiState(event: String) {
+        Log.d(
+            "FTMS",
+            "UI_DUMP event=$event screen=${screenState.value} " +
+                "ready=${ftmsReadyState.value} controlGranted=${ftmsControlGrantedState.value} " +
+                "lastTarget=${lastTargetPowerState.value} runnerState=${runnerState.value} " +
+                "reconnectPending=$reconnectBleOnNextSessionStart " +
+                "awaitingStopClose=$awaitingStopResponseBeforeBleClose " +
+                "pendingSessionStart=$pendingSessionStartAfterPermission"
+        )
+    }
+
+    private fun startSessionConnection() {
+        pendingSessionStartAfterPermission = true
+        bleClient?.close()
+        bleClient = createFtmsBleClient()
+        ftmsController = createFtmsController()
+        val connectInitiated = ensureBluetoothPermission()
+        if (connectInitiated) {
+            pendingSessionStartAfterPermission = false
+            screenState.value = AppScreen.CONNECTING
+        }
+        dumpUiState("startSessionConnection(connectInitiated=$connectInitiated)")
+    }
+
+    private fun createFtmsBleClient(): FtmsBleClient {
+        return FtmsBleClient(
+            context = this@MainActivity,
+            onIndoorBikeData = { bytes ->
+                val parsedData = parseIndoorBikeData(bytes)
+                bikeDataState.value = parsedData
+                sessionManager.updateBikeData(parsedData)
+            },
+            onReady = {
+                ftmsReadyState.value = true
+                if (screenState.value == AppScreen.CONNECTING) {
+                    // Session starts only after Request Control is acknowledged.
+                    ftmsController.requestControl()
+                }
+                dumpUiState("bleOnReady")
+            },
+            onControlPointResponse = { requestOpcode, resultCode ->
+
+                ftmsController.onControlPointResponse(requestOpcode, resultCode)
+
+                Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
+
+                // FTMS: Request Control success unlocks power control in the UI.
+                if (requestOpcode == 0x00 && resultCode == 0x01) {
+                    ftmsControlGrantedState.value = true
+                    if (screenState.value == AppScreen.CONNECTING) {
+                        sessionManager.startSession()
+                        ensureWorkoutRunner().start()
+                        keepScreenOn()
+                        screenState.value = AppScreen.SESSION
+                    }
+                }
+
+                // Reset success is treated as a definitive "release done" signal.
+                if (requestOpcode == 0x01 && resultCode == 0x01) {
+                    resetFtmsUiState(clearReady = false)
+                }
+                dumpUiState("bleOnControlPointResponse(op=$requestOpcode,result=$resultCode)")
+            },
+            onDisconnected = {
+                ftmsController.onDisconnected()
+                awaitingStopResponseBeforeBleClose = false
+                resetFtmsUiState(clearReady = true)
+                Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
+                dumpUiState("bleOnDisconnected")
+            }
+        )
+    }
+
         /**
      * Keeps the screen awake during an active session to avoid lost telemetry
      * visibility when the user is mid-workout.
@@ -292,17 +351,17 @@ class MainActivity : ComponentActivity() {
     /**
      * Releases FTMS control while preserving session semantics.
      *
-     * Hard release uses stop+reset for full session termination. Soft release
-     * only relinquishes FTMS control so it can be reacquired later.
+     * Hard release uses STOP for full session termination. Soft release
+     * clears ERG target without sending STOP so telemetry can continue.
      */
     private fun releaseControl(resetDevice: Boolean) {
         if (resetDevice) {
-            ftmsController.stop()
-            ftmsController.reset()
+            ftmsController.stopWorkout()
         } else {
-            ftmsController.releaseControl()
+            ftmsController.clearTargetPower()
         }
         resetFtmsUiState(clearReady = false)
+        dumpUiState("releaseControl(resetDevice=$resetDevice)")
     }
 
     /**
@@ -323,11 +382,33 @@ class MainActivity : ComponentActivity() {
         stopWorkout()
         workoutRunner = null
         sessionManager.stopSession()
+        awaitingStopResponseBeforeBleClose = true
         releaseControl(true)
 
         summaryState.value = sessionManager.lastSummary
         allowScreenOff()
         screenState.value = AppScreen.SUMMARY
+        dumpUiState("endSessionAndGoToSummary")
+    }
+
+    /**
+     * Enforces fresh BLE state after FTMS STOP by tearing down active GATT links.
+     */
+    private fun forceBleReconnectOnNextSession() {
+        bleClient!!.close()
+        hrClient.close()
+        ftmsController = createFtmsController()
+        resetFtmsUiState(clearReady = true)
+        reconnectBleOnNextSessionStart = true
+        dumpUiState("forceBleReconnectOnNextSession")
+    }
+
+    /**
+     * Reconnects BLE links only when a previous STOP forced a session reset.
+     */
+    private fun reconnectBleIfNeeded() {
+        if (!reconnectBleOnNextSessionStart) return
+        ensureBluetoothPermission()
     }
 
     /**
@@ -339,19 +420,25 @@ class MainActivity : ComponentActivity() {
         }
         ftmsControlGrantedState.value = false
         lastTargetPowerState.value = null
+        dumpUiState("resetFtmsUiState(clearReady=$clearReady)")
     }
 
     /**
      * Requests BLUETOOTH_CONNECT when needed; required for GATT operations on Android 12+.
      */
-    private fun ensureBluetoothPermission() {
+    private fun ensureBluetoothPermission(): Boolean {
         if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
             != PackageManager.PERMISSION_GRANTED
         ) {
             requestBluetoothConnectPermission.launch(Manifest.permission.BLUETOOTH_CONNECT)
+            dumpUiState("ensureBluetoothPermission(requested=true)")
+            return false
         } else {
-            bleClient.connect("E0:DF:01:46:14:2F")
+            bleClient!!.connect("E0:DF:01:46:14:2F")
+            reconnectBleOnNextSessionStart = false
             hrClient.connect("24:AC:AC:04:12:79")
+            dumpUiState("ensureBluetoothPermission(requested=false)")
+            return true
         }
     }
 
@@ -366,7 +453,7 @@ class MainActivity : ComponentActivity() {
             targetWriter = { targetWatts ->
                 if (ftmsReadyState.value && ftmsControlGrantedState.value) {
                     if (targetWatts == null) {
-                        ftmsController.setTargetPower(null) // ERG release
+                        ftmsController.clearTargetPower() // ERG release
                     } else {
                         ftmsController.setTargetPower(targetWatts)
                     }
@@ -400,11 +487,43 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        dumpUiState("onDestroy")
         workoutRunner?.stop()
-        bleClient.close()
+        bleClient?.close()
         hrClient.close()
         allowScreenOff()
         super.onDestroy()
     }
 
+    /**
+     * Creates a fresh FTMS command controller bound to the active BLE client.
+     */
+    private fun createFtmsController(): FtmsController {
+        return FtmsController(
+            writeControlPoint = { payload ->
+                bleClient?.writeControlPoint(payload)
+            },
+            onStopAcknowledged = {
+                Handler(Looper.getMainLooper()).post {
+                    dumpUiState("onStopAcknowledged")
+                    bleClient?.close()
+                }
+            }
+        )
+    }
+    /*
+    private fun createFtmsController(): FtmsController {
+        return FtmsController(
+            writeControlPoint = { payload ->
+                bleClient.writeControlPoint(payload)
+            },
+            onStopAcknowledged = {
+                if (awaitingStopResponseBeforeBleClose) {
+                    awaitingStopResponseBeforeBleClose = false
+                    forceBleReconnectOnNextSession()
+                }
+            }
+        )
+    }
+*/
 }

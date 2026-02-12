@@ -56,13 +56,8 @@ private data class MetricItem(
  */
 @Composable
 internal fun MenuScreen(
-    ftmsReady: Boolean,
-    onStartSession: () -> Unit
+     onStartSession: () -> Unit
 ) {
-    val connectionStatus =
-        if (ftmsReady) stringResource(R.string.status_connected)
-        else stringResource(R.string.status_connecting)
-
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -92,27 +87,42 @@ internal fun MenuScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                SectionCard(title = stringResource(R.string.menu_connection_title)) {
-                    LabeledValueRow(
-                        label = stringResource(R.string.session_status_ftms),
-                        value = connectionStatus
-                    )
-                    Text(
-                        text = stringResource(R.string.menu_connection_hint),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
                 Button(
                     onClick = onStartSession,
-                    enabled = ftmsReady,
                     modifier = Modifier.fillMaxWidth(),
                     colors = disabledVisibleButtonColors()
                 ) {
                     Text(stringResource(R.string.menu_start_session))
                 }
             }
+        }
+    }
+}
+
+/**
+ * Transitional screen shown while FTMS setup is completing.
+ */
+@Composable
+internal fun ConnectingScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.status_connecting),
+                style = MaterialTheme.typography.headlineSmall
+            )
+            Text(
+                text = stringResource(R.string.menu_connection_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -136,7 +146,6 @@ internal fun SessionScreen(
     lastTargetPower: Int?,
     onPauseWorkout: () -> Unit,
     onResumeWorkout: () -> Unit,
-    onTakeControl: () -> Unit,
     onSetTargetPower: (Int) -> Unit,
     onRelease: () -> Unit,
     onStopWorkout: () -> Unit,
@@ -149,12 +158,6 @@ internal fun SessionScreen(
     val unknown = stringResource(R.string.value_unknown)
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
     val elapsedTime = formatTime(durationSeconds, unknown)
-
-    val canTakeControl =
-        phase == SessionPhase.RUNNING &&
-            runnerState.running &&
-            ftmsReady &&
-            !ftmsControlGranted
 
     val canManualPower =
         ftmsControlGranted &&
@@ -292,13 +295,11 @@ internal fun SessionScreen(
                         ) {
                             WorkoutControlsSection(
                                 runnerState = runnerState,
-                                canTakeControl = canTakeControl,
                                 canManualPower = canManualPower,
                                 canRelease = canRelease,
                                 canStopWorkout = canStopWorkout,
                                 onPauseWorkout = onPauseWorkout,
                                 onResumeWorkout = onResumeWorkout,
-                                onTakeControl = onTakeControl,
                                 onSetTargetPower = onSetTargetPower,
                                 onRelease = onRelease,
                                 onStopWorkout = onStopWorkout,
@@ -324,13 +325,11 @@ internal fun SessionScreen(
 
                     WorkoutControlsSection(
                         runnerState = runnerState,
-                        canTakeControl = canTakeControl,
                         canManualPower = canManualPower,
                         canRelease = canRelease,
                         canStopWorkout = canStopWorkout,
                         onPauseWorkout = onPauseWorkout,
                         onResumeWorkout = onResumeWorkout,
-                        onTakeControl = onTakeControl,
                         onSetTargetPower = onSetTargetPower,
                         onRelease = onRelease,
                         onStopWorkout = onStopWorkout,
@@ -518,13 +517,11 @@ private fun MachineStatusSection(
 @Composable
 private fun WorkoutControlsSection(
     runnerState: RunnerState,
-    canTakeControl: Boolean,
     canManualPower: Boolean,
     canRelease: Boolean,
     canStopWorkout: Boolean,
     onPauseWorkout: () -> Unit,
     onResumeWorkout: () -> Unit,
-    onTakeControl: () -> Unit,
     onSetTargetPower: (Int) -> Unit,
     onRelease: () -> Unit,
     onStopWorkout: () -> Unit,
@@ -554,15 +551,6 @@ private fun WorkoutControlsSection(
         )
 
         HorizontalDivider()
-
-        Button(
-            onClick = onTakeControl,
-            enabled = canTakeControl,
-            modifier = Modifier.fillMaxWidth(),
-            colors = disabledVisibleButtonColors()
-        ) {
-            Text(stringResource(R.string.btn_take_control))
-        }
 
         Row(
             modifier = Modifier.fillMaxWidth(),

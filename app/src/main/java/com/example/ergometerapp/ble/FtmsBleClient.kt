@@ -37,6 +37,9 @@ class FtmsBleClient(
 
     private var indoorBikeDataCharacteristic: BluetoothGattCharacteristic? = null
 
+    @Volatile
+    private var disconnectEventEmitted = false
+
     private enum class SetupStep { NONE, CP_CCCD, BIKE_CCCD }
     private var setupStep: SetupStep = SetupStep.NONE
 
@@ -55,6 +58,7 @@ class FtmsBleClient(
             this@FtmsBleClient.gatt = gatt
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
+                disconnectEventEmitted = false
                 if (!hasBluetoothConnectPermission()) {
                     Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
                     return
@@ -65,11 +69,21 @@ class FtmsBleClient(
                     Log.w("FTMS", "discoverServices failed: ${e.message}")
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-            Log.w("FTMS", "GATT disconnected (status=$status)")
-            controlPointCharacteristic = null
-            this@FtmsBleClient.gatt = null
-            mainThreadHandler.post { onDisconnected() }
+                Log.w("FTMS", "GATT disconnected (status=$status)")
+                indoorBikeDataCharacteristic = null
+                try {
+                    gatt.close()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "close failed: ${e.message}")
+                }
+
+                controlPointCharacteristic = null
+                this@FtmsBleClient.gatt = null
+
+                emitDisconnectedOnce()
             }
+
+
         }
 
         override fun onDescriptorWrite(
@@ -81,7 +95,20 @@ class FtmsBleClient(
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w("FTMS", "Descriptor write failed at step=$setupStep status=$status")
                 setupStep = SetupStep.NONE
-                mainThreadHandler.post { onDisconnected() }
+                indoorBikeDataCharacteristic = null
+                controlPointCharacteristic = null
+                this@FtmsBleClient.gatt = null
+                try {
+                    gatt.disconnect()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "disconnect failed during setup failure: ${e.message}")
+                }
+                try {
+                    gatt.close()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "close failed during setup failure: ${e.message}")
+                }
+                emitDisconnectedOnce()
                 return
             }
 
@@ -159,6 +186,10 @@ class FtmsBleClient(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
+            if (this@FtmsBleClient.gatt == null) {
+                Log.d("FTMS", "Notification ignored (GATT closed)")
+                return
+            }
             when (characteristic.uuid) {
                 INDOOR_BIKE_DATA_UUID -> mainThreadHandler.post {
                     Log.d("FTMS", "IndoorBikeData notification received")
@@ -197,11 +228,22 @@ class FtmsBleClient(
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot connect")
             return
         }
+        if (gatt != null) {
+            Log.d("FTMS", "connect ignored (already connected or connecting)")
+            return
+        }
+        disconnectEventEmitted = false
         try {
             val bluetoothManager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
             val adapter = bluetoothManager.adapter
             val device = adapter.getRemoteDevice(mac)
-            gatt = device.connectGatt(context, false, gattCallback)
+            val newGatt = device.connectGatt(context, false, gattCallback)
+            if (newGatt == null) {
+                Log.w("FTMS", "connectGatt returned null; connection not started")
+                return
+            }
+            gatt = newGatt
+            Log.d("FTMS", "connectGatt started for $mac")
         } catch (e: SecurityException) {
             Log.w("FTMS", "connectGatt failed: ${e.message}")
         }
@@ -214,13 +256,31 @@ class FtmsBleClient(
      * Safe to call multiple times; exceptions can occur if permissions change.
      */
     fun close() {
+        val currentGatt = gatt ?: return
         try {
-            gatt?.close()
+            currentGatt.disconnect()
         } catch (e: SecurityException) {
-            Log.w("FTMS", "close failed: ${e.message}")
+            Log.w("FTMS", "disconnect failed: ${e.message}")
         }
-        gatt = null
+        // ÄLÄ kutsu close() tässä
     }
+
+
+    /**
+     * Emits a single semantic disconnect event per connection lifecycle.
+     *
+     * Android can surface multiple low-level teardown signals (explicit close,
+     * callback disconnect, setup failure). Callers should observe one stable
+     * disconnect transition regardless of source.
+     */
+    private fun emitDisconnectedOnce() {
+        synchronized(this) {
+            if (disconnectEventEmitted) return
+            disconnectEventEmitted = true
+        }
+        mainThreadHandler.post { onDisconnected() }
+    }
+
     private fun writeControlPointCccd(gatt: BluetoothGatt, cp: BluetoothGattCharacteristic) {
         if (!hasBluetoothConnectPermission()) {
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write CP CCCD")
