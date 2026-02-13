@@ -18,6 +18,10 @@
         <string name="menu_subtitle">FTMS-based training session</string>
         <string name="menu_connection_title">Connection</string>
         <string name="menu_connection_hint">Waiting for trainer connection</string>
+        <string name="menu_select_workout_file">Select workout file</string>
+        <string name="menu_workout_not_selected">No workout file selected</string>
+        <string name="menu_workout_selected">Selected: %1$s (%2$d steps)</string>
+        <string name="menu_workout_import_failed">Import failed: %1$s</string>
         <string name="menu_start_session">Start session</string>
 
         <!-- Session -->
