@@ -1,6 +1,7 @@
 package com.example.ergometerapp.ble
 
 import android.Manifest
+import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
@@ -26,7 +27,7 @@ import java.util.UUID
 class FtmsBleClient(
     private val context: Context,
     private val onIndoorBikeData: (ByteArray) -> Unit,
-    private val onReady: () -> Unit,
+    private val onReady: (Boolean) -> Unit,
     private val onControlPointResponse: (Int, Int) -> Unit,
     private val onDisconnected: () -> Unit
 ) {
@@ -42,6 +43,7 @@ class FtmsBleClient(
 
     private enum class SetupStep { NONE, CP_CCCD, BIKE_CCCD }
     private var setupStep: SetupStep = SetupStep.NONE
+    private var controlPointIndicationEnabled = false
 
     private val FTMS_SERVICE_UUID =
         UUID.fromString("00001826-0000-1000-8000-00805f9b34fb")
@@ -59,6 +61,8 @@ class FtmsBleClient(
 
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 disconnectEventEmitted = false
+                setupStep = SetupStep.NONE
+                controlPointIndicationEnabled = false
                 if (!hasBluetoothConnectPermission()) {
                     Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
                     return
@@ -70,6 +74,8 @@ class FtmsBleClient(
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 Log.w("FTMS", "GATT disconnected (status=$status)")
+                setupStep = SetupStep.NONE
+                controlPointIndicationEnabled = false
                 indoorBikeDataCharacteristic = null
                 try {
                     gatt.close()
@@ -95,6 +101,7 @@ class FtmsBleClient(
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 Log.w("FTMS", "Descriptor write failed at step=$setupStep status=$status")
                 setupStep = SetupStep.NONE
+                controlPointIndicationEnabled = false
                 indoorBikeDataCharacteristic = null
                 controlPointCharacteristic = null
                 this@FtmsBleClient.gatt = null
@@ -114,12 +121,18 @@ class FtmsBleClient(
 
             when (setupStep) {
                 SetupStep.CP_CCCD -> {
+                    controlPointIndicationEnabled = true
                     writeBikeCccd(gatt)
                 }
                 SetupStep.BIKE_CCCD -> {
                     setupStep = SetupStep.NONE
-                    Log.d("FTMS", "FTMS notifications/indications setup done")
-                    mainThreadHandler.post { onReady() }
+                    val controlPointReady =
+                        controlPointCharacteristic != null && controlPointIndicationEnabled
+                    Log.d(
+                        "FTMS",
+                        "FTMS notifications/indications setup done (controlPointReady=$controlPointReady)"
+                    )
+                    mainThreadHandler.post { onReady(controlPointReady) }
                 }
                 else -> {
                     // ignore
@@ -128,6 +141,19 @@ class FtmsBleClient(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.w("FTMS", "Service discovery failed (status=$status)")
+                setupStep = SetupStep.NONE
+                controlPointIndicationEnabled = false
+                indoorBikeDataCharacteristic = null
+                controlPointCharacteristic = null
+                try {
+                    gatt.disconnect()
+                } catch (e: SecurityException) {
+                    Log.w("FTMS", "disconnect failed after discovery error: ${e.message}")
+                }
+                return
+            }
             if (!hasBluetoothConnectPermission()) {
                 Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot configure FTMS")
                 return
@@ -228,6 +254,10 @@ class FtmsBleClient(
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot connect")
             return
         }
+        if (!BluetoothAdapter.checkBluetoothAddress(mac)) {
+            Log.w("FTMS", "Invalid Bluetooth MAC address: $mac")
+            return
+        }
         if (gatt != null) {
             Log.d("FTMS", "connect ignored (already connected or connecting)")
             return
@@ -290,6 +320,7 @@ class FtmsBleClient(
         if (cccd == null) {
             Log.w("FTMS", "CCCD not found for Control Point")
             // fall back to bike CCCD
+            controlPointIndicationEnabled = false
             writeBikeCccd(gatt)
             return
         }

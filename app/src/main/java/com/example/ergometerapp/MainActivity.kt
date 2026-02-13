@@ -56,6 +56,8 @@ import com.example.ergometerapp.workout.runner.WorkoutStepper
  */
 class MainActivity : ComponentActivity() {
     private enum class AppScreen { MENU, CONNECTING, SESSION, SUMMARY }
+    private val defaultFtmsDeviceMac = BuildConfig.DEFAULT_FTMS_DEVICE_MAC
+    private val defaultHrDeviceMac = BuildConfig.DEFAULT_HR_DEVICE_MAC
 
     private val screenState = mutableStateOf(AppScreen.MENU)
 
@@ -95,13 +97,15 @@ class MainActivity : ComponentActivity() {
     private var reconnectBleOnNextSessionStart = false
     private var awaitingStopResponseBeforeBleClose = false
     private var pendingSessionStartAfterPermission = false
+    private var pendingCadenceStartAfterControlGranted = false
+    private var autoPausedByZeroCadence = false
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 Log.d("BLE", "BLUETOOTH_CONNECT granted")
-                bleClient?.connect("E0:DF:01:46:14:2F")
+                bleClient?.connect(defaultFtmsDeviceMac)
                 reconnectBleOnNextSessionStart = false
-                hrClient.connect("24:AC:AC:04:12:79")
+                hrClient.connect(defaultHrDeviceMac)
                 if (pendingSessionStartAfterPermission) {
                     pendingSessionStartAfterPermission = false
                     screenState.value = AppScreen.CONNECTING
@@ -178,8 +182,8 @@ class MainActivity : ComponentActivity() {
                                 ftmsControlGranted = ftmsControlGranted,
                                 runnerState = currentRunnerState,
                                 lastTargetPower = lastTargetPower,
-                                onPauseWorkout = { workoutRunner?.pause() },
-                                onResumeWorkout = { workoutRunner?.resume() },
+                                onPauseWorkout = { pauseWorkoutManually() },
+                                onResumeWorkout = { resumeWorkoutManually() },
                                 onSetTargetPower = { watts ->
                                     ftmsController.setTargetPower(watts)
                                     lastTargetPowerState.value = watts
@@ -253,8 +257,8 @@ class MainActivity : ComponentActivity() {
                             ftmsControlGranted = ftmsControlGranted,
                             runnerState = currentRunnerState,
                             lastTargetPower = lastTargetPower,
-                            onPauseWorkout = { workoutRunner?.pause() },
-                            onResumeWorkout = { workoutRunner?.resume() },
+                            onPauseWorkout = { pauseWorkoutManually() },
+                            onResumeWorkout = { resumeWorkoutManually() },
                             onSetTargetPower = { watts ->
                                 ftmsController.setTargetPower(watts)
                                 lastTargetPowerState.value = watts
@@ -280,7 +284,6 @@ class MainActivity : ComponentActivity() {
 
         ftmsController = createFtmsController()
 
-        // TODO: Move hardcoded MACs to configuration or device discovery flow.
         hrClient = HrBleClient(this)
         { bpm ->
             heartRateState.value = bpm
@@ -299,7 +302,9 @@ class MainActivity : ComponentActivity() {
                 "lastTarget=${lastTargetPowerState.value} runnerState=${runnerState.value} " +
                 "reconnectPending=$reconnectBleOnNextSessionStart " +
                 "awaitingStopClose=$awaitingStopResponseBeforeBleClose " +
-                "pendingSessionStart=$pendingSessionStartAfterPermission"
+                "pendingSessionStart=$pendingSessionStartAfterPermission " +
+                "pendingCadenceStart=$pendingCadenceStartAfterControlGranted " +
+                "autoPausedByZeroCadence=$autoPausedByZeroCadence"
         )
     }
 
@@ -309,7 +314,10 @@ class MainActivity : ComponentActivity() {
             dumpUiState("startSessionConnectionIgnored(noWorkout)")
             return
         }
+        pendingCadenceStartAfterControlGranted = false
+        autoPausedByZeroCadence = false
         pendingSessionStartAfterPermission = true
+        bikeDataState.value = null
         bleClient?.close()
         bleClient = createFtmsBleClient()
         ftmsController = createFtmsController()
@@ -389,10 +397,12 @@ class MainActivity : ComponentActivity() {
                 val parsedData = parseIndoorBikeData(bytes)
                 bikeDataState.value = parsedData
                 sessionManager.updateBikeData(parsedData)
+                applyCadenceDrivenRunnerControl(parsedData.instantaneousCadenceRpm)
             },
-            onReady = {
-                ftmsReadyState.value = true
-                if (screenState.value == AppScreen.CONNECTING) {
+            onReady = { controlPointReady ->
+                ftmsReadyState.value = controlPointReady
+                ftmsController.setTransportReady(controlPointReady)
+                if (screenState.value == AppScreen.CONNECTING && controlPointReady) {
                     // Session starts only after Request Control is acknowledged.
                     ftmsController.requestControl()
                 }
@@ -409,9 +419,11 @@ class MainActivity : ComponentActivity() {
                     ftmsControlGrantedState.value = true
                     if (screenState.value == AppScreen.CONNECTING) {
                         sessionManager.startSession()
-                        ensureWorkoutRunner().start()
+                        pendingCadenceStartAfterControlGranted = true
+                        autoPausedByZeroCadence = false
                         keepScreenOn()
                         screenState.value = AppScreen.SESSION
+                        applyCadenceDrivenRunnerControl(bikeDataState.value?.instantaneousCadenceRpm)
                     }
                 }
 
@@ -422,8 +434,11 @@ class MainActivity : ComponentActivity() {
                 dumpUiState("bleOnControlPointResponse(op=$requestOpcode,result=$resultCode)")
             },
             onDisconnected = {
+                ftmsController.setTransportReady(false)
                 ftmsController.onDisconnected()
                 awaitingStopResponseBeforeBleClose = false
+                pendingCadenceStartAfterControlGranted = false
+                autoPausedByZeroCadence = false
                 resetFtmsUiState(clearReady = true)
                 Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
                 dumpUiState("bleOnDisconnected")
@@ -469,8 +484,20 @@ class MainActivity : ComponentActivity() {
      * telemetry can continue while the user free-rides.
      */
     private fun stopWorkout() {
+        pendingCadenceStartAfterControlGranted = false
+        autoPausedByZeroCadence = false
         workoutRunner?.stop()
         lastTargetPowerState.value = null
+    }
+
+    private fun pauseWorkoutManually() {
+        autoPausedByZeroCadence = false
+        workoutRunner?.pause()
+    }
+
+    private fun resumeWorkoutManually() {
+        autoPausedByZeroCadence = false
+        workoutRunner?.resume()
     }
 
     /**
@@ -518,7 +545,47 @@ class MainActivity : ComponentActivity() {
         }
         ftmsControlGrantedState.value = false
         lastTargetPowerState.value = null
+        pendingCadenceStartAfterControlGranted = false
+        autoPausedByZeroCadence = false
         dumpUiState("resetFtmsUiState(clearReady=$clearReady)")
+    }
+
+    /**
+     * Applies cadence gating for runner progression.
+     *
+     * The runner starts only after control is granted and cadence is above zero.
+     * During an active workout, cadence zero auto-pauses and cadence above zero
+     * auto-resumes only if the pause was cadence-triggered.
+     */
+    private fun applyCadenceDrivenRunnerControl(cadenceRpm: Double?) {
+        if (screenState.value != AppScreen.SESSION || !ftmsControlGrantedState.value) return
+        val cadencePositive = (cadenceRpm ?: 0.0) > 0.0
+
+        if (pendingCadenceStartAfterControlGranted) {
+            if (!cadencePositive) return
+            pendingCadenceStartAfterControlGranted = false
+            autoPausedByZeroCadence = false
+            ensureWorkoutRunner().start()
+            dumpUiState("runnerStartByCadence")
+            return
+        }
+
+        val runner = workoutRunner ?: return
+        val currentState = runnerState.value
+        if (!currentState.running || currentState.done) return
+
+        if (!currentState.paused && !cadencePositive) {
+            autoPausedByZeroCadence = true
+            runner.pause()
+            dumpUiState("runnerAutoPauseByCadenceZero")
+            return
+        }
+
+        if (currentState.paused && cadencePositive && autoPausedByZeroCadence) {
+            autoPausedByZeroCadence = false
+            runner.resume()
+            dumpUiState("runnerAutoResumeByCadencePositive")
+        }
     }
 
     /**
@@ -532,9 +599,9 @@ class MainActivity : ComponentActivity() {
             dumpUiState("ensureBluetoothPermission(requested=true)")
             return false
         } else {
-            bleClient!!.connect("E0:DF:01:46:14:2F")
+            bleClient!!.connect(defaultFtmsDeviceMac)
             reconnectBleOnNextSessionStart = false
-            hrClient.connect("24:AC:AC:04:12:79")
+            hrClient.connect(defaultHrDeviceMac)
             dumpUiState("ensureBluetoothPermission(requested=false)")
             return true
         }

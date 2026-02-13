@@ -32,6 +32,7 @@ class SessionOrchestrator(
     private val keepScreenOn: () -> Unit,
     private val allowScreenOff: () -> Unit
 ) {
+    private val defaultFtmsDeviceMac = BuildConfig.DEFAULT_FTMS_DEVICE_MAC
     private var bleClient: FtmsBleClient? = null
     private lateinit var ftmsController: FtmsController
     private var workoutRunner: WorkoutRunner? = null
@@ -73,7 +74,7 @@ class SessionOrchestrator(
     }
 
     fun connectBleClients() {
-        bleClient?.connect("E0:DF:01:46:14:2F")
+        bleClient?.connect(defaultFtmsDeviceMac)
         uiState.reconnectBleOnNextSessionStart = false
         connectHeartRate()
     }
@@ -144,9 +145,10 @@ class SessionOrchestrator(
                 uiState.bikeData.value = parsedData
                 sessionManager.updateBikeData(parsedData)
             },
-            onReady = {
-                uiState.ftmsReady.value = true
-                if (uiState.screen.value == AppScreen.CONNECTING) {
+            onReady = { controlPointReady ->
+                uiState.ftmsReady.value = controlPointReady
+                ftmsController.setTransportReady(controlPointReady)
+                if (uiState.screen.value == AppScreen.CONNECTING && controlPointReady) {
                     ftmsController.requestControl()
                 }
                 dumpUiState("bleOnReady")
@@ -171,6 +173,7 @@ class SessionOrchestrator(
                 dumpUiState("bleOnControlPointResponse(op=$requestOpcode,result=$resultCode)")
             },
             onDisconnected = {
+                ftmsController.setTransportReady(false)
                 ftmsController.onDisconnected()
                 uiState.awaitingStopResponseBeforeBleClose = false
                 resetFtmsUiState(clearReady = true)
@@ -287,4 +290,3 @@ class SessionOrchestrator(
         )
     }
 }
-
