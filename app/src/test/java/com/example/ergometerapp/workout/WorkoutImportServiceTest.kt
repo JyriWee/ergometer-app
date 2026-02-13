@@ -57,6 +57,14 @@ class WorkoutImportServiceTest {
             ?: throw AssertionError("Expected failure, got $result")
         assertEquals(WorkoutImportErrorCode.PARSE_FAILED, failure.error.code)
         assertEquals(WorkoutImportFormat.ZWO_XML, failure.error.detectedFormat)
+        assertTrue(
+            "Expected parser diagnostics for malformed XML",
+            !failure.error.technicalDetails.isNullOrBlank(),
+        )
+        assertTrue(
+            "Expected malformed XML reason in technical details",
+            failure.error.technicalDetails!!.contains("Malformed ZWO XML"),
+        )
     }
 
     @Test

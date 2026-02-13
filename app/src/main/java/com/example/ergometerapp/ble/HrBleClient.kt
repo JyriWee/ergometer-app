@@ -86,7 +86,7 @@ class HrBleClient(
             value: ByteArray
         ) {
             if (characteristic.uuid == HR_MEASUREMENT_UUID) {
-                val bpm = parseHeartRate(value) ?: return
+                val bpm = HrMeasurementParser.parseBpm(value) ?: return
                 mainThreadHandler.post { onHeartRate(bpm) }
             }
         }
@@ -129,27 +129,6 @@ class HrBleClient(
             Log.w("HR", "close failed: ${e.message}")
         }
         gatt = null
-    }
-
-    /**
-     * Parses the HR Measurement payload (0x2A37) into BPM.
-     *
-     * The first flag bit selects 8-bit vs 16-bit HR value. Other optional fields
-     * (energy expended, RR intervals) are currently ignored.
-     *
-     * TODO: Validate payload length before indexing to avoid malformed packets.
-     */
-    private fun parseHeartRate(bytes: ByteArray): Int? {
-        if (bytes.size < 2) return null
-
-        val flags = bytes[0].toInt()
-        val hr16bit = flags and 0x01 != 0
-        return if (hr16bit) {
-            if (bytes.size < 3) return null
-            (bytes[1].toInt() and 0xFF) or ((bytes[2].toInt() and 0xFF) shl 8)
-        } else {
-            bytes[1].toInt() and 0xFF
-        }
     }
 
     private fun hasBluetoothConnectPermission(): Boolean {

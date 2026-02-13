@@ -39,6 +39,8 @@ import com.example.ergometerapp.ui.SessionScreen
 import com.example.ergometerapp.ui.SummaryScreen
 import com.example.ergometerapp.ui.debug.FtmsDebugTimelineScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
+import com.example.ergometerapp.workout.WorkoutImportError
+import com.example.ergometerapp.workout.WorkoutImportFormat
 import com.example.ergometerapp.workout.WorkoutImportResult
 import com.example.ergometerapp.workout.WorkoutImportService
 import com.example.ergometerapp.workout.Step
@@ -102,6 +104,8 @@ class MainActivity : ComponentActivity() {
     private var pendingSessionStartAfterPermission = false
     private var pendingCadenceStartAfterControlGranted = false
     private var autoPausedByZeroCadence = false
+    private var ftmsClientGeneration = 0
+    private var activeFtmsClientGeneration = 0
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
@@ -328,12 +332,14 @@ class MainActivity : ComponentActivity() {
 
     private fun importWorkoutFromUri(uri: Uri) {
         val sourceName = resolveDisplayName(uri) ?: "selected_workout"
+        var readFailureDetails: String? = null
         val content = try {
             contentResolver.openInputStream(uri)?.bufferedReader(Charsets.UTF_8).use { reader ->
                 reader?.readText()
             }
         } catch (e: Exception) {
             Log.w("WORKOUT", "Failed reading selected workout file: ${e.message}")
+            readFailureDetails = e.message?.takeIf { it.isNotBlank() }
             null
         }
 
@@ -342,7 +348,8 @@ class MainActivity : ComponentActivity() {
             workoutRunner = null
             selectedWorkoutFileNameState.value = sourceName
             selectedWorkoutStepCountState.value = null
-            selectedWorkoutImportErrorState.value = "Unable to read file content."
+            selectedWorkoutImportErrorState.value =
+                formatReadFailureMessage(readFailureDetails = readFailureDetails)
             workoutReadyState.value = false
             dumpUiState("workoutImportReadFailed(name=$sourceName)")
             return
@@ -367,7 +374,7 @@ class MainActivity : ComponentActivity() {
                 workoutRunner = null
                 selectedWorkoutFileNameState.value = sourceName
                 selectedWorkoutStepCountState.value = null
-                selectedWorkoutImportErrorState.value = result.error.message
+                selectedWorkoutImportErrorState.value = formatImportFailureMessage(result.error)
                 workoutReadyState.value = false
                 Log.w(
                     "WORKOUT",
@@ -387,16 +394,60 @@ class MainActivity : ComponentActivity() {
             }
     }
 
+    private fun formatReadFailureMessage(readFailureDetails: String?): String {
+        if (readFailureDetails.isNullOrBlank()) {
+            return "Unable to read file content."
+        }
+        return "Unable to read file content.\nDetails: $readFailureDetails"
+    }
+
+    /**
+     * Builds a user-facing import failure summary with enough context to fix the file.
+     *
+     * A short primary reason is always shown first, while parser diagnostics
+     * (for example XML line/column) are appended when available.
+     */
+    private fun formatImportFailureMessage(error: WorkoutImportError): String {
+        val detectedFormat = when (error.detectedFormat) {
+            WorkoutImportFormat.ZWO_XML -> "ZWO XML"
+            WorkoutImportFormat.MYWHOOSH_JSON -> "MyWhoosh JSON"
+            WorkoutImportFormat.UNKNOWN -> "Unknown"
+        }
+
+        return buildString {
+            append(error.message)
+            if (!error.technicalDetails.isNullOrBlank()) {
+                append("\nDetails: ")
+                append(error.technicalDetails)
+            }
+            append("\nDetected format: ")
+            append(detectedFormat)
+            append("\nError code: ")
+            append(error.code.name)
+        }
+    }
+
     private fun createFtmsBleClient(): FtmsBleClient {
+        val generation = ++ftmsClientGeneration
+        activeFtmsClientGeneration = generation
+
         return FtmsBleClient(
             context = this@MainActivity,
             onIndoorBikeData = { bytes ->
+                if (generation != activeFtmsClientGeneration) {
+                    Log.d("FTMS", "Ignoring stale onIndoorBikeData callback (generation=$generation)")
+                    return@FtmsBleClient
+                }
                 val parsedData = parseIndoorBikeData(bytes)
                 bikeDataState.value = parsedData
                 sessionManager.updateBikeData(parsedData)
                 applyCadenceDrivenRunnerControl(parsedData.instantaneousCadenceRpm)
             },
             onReady = { controlPointReady ->
+                if (generation != activeFtmsClientGeneration) {
+                    Log.d("FTMS", "Ignoring stale onReady callback (generation=$generation)")
+                    return@FtmsBleClient
+                }
                 ftmsReadyState.value = controlPointReady
                 ftmsController.setTransportReady(controlPointReady)
                 if (screenState.value == AppScreen.CONNECTING && controlPointReady) {
@@ -406,6 +457,10 @@ class MainActivity : ComponentActivity() {
                 dumpUiState("bleOnReady")
             },
             onControlPointResponse = { requestOpcode, resultCode ->
+                if (generation != activeFtmsClientGeneration) {
+                    Log.d("FTMS", "Ignoring stale onControlPointResponse callback (generation=$generation)")
+                    return@FtmsBleClient
+                }
 
                 ftmsController.onControlPointResponse(requestOpcode, resultCode)
 
@@ -431,6 +486,10 @@ class MainActivity : ComponentActivity() {
                 dumpUiState("bleOnControlPointResponse(op=$requestOpcode,result=$resultCode)")
             },
             onDisconnected = {
+                if (generation != activeFtmsClientGeneration) {
+                    Log.d("FTMS", "Ignoring stale onDisconnected callback (generation=$generation)")
+                    return@FtmsBleClient
+                }
                 val wasSessionFlowActive =
                     screenState.value == AppScreen.CONNECTING || screenState.value == AppScreen.SESSION
                 ftmsController.setTransportReady(false)

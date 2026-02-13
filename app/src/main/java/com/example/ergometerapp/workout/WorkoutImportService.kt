@@ -26,6 +26,7 @@ data class WorkoutImportError(
     val code: WorkoutImportErrorCode,
     val message: String,
     val detectedFormat: WorkoutImportFormat,
+    val technicalDetails: String? = null,
 )
 
 /**
@@ -107,12 +108,13 @@ class WorkoutImportService {
                     format = WorkoutImportFormat.ZWO_XML,
                 )
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
             WorkoutImportResult.Failure(
                 WorkoutImportError(
                     code = WorkoutImportErrorCode.PARSE_FAILED,
                     message = "Workout XML parsing failed.",
                     detectedFormat = WorkoutImportFormat.ZWO_XML,
+                    technicalDetails = e.message?.takeIf { it.isNotBlank() },
                 ),
             )
         }
@@ -139,4 +141,3 @@ class WorkoutImportService {
         return WorkoutImportFormat.UNKNOWN
     }
 }
-
