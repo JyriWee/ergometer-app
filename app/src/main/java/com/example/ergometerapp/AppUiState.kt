@@ -1,0 +1,31 @@
+package com.example.ergometerapp
+
+import androidx.compose.runtime.MutableState
+import androidx.compose.runtime.mutableStateOf
+import com.example.ergometerapp.ftms.IndoorBikeData
+import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.workout.runner.RunnerState
+
+/**
+ * Centralized holder for UI-observable state and related session flags.
+ *
+ * Keeping these fields grouped allows orchestration code to update a single
+ * object instead of scattering mutable references across activity scope.
+ */
+class AppUiState {
+    val screen: MutableState<AppScreen> = mutableStateOf(AppScreen.MENU)
+    val heartRate: MutableState<Int?> = mutableStateOf(null)
+    val bikeData: MutableState<IndoorBikeData?> = mutableStateOf(null)
+    val summary: MutableState<SessionSummary?> = mutableStateOf(null)
+    val session: MutableState<SessionState?> = mutableStateOf(null)
+    val ftmsReady: MutableState<Boolean> = mutableStateOf(false)
+    val ftmsControlGranted: MutableState<Boolean> = mutableStateOf(false)
+    val lastTargetPower: MutableState<Int?> = mutableStateOf(null)
+    val runner: MutableState<RunnerState> = mutableStateOf(RunnerState.stopped())
+    val showDebugTimeline: MutableState<Boolean> = mutableStateOf(false)
+
+    var reconnectBleOnNextSessionStart: Boolean = false
+    var awaitingStopResponseBeforeBleClose: Boolean = false
+    var pendingSessionStartAfterPermission: Boolean = false
+}
+
