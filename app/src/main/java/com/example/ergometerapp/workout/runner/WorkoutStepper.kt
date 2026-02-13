@@ -2,6 +2,7 @@ package com.example.ergometerapp.workout.runner
 
 import com.example.ergometerapp.workout.ExecutionWorkout
 import com.example.ergometerapp.workout.ExecutionSegment
+import com.example.ergometerapp.workout.CadenceTarget
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
 import kotlin.math.roundToInt
@@ -429,7 +430,7 @@ class WorkoutStepper private constructor(
         val segment = requireExecutionWorkout().segments[executionCurrentSegmentIndex]
         return StepperOutput(
             targetPowerWatts = executionCurrentTargetWatts,
-            targetCadence = null,
+            targetCadence = executionTargetCadence(segment),
             done = false,
             label = executionLabel(segment),
         )
@@ -439,6 +440,13 @@ class WorkoutStepper private constructor(
         return when (segment) {
             is ExecutionSegment.Steady -> "Steady"
             is ExecutionSegment.Ramp -> "Ramp"
+        }
+    }
+
+    private fun executionTargetCadence(segment: ExecutionSegment): Int? {
+        return when (val cadence = segment.cadence) {
+            is CadenceTarget.FixedCadence -> cadence.rpm
+            CadenceTarget.AnyCadence -> null
         }
     }
 

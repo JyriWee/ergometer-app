@@ -68,6 +68,33 @@ class WorkoutRunnerDryRunTest {
         assertTrue(rampTargets.zipWithNext().all { (previous, next) -> next >= previous })
     }
 
+    @Test
+    fun executionStepperExposesFixedCadenceTarget() {
+        val workout = ExecutionWorkout(
+            name = "Cadence test",
+            description = "",
+            author = "",
+            tags = emptyList(),
+            segments = listOf(
+                ExecutionSegment.Steady(
+                    sourceStepIndex = 0,
+                    durationSec = 30,
+                    targetWatts = 180,
+                    cadence = CadenceTarget.FixedCadence(92),
+                ),
+            ),
+            totalDurationSec = 30,
+        )
+
+        val stepper = WorkoutStepper.fromExecutionWorkout(workout)
+        stepper.start()
+        val output = stepper.tick(0L)
+
+        assertEquals(180, output.targetPowerWatts)
+        assertEquals(92, output.targetCadence)
+        assertTrue(!output.done)
+    }
+
     private fun runDryRun(workout: ExecutionWorkout): DryRunResult {
         val stepper = WorkoutStepper.fromExecutionWorkout(workout)
         val targets = mutableListOf<Int>()

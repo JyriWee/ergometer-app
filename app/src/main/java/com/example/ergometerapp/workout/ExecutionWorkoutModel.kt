@@ -77,6 +77,8 @@ data class MappingError(
 enum class MappingErrorCode {
     INVALID_FTP,
     UNSUPPORTED_STEP,
+    MISSING_REPEAT,
+    INVALID_REPEAT,
     MISSING_DURATION,
     INVALID_DURATION,
     MISSING_POWER,

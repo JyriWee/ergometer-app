@@ -54,6 +54,75 @@ class ExecutionWorkoutMapperTest {
     }
 
     @Test
+    fun warmupMapsToRampLowToHigh() {
+        val workout = workoutWithSteps(
+            Step.Warmup(
+                durationSec = 30,
+                powerLow = 0.5,
+                powerHigh = 0.7,
+                cadence = 90,
+            ),
+        )
+
+        val success = requireSuccess(ExecutionWorkoutMapper.map(workout, ftp = 200))
+        val segment = success.workout.segments.single() as ExecutionSegment.Ramp
+
+        assertEquals(30, segment.durationSec)
+        assertEquals(100, segment.startWatts)
+        assertEquals(140, segment.endWatts)
+        assertEquals(CadenceTarget.FixedCadence(90), segment.cadence)
+    }
+
+    @Test
+    fun cooldownMapsFromHigherPowerToLowerPowerEvenWhenFieldsAreSwapped() {
+        val workout = workoutWithSteps(
+            Step.Cooldown(
+                durationSec = 40,
+                powerLow = 0.2,
+                powerHigh = 0.7,
+                cadence = null,
+            ),
+        )
+
+        val success = requireSuccess(ExecutionWorkoutMapper.map(workout, ftp = 200))
+        val segment = success.workout.segments.single() as ExecutionSegment.Ramp
+
+        assertEquals(40, segment.durationSec)
+        assertEquals(140, segment.startWatts)
+        assertEquals(40, segment.endWatts)
+    }
+
+    @Test
+    fun intervalsExpandToAlternatingSteadySegments() {
+        val workout = workoutWithSteps(
+            Step.IntervalsT(
+                onDurationSec = 5,
+                offDurationSec = 10,
+                onPower = 0.9,
+                offPower = 0.5,
+                repeat = 3,
+                cadence = 95,
+            ),
+        )
+
+        val success = requireSuccess(ExecutionWorkoutMapper.map(workout, ftp = 200))
+        val segments = success.workout.segments
+
+        assertEquals(6, segments.size)
+        assertEquals(45, success.workout.totalDurationSec)
+        assertTrue(segments.all { it is ExecutionSegment.Steady })
+
+        val firstOn = segments[0] as ExecutionSegment.Steady
+        val firstOff = segments[1] as ExecutionSegment.Steady
+        assertEquals(5, firstOn.durationSec)
+        assertEquals(180, firstOn.targetWatts)
+        assertEquals(CadenceTarget.FixedCadence(95), firstOn.cadence)
+        assertEquals(10, firstOff.durationSec)
+        assertEquals(100, firstOff.targetWatts)
+        assertEquals(CadenceTarget.FixedCadence(95), firstOff.cadence)
+    }
+
+    @Test
     fun ftpLessThanOrEqualToZeroFailsWithInvalidFtp() {
         val workout = workoutWithSteps(
             Step.SteadyState(
@@ -72,10 +141,8 @@ class ExecutionWorkoutMapperTest {
     @Test
     fun unsupportedStepFailsWithUnsupportedStep() {
         val workout = workoutWithSteps(
-            Step.Warmup(
-                durationSec = 30,
-                powerLow = 0.5,
-                powerHigh = 0.7,
+            Step.FreeRide(
+                durationSec = 60,
                 cadence = null,
             ),
         )
@@ -118,6 +185,23 @@ class ExecutionWorkoutMapperTest {
     fun emptyStepsFailsWithNoSupportedSteps() {
         val failure = requireFailure(ExecutionWorkoutMapper.map(workoutWithSteps(), ftp = 200))
         assertContainsErrorCode(failure, MappingErrorCode.NO_SUPPORTED_STEPS)
+    }
+
+    @Test
+    fun missingRepeatFailsWithMissingRepeat() {
+        val workout = workoutWithSteps(
+            Step.IntervalsT(
+                onDurationSec = 5,
+                offDurationSec = 5,
+                onPower = 0.8,
+                offPower = 0.5,
+                repeat = null,
+                cadence = null,
+            ),
+        )
+
+        val failure = requireFailure(ExecutionWorkoutMapper.map(workout, ftp = 200))
+        assertContainsErrorCode(failure, MappingErrorCode.MISSING_REPEAT)
     }
 
     private fun workoutWithSteps(vararg steps: Step): WorkoutFile {

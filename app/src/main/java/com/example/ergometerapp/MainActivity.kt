@@ -43,6 +43,8 @@ import com.example.ergometerapp.workout.WorkoutImportResult
 import com.example.ergometerapp.workout.WorkoutImportService
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
+import com.example.ergometerapp.workout.ExecutionWorkoutMapper
+import com.example.ergometerapp.workout.MappingResult
 import com.example.ergometerapp.workout.runner.RunnerState
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
@@ -605,8 +607,10 @@ class MainActivity : ComponentActivity() {
     private fun ensureWorkoutRunner(): WorkoutRunner {
         val existing = workoutRunner
         if (existing != null) return existing
+        val workout = getWorkoutForRunner()
+        val stepper = createRunnerStepper(workout)
         val runner = WorkoutRunner(
-            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = defaultFtpWatts),
+            stepper = stepper,
             targetWriter = { targetWatts ->
                 if (ftmsReadyState.value && ftmsControlGrantedState.value) {
                     if (targetWatts == null) {
@@ -624,6 +628,24 @@ class MainActivity : ComponentActivity() {
 
         workoutRunner = runner
         return runner
+    }
+
+    /**
+     * Prefers the strict execution model when mapping succeeds, but falls back
+     * to legacy stepping so unsupported steps do not block session startup.
+     */
+    private fun createRunnerStepper(workout: WorkoutFile): WorkoutStepper {
+        return when (val mapped = ExecutionWorkoutMapper.map(workout, ftp = defaultFtpWatts)) {
+            is MappingResult.Success -> {
+                WorkoutStepper.fromExecutionWorkout(mapped.workout)
+            }
+
+            is MappingResult.Failure -> {
+                val summary = mapped.errors.joinToString(separator = ", ") { it.code.name }
+                Log.w("WORKOUT", "Execution mapping failed; falling back to legacy stepper: $summary")
+                WorkoutStepper(workout, ftpWatts = defaultFtpWatts)
+            }
+        }
     }
 
     private fun getWorkoutForRunner(): WorkoutFile {

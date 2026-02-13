@@ -4,7 +4,7 @@ import kotlin.math.round
 
 /**
  * Strict mapper from parsed ZWO content to execution segments.
- * Only SteadyState and Ramp are currently supported.
+ * Supports SteadyState, Ramp, Warmup, Cooldown, and IntervalsT.
  */
 object ExecutionWorkoutMapper {
     /**
@@ -41,6 +41,53 @@ object ExecutionWorkoutMapper {
 
                 is Step.Ramp -> mapRamp(
                     stepIndex = stepIndex,
+                    stepType = "Ramp",
+                    durationSec = step.durationSec,
+                    powerLow = step.powerLow,
+                    powerHigh = step.powerHigh,
+                    cadence = step.cadence,
+                    ftp = ftp,
+                    ftpValid = ftpValid,
+                    segments = segments,
+                    errors = errors,
+                )
+
+                is Step.Warmup -> mapRamp(
+                    stepIndex = stepIndex,
+                    stepType = "Warmup",
+                    durationSec = step.durationSec,
+                    powerLow = step.powerLow,
+                    powerHigh = step.powerHigh,
+                    cadence = step.cadence,
+                    ftp = ftp,
+                    ftpValid = ftpValid,
+                    segments = segments,
+                    errors = errors,
+                )
+
+                is Step.Cooldown -> {
+                    val orderedPowerLow =
+                        if (step.powerLow != null && step.powerHigh != null) maxOf(step.powerLow, step.powerHigh)
+                        else step.powerLow
+                    val orderedPowerHigh =
+                        if (step.powerLow != null && step.powerHigh != null) minOf(step.powerLow, step.powerHigh)
+                        else step.powerHigh
+                    mapRamp(
+                        stepIndex = stepIndex,
+                        stepType = "Cooldown",
+                        durationSec = step.durationSec,
+                        powerLow = orderedPowerLow,
+                        powerHigh = orderedPowerHigh,
+                        cadence = step.cadence,
+                        ftp = ftp,
+                        ftpValid = ftpValid,
+                        segments = segments,
+                        errors = errors,
+                    )
+                }
+
+                is Step.IntervalsT -> mapIntervalsT(
+                    stepIndex = stepIndex,
                     step = step,
                     ftp = ftp,
                     ftpValid = ftpValid,
@@ -48,9 +95,6 @@ object ExecutionWorkoutMapper {
                     errors = errors,
                 )
 
-                is Step.Warmup,
-                is Step.Cooldown,
-                is Step.IntervalsT,
                 is Step.FreeRide,
                 is Step.Unknown,
                 -> errors += MappingError(
@@ -182,17 +226,20 @@ object ExecutionWorkoutMapper {
 
     private fun mapRamp(
         stepIndex: Int,
-        step: Step.Ramp,
+        stepType: String,
+        durationSec: Int?,
+        powerLow: Double?,
+        powerHigh: Double?,
+        cadence: Int?,
         ftp: Int,
         ftpValid: Boolean,
         segments: MutableList<ExecutionSegment>,
         errors: MutableList<MappingError>,
     ) {
         val errorCountBefore = errors.size
-        val stepType = "Ramp"
 
-        val durationSec = when {
-            step.durationSec == null -> {
+        val durationSecValid = when {
+            durationSec == null -> {
                 errors += MappingError(
                     code = MappingErrorCode.MISSING_DURATION,
                     message = "Duration is required.",
@@ -202,7 +249,7 @@ object ExecutionWorkoutMapper {
                 null
             }
 
-            step.durationSec <= 0 -> {
+            durationSec <= 0 -> {
                 errors += MappingError(
                     code = MappingErrorCode.INVALID_DURATION,
                     message = "Duration must be greater than 0.",
@@ -212,11 +259,11 @@ object ExecutionWorkoutMapper {
                 null
             }
 
-            else -> step.durationSec
+            else -> durationSec
         }
 
-        val powerLow = when {
-            step.powerLow == null -> {
+        val powerLowValid = when {
+            powerLow == null -> {
                 errors += MappingError(
                     code = MappingErrorCode.MISSING_POWER_LOW,
                     message = "PowerLow is required.",
@@ -226,7 +273,7 @@ object ExecutionWorkoutMapper {
                 null
             }
 
-            !step.powerLow.isFinite() || step.powerLow < 0.0 -> {
+            !powerLow.isFinite() || powerLow < 0.0 -> {
                 errors += MappingError(
                     code = MappingErrorCode.INVALID_POWER,
                     message = "PowerLow must be finite and non-negative.",
@@ -236,11 +283,11 @@ object ExecutionWorkoutMapper {
                 null
             }
 
-            else -> step.powerLow
+            else -> powerLow
         }
 
-        val powerHigh = when {
-            step.powerHigh == null -> {
+        val powerHighValid = when {
+            powerHigh == null -> {
                 errors += MappingError(
                     code = MappingErrorCode.MISSING_POWER_HIGH,
                     message = "PowerHigh is required.",
@@ -250,7 +297,7 @@ object ExecutionWorkoutMapper {
                 null
             }
 
-            !step.powerHigh.isFinite() || step.powerHigh < 0.0 -> {
+            !powerHigh.isFinite() || powerHigh < 0.0 -> {
                 errors += MappingError(
                     code = MappingErrorCode.INVALID_POWER,
                     message = "PowerHigh must be finite and non-negative.",
@@ -260,7 +307,7 @@ object ExecutionWorkoutMapper {
                 null
             }
 
-            else -> step.powerHigh
+            else -> powerHigh
         }
 
         if (!ftpValid || errors.size != errorCountBefore) {
@@ -268,14 +315,14 @@ object ExecutionWorkoutMapper {
         }
 
         val startWatts = roundToWatts(
-            ratio = powerLow!!,
+            ratio = powerLowValid!!,
             ftp = ftp,
             stepIndex = stepIndex,
             stepType = stepType,
             errors = errors,
         )
         val endWatts = roundToWatts(
-            ratio = powerHigh!!,
+            ratio = powerHighValid!!,
             ftp = ftp,
             stepIndex = stepIndex,
             stepType = stepType,
@@ -287,11 +334,181 @@ object ExecutionWorkoutMapper {
 
         segments += ExecutionSegment.Ramp(
             sourceStepIndex = stepIndex,
-            durationSec = durationSec!!,
+            durationSec = durationSecValid!!,
             startWatts = startWatts,
             endWatts = endWatts,
-            cadence = cadenceTarget(step.cadence),
+            cadence = cadenceTarget(cadence),
         )
+    }
+
+    private fun mapIntervalsT(
+        stepIndex: Int,
+        step: Step.IntervalsT,
+        ftp: Int,
+        ftpValid: Boolean,
+        segments: MutableList<ExecutionSegment>,
+        errors: MutableList<MappingError>,
+    ) {
+        val errorCountBefore = errors.size
+        val stepType = "IntervalsT"
+
+        val repeatCount = when {
+            step.repeat == null -> {
+                errors += MappingError(
+                    code = MappingErrorCode.MISSING_REPEAT,
+                    message = "Repeat is required.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            step.repeat <= 0 -> {
+                errors += MappingError(
+                    code = MappingErrorCode.INVALID_REPEAT,
+                    message = "Repeat must be greater than 0.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            else -> step.repeat
+        }
+
+        val onDurationSec = when {
+            step.onDurationSec == null -> {
+                errors += MappingError(
+                    code = MappingErrorCode.MISSING_DURATION,
+                    message = "OnDuration is required.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            step.onDurationSec <= 0 -> {
+                errors += MappingError(
+                    code = MappingErrorCode.INVALID_DURATION,
+                    message = "OnDuration must be greater than 0.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            else -> step.onDurationSec
+        }
+
+        val offDurationSec = when {
+            step.offDurationSec == null -> {
+                errors += MappingError(
+                    code = MappingErrorCode.MISSING_DURATION,
+                    message = "OffDuration is required.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            step.offDurationSec <= 0 -> {
+                errors += MappingError(
+                    code = MappingErrorCode.INVALID_DURATION,
+                    message = "OffDuration must be greater than 0.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            else -> step.offDurationSec
+        }
+
+        val onPower = when {
+            step.onPower == null -> {
+                errors += MappingError(
+                    code = MappingErrorCode.MISSING_POWER,
+                    message = "OnPower is required.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            !step.onPower.isFinite() || step.onPower < 0.0 -> {
+                errors += MappingError(
+                    code = MappingErrorCode.INVALID_POWER,
+                    message = "OnPower must be finite and non-negative.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            else -> step.onPower
+        }
+
+        val offPower = when {
+            step.offPower == null -> {
+                errors += MappingError(
+                    code = MappingErrorCode.MISSING_POWER,
+                    message = "OffPower is required.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            !step.offPower.isFinite() || step.offPower < 0.0 -> {
+                errors += MappingError(
+                    code = MappingErrorCode.INVALID_POWER,
+                    message = "OffPower must be finite and non-negative.",
+                    stepIndex = stepIndex,
+                    stepType = stepType,
+                )
+                null
+            }
+
+            else -> step.offPower
+        }
+
+        if (!ftpValid || errors.size != errorCountBefore) {
+            return
+        }
+
+        val onTargetWatts = roundToWatts(
+            ratio = onPower!!,
+            ftp = ftp,
+            stepIndex = stepIndex,
+            stepType = stepType,
+            errors = errors,
+        )
+        val offTargetWatts = roundToWatts(
+            ratio = offPower!!,
+            ftp = ftp,
+            stepIndex = stepIndex,
+            stepType = stepType,
+            errors = errors,
+        )
+        if (onTargetWatts == null || offTargetWatts == null) {
+            return
+        }
+
+        val cadence = cadenceTarget(step.cadence)
+        repeat(repeatCount!!) {
+            segments += ExecutionSegment.Steady(
+                sourceStepIndex = stepIndex,
+                durationSec = onDurationSec!!,
+                targetWatts = onTargetWatts,
+                cadence = cadence,
+            )
+            segments += ExecutionSegment.Steady(
+                sourceStepIndex = stepIndex,
+                durationSec = offDurationSec!!,
+                targetWatts = offTargetWatts,
+                cadence = cadence,
+            )
+        }
     }
 
     private fun roundToWatts(
