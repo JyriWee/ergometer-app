@@ -148,6 +148,7 @@ class MainActivity : ComponentActivity() {
                 val selectedWorkoutFileName = selectedWorkoutFileNameState.value
                 val selectedWorkoutStepCount = selectedWorkoutStepCountState.value
                 val selectedWorkoutImportError = selectedWorkoutImportErrorState.value
+                val selectedWorkout = importedWorkoutForRunner
                 val workoutReady = workoutReadyState.value
 
                 if (BuildConfig.DEBUG) {
@@ -160,6 +161,7 @@ class MainActivity : ComponentActivity() {
                                     selectedWorkoutFileName = selectedWorkoutFileName,
                                     selectedWorkoutStepCount = selectedWorkoutStepCount,
                                     selectedWorkoutImportError = selectedWorkoutImportError,
+                                    selectedWorkout = selectedWorkout,
                                     startEnabled = workoutReady,
                                     onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                     onStartSession = {
@@ -180,6 +182,7 @@ class MainActivity : ComponentActivity() {
                                 durationSeconds = session?.durationSeconds,
                                 ftmsReady = ftmsReady,
                                 ftmsControlGranted = ftmsControlGranted,
+                                selectedWorkout = selectedWorkout,
                                 runnerState = currentRunnerState,
                                 lastTargetPower = lastTargetPower,
                                 onPauseWorkout = { pauseWorkoutManually() },
@@ -236,6 +239,7 @@ class MainActivity : ComponentActivity() {
                                 selectedWorkoutFileName = selectedWorkoutFileName,
                                 selectedWorkoutStepCount = selectedWorkoutStepCount,
                                 selectedWorkoutImportError = selectedWorkoutImportError,
+                                selectedWorkout = selectedWorkout,
                                 startEnabled = workoutReady,
                                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                 onStartSession = {
@@ -255,6 +259,7 @@ class MainActivity : ComponentActivity() {
                             durationSeconds = session?.durationSeconds,
                             ftmsReady = ftmsReady,
                             ftmsControlGranted = ftmsControlGranted,
+                            selectedWorkout = selectedWorkout,
                             runnerState = currentRunnerState,
                             lastTargetPower = lastTargetPower,
                             onPauseWorkout = { pauseWorkoutManually() },

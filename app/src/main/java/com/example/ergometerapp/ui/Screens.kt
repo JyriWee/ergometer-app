@@ -34,7 +34,9 @@ import com.example.ergometerapp.R
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.ui.components.WorkoutProfileChart
 import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
+import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.RunnerState
 import java.util.Locale
 
@@ -59,6 +61,7 @@ internal fun MenuScreen(
     selectedWorkoutFileName: String?,
     selectedWorkoutStepCount: Int?,
     selectedWorkoutImportError: String?,
+    selectedWorkout: WorkoutFile?,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onStartSession: () -> Unit
@@ -121,6 +124,15 @@ internal fun MenuScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                if (selectedWorkout != null) {
+                    SectionCard(title = stringResource(R.string.session_workout_title)) {
+                        WorkoutProfileChart(
+                            workout = selectedWorkout,
+                            ftpWatts = 100,
+                        )
+                    }
+                }
+
                 Button(
                     onClick = onStartSession,
                     enabled = startEnabled,
@@ -177,6 +189,7 @@ internal fun SessionScreen(
     durationSeconds: Int?,
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
+    selectedWorkout: WorkoutFile?,
     runnerState: RunnerState,
     lastTargetPower: Int?,
     onPauseWorkout: () -> Unit,
@@ -322,6 +335,9 @@ internal fun SessionScreen(
                                 lastTargetPower = lastTargetPower,
                                 unknown = unknown
                             )
+                            WorkoutProfileSection(
+                                selectedWorkout = selectedWorkout
+                            )
                         }
 
                         Column(
@@ -358,6 +374,10 @@ internal fun SessionScreen(
                         unknown = unknown
                     )
 
+                    WorkoutProfileSection(
+                        selectedWorkout = selectedWorkout
+                    )
+
                     WorkoutControlsSection(
                         runnerState = runnerState,
                         canManualPower = canManualPower,
@@ -375,6 +395,17 @@ internal fun SessionScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WorkoutProfileSection(selectedWorkout: WorkoutFile?) {
+    if (selectedWorkout == null) return
+    SectionCard(title = stringResource(R.string.session_workout_title)) {
+        WorkoutProfileChart(
+            workout = selectedWorkout,
+            ftpWatts = 100,
+        )
     }
 }
 
