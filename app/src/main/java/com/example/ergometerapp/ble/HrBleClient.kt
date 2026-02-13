@@ -55,6 +55,15 @@ class HrBleClient(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                Log.w("HR", "Service discovery failed (status=$status)")
+                try {
+                    gatt.disconnect()
+                } catch (e: SecurityException) {
+                    Log.w("HR", "disconnect failed after discovery error: ${e.message}")
+                }
+                return
+            }
             if (!hasBluetoothConnectPermission()) {
                 Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot configure HR notifications")
                 return

@@ -19,6 +19,8 @@ class FtmsController(
     private val onStopAcknowledged: () -> Unit = {}
 ) {
 
+    private var transportReady = false
+
     private var hasStopped = false
 
     private var pendingReset = false
@@ -38,22 +40,37 @@ class FtmsController(
     private fun dumpControllerState(event: String) {
         Log.d(
             "FTMS",
-            "CTRL_DUMP event=$event state=$commandState hasStopped=$hasStopped " +
+            "CTRL_DUMP event=$event state=$commandState transportReady=$transportReady " +
+                "hasStopped=$hasStopped " +
                 "pendingTarget=$pendingTargetPowerWatts pendingReset=$pendingReset " +
                 "pendingStop=$pendingStopWorkout lastSentTarget=$lastSentTargetPower " +
                 "timeoutArmed=${timeoutRunnable != null}"
         )
     }
 
-    @Suppress("unused")
     /**
      * Indicates whether the controller is ready to send commands.
-     *
-     * TODO: Wire this to actual readiness (e.g., Control Point CCCD enabled).
      */
-    fun isReady(): Boolean = true
+    fun isReady(): Boolean = transportReady
+
+    /**
+     * Updates command transport readiness from BLE setup state.
+     *
+     * Callers must set this true only after Control Point indication setup is
+     * complete, and false on disconnect/teardown.
+     */
+    fun setTransportReady(ready: Boolean) {
+        transportReady = ready
+        dumpControllerState("setTransportReady(ready=$ready)")
+    }
 
     private fun sendCommand(payload: ByteArray, label: String) {
+        if (!transportReady) {
+            Log.w("FTMS", "Command ignored (not ready): $label payload=${payload.joinToString()}")
+            dumpControllerState("sendCommandIgnoredNotReady(label=$label)")
+            return
+        }
+
         if (commandState == FtmsCommandState.BUSY) {
             Log.w("FTMS", "Command ignored (BUSY): $label payload=${payload.joinToString()}")
             dumpControllerState("sendCommandIgnoredBusy(label=$label)")
@@ -296,6 +313,7 @@ class FtmsController(
      * is bypassed and BUSY is cleared immediately.
      */
     fun onDisconnected() {
+        transportReady = false
         val stopWasPendingOrInFlight =
             hasStopped && (pendingStopWorkout || commandState == FtmsCommandState.BUSY)
         cancelTimeoutTimer()
