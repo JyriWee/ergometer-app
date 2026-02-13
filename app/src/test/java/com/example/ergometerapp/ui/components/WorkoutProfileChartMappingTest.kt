@@ -9,12 +9,12 @@ import org.junit.Test
 class WorkoutProfileChartMappingTest {
 
     @Test
-    fun cooldownRampDirectionIsPreserved() {
+    fun cooldownRampUsesPowerHighToPowerLowDirection() {
         val workout = workoutWithSteps(
             Step.Cooldown(
                 durationSec = 120,
-                powerLow = 0.60,
-                powerHigh = 0.40,
+                powerLow = 0.10,
+                powerHigh = 0.60,
                 cadence = 85,
             ),
         )
@@ -27,6 +27,28 @@ class WorkoutProfileChartMappingTest {
         assertEquals(0, segment.startSec)
         assertEquals(120, segment.durationSec)
         assertEquals(0.60, segment.startPowerRelFtp ?: 0.0, 0.0001)
+        assertEquals(0.10, segment.endPowerRelFtp ?: 0.0, 0.0001)
+    }
+
+    @Test
+    fun cooldownRampUsesHigherToLowerEvenWhenFieldsAreSwapped() {
+        val workout = workoutWithSteps(
+            Step.Cooldown(
+                durationSec = 120,
+                powerLow = 0.80,
+                powerHigh = 0.40,
+                cadence = 85,
+            ),
+        )
+
+        val segments = buildWorkoutProfileSegments(workout)
+
+        assertEquals(1, segments.size)
+        val segment = segments.single()
+        assertEquals(SegmentKind.RAMP, segment.kind)
+        assertEquals(0, segment.startSec)
+        assertEquals(120, segment.durationSec)
+        assertEquals(0.80, segment.startPowerRelFtp ?: 0.0, 0.0001)
         assertEquals(0.40, segment.endPowerRelFtp ?: 0.0, 0.0001)
     }
 

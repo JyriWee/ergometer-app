@@ -160,7 +160,9 @@ internal fun buildWorkoutProfileSegments(workout: WorkoutFile): List<WorkoutProf
                 val duration = validDuration(step.durationSec) ?: return@forEach
                 val low = validPower(step.powerLow) ?: return@forEach
                 val high = validPower(step.powerHigh) ?: return@forEach
-                appendSegment(duration, low, high, SegmentKind.RAMP)
+                val start = maxOf(low, high)
+                val end = minOf(low, high)
+                appendSegment(duration, start, end, SegmentKind.RAMP)
             }
 
             is Step.Ramp -> {
