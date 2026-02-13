@@ -6,10 +6,12 @@ package com.example.ergometerapp.workout.runner
  * Edge cases:
  * - `targetPowerWatts` can be null for free ride or when power attributes are missing.
  * - `done` is true once all steps are completed; targets may be null in that state.
+ * - `elapsedSec` tracks progressed workout time and is monotonic while running.
  */
 data class StepperOutput(
     val targetPowerWatts: Int?,
     val targetCadence: Int?,
     val done: Boolean,
     val label: String,
+    val elapsedSec: Int,
 )

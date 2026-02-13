@@ -325,6 +325,7 @@ internal fun SessionScreen(
                             WorkoutProfileSection(
                                 selectedWorkout = selectedWorkout,
                                 ftpWatts = ftpWatts,
+                                workoutElapsedSec = runnerState.workoutElapsedSec,
                             )
                         }
 
@@ -357,6 +358,7 @@ internal fun SessionScreen(
                     WorkoutProfileSection(
                         selectedWorkout = selectedWorkout,
                         ftpWatts = ftpWatts,
+                        workoutElapsedSec = runnerState.workoutElapsedSec,
                     )
 
                     WorkoutControlsSection(
@@ -372,12 +374,17 @@ internal fun SessionScreen(
 }
 
 @Composable
-private fun WorkoutProfileSection(selectedWorkout: WorkoutFile?, ftpWatts: Int) {
+private fun WorkoutProfileSection(
+    selectedWorkout: WorkoutFile?,
+    ftpWatts: Int,
+    workoutElapsedSec: Int?,
+) {
     if (selectedWorkout == null) return
     SectionCard(title = stringResource(R.string.session_workout_title)) {
         WorkoutProfileChart(
             workout = selectedWorkout,
             ftpWatts = ftpWatts,
+            elapsedSec = workoutElapsedSec,
         )
     }
 }

@@ -30,7 +30,11 @@ class WorkoutRunner(
             output.targetPowerWatts?.let { targetWriter.setTargetWatts(it)
             }
             if (output.done) {
-                stopInternal(clearTarget = true, stopStepper = false)
+                stopInternal(
+                    clearTarget = true,
+                    stopStepper = false,
+                    finalElapsedSec = output.elapsedSec,
+                )
                 return
             }
             updateStateFromTick(output)
@@ -49,6 +53,7 @@ class WorkoutRunner(
                 label = null,
                 targetPowerWatts = null,
                 targetCadence = null,
+                workoutElapsedSec = 0,
             )
         )
         handler.post(tickRunnable)
@@ -69,7 +74,11 @@ class WorkoutRunner(
     }
 
     fun stop() {
-        stopInternal(clearTarget = true, stopStepper = true)
+        stopInternal(
+            clearTarget = true,
+            stopStepper = true,
+            finalElapsedSec = null,
+        )
     }
 
     fun restore(state: StepperState) {
@@ -80,13 +89,18 @@ class WorkoutRunner(
                 running = false,
                 paused = state.paused,
                 done = false,
+                workoutElapsedSec = stepper.currentElapsedSec(),
             )
         )
     }
 
     fun getState(): StepperState = stepper.getState()
 
-    private fun stopInternal(clearTarget: Boolean, stopStepper: Boolean) {
+    private fun stopInternal(
+        clearTarget: Boolean,
+        stopStepper: Boolean,
+        finalElapsedSec: Int?,
+    ) {
         handler.removeCallbacks(tickRunnable)
         if (stopStepper) {
             stepper.stop()
@@ -94,7 +108,7 @@ class WorkoutRunner(
         if (clearTarget) {
             targetWriter.setTargetWatts(null)
         }
-        emitState(RunnerState.stopped())
+        emitState(RunnerState.stopped(workoutElapsedSec = finalElapsedSec))
     }
 
     private fun updateStateFromTick(output: StepperOutput) {
@@ -105,13 +119,15 @@ class WorkoutRunner(
             label = output.label,
             targetPowerWatts = output.targetPowerWatts,
             targetCadence = output.targetCadence,
+            workoutElapsedSec = output.elapsedSec,
         )
-        val labelOrTargetChanged =
+        val labelTargetOrProgressChanged =
             nextState.label != state.label ||
                 nextState.targetPowerWatts != state.targetPowerWatts ||
-                nextState.targetCadence != state.targetCadence
+                nextState.targetCadence != state.targetCadence ||
+                nextState.workoutElapsedSec != state.workoutElapsedSec
         state = nextState
-        if (labelOrTargetChanged) {
+        if (labelTargetOrProgressChanged) {
             onStateChanged(nextState)
         }
     }

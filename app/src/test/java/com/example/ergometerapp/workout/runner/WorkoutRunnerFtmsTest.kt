@@ -5,6 +5,7 @@ import com.example.ergometerapp.workout.CadenceTarget
 import com.example.ergometerapp.workout.ExecutionSegment
 import com.example.ergometerapp.workout.ExecutionWorkout
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class WorkoutRunnerFtmsTest {
@@ -120,6 +121,48 @@ class WorkoutRunnerFtmsTest {
         handler.advanceTo(5000L)
 
         assertEquals(listOf(210, null), writer.writes)
+    }
+
+    @Test
+    fun runnerPublishesElapsedProgressForWorkoutCursor() {
+        val workout = ExecutionWorkout(
+            name = "Steady",
+            description = "",
+            author = "",
+            tags = emptyList(),
+            segments = listOf(
+                ExecutionSegment.Steady(
+                    sourceStepIndex = 0,
+                    durationSec = 3,
+                    targetWatts = 200,
+                    cadence = CadenceTarget.AnyCadence,
+                ),
+            ),
+            totalDurationSec = 3,
+        )
+        val clock = FakeClock()
+        val handler = ImmediateHandler(clock)
+        val writer = RecordingFtmsTargetWriter()
+        val states = mutableListOf<RunnerState>()
+        val runner = WorkoutRunner(
+            stepper = WorkoutStepper.fromExecutionWorkout(workout),
+            targetWriter = writer,
+            onStateChanged = { states += it },
+            tickIntervalMs = 1000L,
+            nowUptimeMs = { clock.nowMs },
+            handler = handler,
+        )
+
+        runner.start()
+        handler.runCurrent()
+        handler.advanceTo(1000L)
+        handler.advanceTo(2000L)
+        handler.advanceTo(3000L)
+
+        val elapsedValues = states.mapNotNull { it.workoutElapsedSec }.distinct()
+        assertEquals(listOf(0, 1, 2, 3), elapsedValues)
+        assertTrue(states.last().done)
+        assertEquals(3, states.last().workoutElapsedSec)
     }
 
     private data class FakeClock(

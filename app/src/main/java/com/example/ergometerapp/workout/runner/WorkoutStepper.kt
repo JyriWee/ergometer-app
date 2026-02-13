@@ -118,6 +118,16 @@ class WorkoutStepper private constructor(
 
     fun getState(): StepperState = state
 
+    /**
+     * Returns progressed workout time in whole seconds.
+     *
+     * This reflects runner progression rather than wall-clock session duration,
+     * so pauses and reconnect stalls do not advance the value.
+     */
+    fun currentElapsedSec(): Int {
+        return (currentElapsedMs() / 1000L).toInt()
+    }
+
     fun restore(state: StepperState) {
         this.state = state
         stopped = state.stepIndex >= totalStepCount()
@@ -133,6 +143,88 @@ class WorkoutStepper private constructor(
         }
     }
 
+    private fun currentElapsedMs(): Long {
+        val executionWorkout = executionWorkout
+        if (executionWorkout != null) {
+            return executionElapsedMs(executionWorkout)
+        }
+        val workout = requireLegacyWorkout()
+        return legacyElapsedMs(workout)
+    }
+
+    private fun executionElapsedMs(workout: ExecutionWorkout): Long {
+        val clampedIndex = state.stepIndex.coerceIn(0, workout.segments.size)
+        var elapsedMs = 0L
+        for (index in 0 until clampedIndex) {
+            elapsedMs += workout.segments[index].durationSec.coerceAtLeast(0).toLong() * 1000L
+        }
+        if (clampedIndex < workout.segments.size) {
+            val segmentDurationMs = workout.segments[clampedIndex].durationSec.coerceAtLeast(0).toLong() * 1000L
+            elapsedMs += state.stepElapsedMs.coerceIn(0L, segmentDurationMs)
+        }
+        return elapsedMs
+    }
+
+    private fun legacyElapsedMs(workout: WorkoutFile): Long {
+        val clampedStepIndex = state.stepIndex.coerceIn(0, workout.steps.size)
+        var elapsedMs = 0L
+        for (index in 0 until clampedStepIndex) {
+            elapsedMs += stepTotalDurationMs(workout.steps[index])
+        }
+        if (clampedStepIndex >= workout.steps.size) {
+            return elapsedMs
+        }
+
+        val currentStep = workout.steps[clampedStepIndex]
+        return elapsedMs + currentStepElapsedMs(currentStep)
+    }
+
+    private fun currentStepElapsedMs(step: Step): Long {
+        return when (step) {
+            is Step.IntervalsT -> intervalsElapsedMs(step)
+            else -> {
+                val durationMs = stepDurationMs(step, state)?.coerceAtLeast(0L) ?: return 0L
+                state.stepElapsedMs.coerceIn(0L, durationMs)
+            }
+        }
+    }
+
+    private fun intervalsElapsedMs(step: Step.IntervalsT): Long {
+        val onMs = step.onDurationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: return 0L
+        val offMs = step.offDurationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: return 0L
+        val repeat = step.repeat?.coerceAtLeast(0) ?: return 0L
+        if (repeat == 0) return 0L
+
+        val completedCycles = state.intervalRep.coerceIn(0, repeat).toLong()
+        val completedCycleMs = completedCycles * (onMs + offMs)
+
+        val phaseElapsedMs = if (state.inOn) {
+            state.stepElapsedMs.coerceIn(0L, onMs)
+        } else {
+            onMs + state.stepElapsedMs.coerceIn(0L, offMs)
+        }
+
+        val maxStepMs = repeat.toLong() * (onMs + offMs)
+        return (completedCycleMs + phaseElapsedMs).coerceIn(0L, maxStepMs)
+    }
+
+    private fun stepTotalDurationMs(step: Step): Long {
+        return when (step) {
+            is Step.Warmup -> step.durationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: 0L
+            is Step.Cooldown -> step.durationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: 0L
+            is Step.SteadyState -> step.durationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: 0L
+            is Step.Ramp -> step.durationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: 0L
+            is Step.FreeRide -> step.durationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: 0L
+            is Step.IntervalsT -> {
+                val onMs = step.onDurationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: return 0L
+                val offMs = step.offDurationSec?.toLong()?.times(1000L)?.coerceAtLeast(0L) ?: return 0L
+                val repeat = step.repeat?.coerceAtLeast(0) ?: return 0L
+                repeat.toLong() * (onMs + offMs)
+            }
+            is Step.Unknown -> 0L
+        }
+    }
+
     fun tick(nowUptimeMs: Long): StepperOutput {
         if (executionWorkout != null) {
             return tickExecution(nowUptimeMs)
@@ -145,6 +237,7 @@ class WorkoutStepper private constructor(
                 targetCadence = null,
                 done = true,
                 label = "Done",
+                elapsedSec = currentElapsedSec(),
             )
         }
 
@@ -167,6 +260,7 @@ class WorkoutStepper private constructor(
                     targetCadence = null,
                     done = true,
                     label = "Done",
+                    elapsedSec = currentElapsedSec(),
                 )
             }
 
@@ -198,6 +292,7 @@ class WorkoutStepper private constructor(
                 targetCadence = null,
                 done = true,
                 label = "Done",
+                elapsedSec = currentElapsedSec(),
             )
         }
         val step = workout.steps[state.stepIndex]
@@ -215,6 +310,7 @@ class WorkoutStepper private constructor(
             targetCadence = targetCadence(step),
             done = false,
             label = label,
+            elapsedSec = currentElapsedSec(),
         )
     }
 
@@ -382,6 +478,7 @@ class WorkoutStepper private constructor(
                 targetCadence = null,
                 done = true,
                 label = "Done",
+                elapsedSec = currentElapsedSec(),
             )
         }
 
@@ -411,6 +508,7 @@ class WorkoutStepper private constructor(
                 targetCadence = null,
                 done = true,
                 label = "Done",
+                elapsedSec = currentElapsedSec(),
             )
         }
 
@@ -424,6 +522,7 @@ class WorkoutStepper private constructor(
                 targetCadence = null,
                 done = true,
                 label = "Done",
+                elapsedSec = currentElapsedSec(),
             )
         }
 
@@ -433,6 +532,7 @@ class WorkoutStepper private constructor(
             targetCadence = executionTargetCadence(segment),
             done = false,
             label = executionLabel(segment),
+            elapsedSec = currentElapsedSec(),
         )
     }
 

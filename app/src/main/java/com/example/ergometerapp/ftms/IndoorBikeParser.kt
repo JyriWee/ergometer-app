@@ -91,7 +91,13 @@ fun parseIndoorBikeData(bytes: ByteArray): IndoorBikeData {
             if (flag(3)) u16() / 2.0 else null
 
         val totalDistanceMeters =
-            if (flag(4)) u24() else null
+            if (flag(4)) {
+                // Tunturi reports Total Distance in decimeters for this characteristic.
+                // Convert to meters so downstream session summaries stay unit-consistent.
+                u24() / 10
+            } else {
+                null
+            }
 
         val resistanceLevel =
             if (flag(5)) u16() else null
