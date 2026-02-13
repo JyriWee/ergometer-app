@@ -185,14 +185,6 @@ class MainActivity : ComponentActivity() {
                                 selectedWorkout = selectedWorkout,
                                 runnerState = currentRunnerState,
                                 lastTargetPower = lastTargetPower,
-                                onPauseWorkout = { pauseWorkoutManually() },
-                                onResumeWorkout = { resumeWorkoutManually() },
-                                onSetTargetPower = { watts ->
-                                    ftmsController.setTargetPower(watts)
-                                    lastTargetPowerState.value = watts
-                                },
-                                onRelease = { releaseControl(false) },
-                                onStopWorkout = { endSessionAndGoToSummary() },
                                 onEndSession = { endSessionAndGoToSummary() }
                             )
 
@@ -262,14 +254,6 @@ class MainActivity : ComponentActivity() {
                             selectedWorkout = selectedWorkout,
                             runnerState = currentRunnerState,
                             lastTargetPower = lastTargetPower,
-                            onPauseWorkout = { pauseWorkoutManually() },
-                            onResumeWorkout = { resumeWorkoutManually() },
-                            onSetTargetPower = { watts ->
-                                ftmsController.setTargetPower(watts)
-                                lastTargetPowerState.value = watts
-                            },
-                            onRelease = { releaseControl(false) },
-                            onStopWorkout = { endSessionAndGoToSummary() },
                             onEndSession = { endSessionAndGoToSummary() }
                         )
 
@@ -493,16 +477,6 @@ class MainActivity : ComponentActivity() {
         autoPausedByZeroCadence = false
         workoutRunner?.stop()
         lastTargetPowerState.value = null
-    }
-
-    private fun pauseWorkoutManually() {
-        autoPausedByZeroCadence = false
-        workoutRunner?.pause()
-    }
-
-    private fun resumeWorkoutManually() {
-        autoPausedByZeroCadence = false
-        workoutRunner?.resume()
     }
 
     /**
