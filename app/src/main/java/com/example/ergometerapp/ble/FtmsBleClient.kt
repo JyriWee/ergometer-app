@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
@@ -64,13 +65,19 @@ class FtmsBleClient(
                 setupStep = SetupStep.NONE
                 controlPointIndicationEnabled = false
                 if (!hasBluetoothConnectPermission()) {
-                    Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
+                    abortSetup(
+                        gatt = gatt,
+                        reason = "Missing BLUETOOTH_CONNECT permission; cannot discover services",
+                    )
                     return
                 }
                 try {
                     gatt.discoverServices()
                 } catch (e: SecurityException) {
-                    Log.w("FTMS", "discoverServices failed: ${e.message}")
+                    abortSetup(
+                        gatt = gatt,
+                        reason = "discoverServices failed: ${e.message}",
+                    )
                 }
             } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
                 Log.w("FTMS", "GATT disconnected (status=$status)")
@@ -99,23 +106,10 @@ class FtmsBleClient(
         ) {
             Log.d("FTMS", "onDescriptorWrite step=$setupStep status=$status")
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                Log.w("FTMS", "Descriptor write failed at step=$setupStep status=$status")
-                setupStep = SetupStep.NONE
-                controlPointIndicationEnabled = false
-                indoorBikeDataCharacteristic = null
-                controlPointCharacteristic = null
-                this@FtmsBleClient.gatt = null
-                try {
-                    gatt.disconnect()
-                } catch (e: SecurityException) {
-                    Log.w("FTMS", "disconnect failed during setup failure: ${e.message}")
-                }
-                try {
-                    gatt.close()
-                } catch (e: SecurityException) {
-                    Log.w("FTMS", "close failed during setup failure: ${e.message}")
-                }
-                emitDisconnectedOnce()
+                abortSetup(
+                    gatt = gatt,
+                    reason = "Descriptor write failed at step=$setupStep status=$status",
+                )
                 return
             }
 
@@ -142,24 +136,21 @@ class FtmsBleClient(
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                Log.w("FTMS", "Service discovery failed (status=$status)")
-                setupStep = SetupStep.NONE
-                controlPointIndicationEnabled = false
-                indoorBikeDataCharacteristic = null
-                controlPointCharacteristic = null
-                try {
-                    gatt.disconnect()
-                } catch (e: SecurityException) {
-                    Log.w("FTMS", "disconnect failed after discovery error: ${e.message}")
-                }
+                abortSetup(
+                    gatt = gatt,
+                    reason = "Service discovery failed (status=$status)",
+                )
                 return
             }
             if (!hasBluetoothConnectPermission()) {
-                Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot configure FTMS")
+                abortSetup(
+                    gatt = gatt,
+                    reason = "Missing BLUETOOTH_CONNECT permission; cannot configure FTMS",
+                )
                 return
             }
             val service = gatt.getService(FTMS_SERVICE_UUID) ?: run {
-                Log.w("FTMS", "FTMS service not found")
+                abortSetup(gatt = gatt, reason = "FTMS service not found")
                 return
             }
 
@@ -170,13 +161,17 @@ class FtmsBleClient(
                 service.getCharacteristic(FTMS_CONTROL_POINT_UUID)
 
             if (controlPointCharacteristic == null) {
-                Log.w("FTMS", "Control Point characteristic not found")
-            } else {
-                Log.d("FTMS", "Control Point ready")
+                abortSetup(gatt = gatt, reason = "Control Point characteristic not found")
+                return
+            }
+            Log.d("FTMS", "Control Point ready")
+            val controlPoint = controlPointCharacteristic ?: run {
+                abortSetup(gatt = gatt, reason = "Control Point characteristic missing during setup")
+                return
             }
 
             if (indoorBikeDataCharacteristic == null) {
-                Log.w("FTMS", "Indoor Bike Data characteristic not found")
+                abortSetup(gatt = gatt, reason = "Indoor Bike Data characteristic not found")
                 return
             }
 
@@ -184,28 +179,25 @@ class FtmsBleClient(
             try {
                 gatt.setCharacteristicNotification(indoorBikeDataCharacteristic, true)
             } catch (e: SecurityException) {
-                Log.w("FTMS", "setCharacteristicNotification failed: ${e.message}")
+                abortSetup(
+                    gatt = gatt,
+                    reason = "setCharacteristicNotification (Bike Data) failed: ${e.message}",
+                )
                 return
             }
 
             // Control Point uses indications for reliable acknowledgements.
-            controlPointCharacteristic?.let { cp ->
-                try {
-                    gatt.setCharacteristicNotification(cp, true)
-                } catch (e: SecurityException) {
-                    Log.w("FTMS", "setCharacteristicNotification failed: ${e.message}")
-                    return
-                }
-            }
-
-            // Start CCCD writes in a controlled order to avoid concurrent GATT ops.
-            val cp = controlPointCharacteristic ?: run {
-                // If no CP, we can still enable bike data CCCD directly.
-                writeBikeCccd(gatt)
+            try {
+                gatt.setCharacteristicNotification(controlPoint, true)
+            } catch (e: SecurityException) {
+                abortSetup(
+                    gatt = gatt,
+                    reason = "setCharacteristicNotification (Control Point) failed: ${e.message}",
+                )
                 return
             }
 
-            writeControlPointCccd(gatt, cp)
+            writeControlPointCccd(gatt, controlPoint)
         }
 
         private fun handleCharacteristicChanged(
@@ -313,50 +305,88 @@ class FtmsBleClient(
 
     private fun writeControlPointCccd(gatt: BluetoothGatt, cp: BluetoothGattCharacteristic) {
         if (!hasBluetoothConnectPermission()) {
-            Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write CP CCCD")
+            abortSetup(
+                gatt = gatt,
+                reason = "Missing BLUETOOTH_CONNECT permission; cannot write CP CCCD",
+            )
             return
         }
         val cccd = cp.getDescriptor(CCCD_UUID)
         if (cccd == null) {
-            Log.w("FTMS", "CCCD not found for Control Point")
-            // fall back to bike CCCD
-            controlPointIndicationEnabled = false
-            writeBikeCccd(gatt)
+            abortSetup(gatt = gatt, reason = "CCCD not found for Control Point")
             return
         }
 
         setupStep = SetupStep.CP_CCCD
         try {
-            val ok = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
-            Log.d("FTMS", "Writing CP CCCD (indication) -> $ok")
+            val status = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
+            Log.d("FTMS", "Writing CP CCCD (indication) -> status=$status")
+            if (status != BluetoothStatusCodes.SUCCESS) {
+                abortSetup(gatt = gatt, reason = "Writing CP CCCD failed to start")
+                return
+            }
         } catch (e: SecurityException) {
-            Log.w("FTMS", "writeDescriptor failed: ${e.message}")
+            abortSetup(gatt = gatt, reason = "writeDescriptor (CP CCCD) failed: ${e.message}")
         }
     }
 
     private fun writeBikeCccd(gatt: BluetoothGatt) {
         if (!hasBluetoothConnectPermission()) {
-            Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write Bike CCCD")
+            abortSetup(
+                gatt = gatt,
+                reason = "Missing BLUETOOTH_CONNECT permission; cannot write Bike CCCD",
+            )
             return
         }
         val ch = indoorBikeDataCharacteristic ?: run {
-            Log.w("FTMS", "Bike characteristic missing when writing CCCD")
+            abortSetup(gatt = gatt, reason = "Bike characteristic missing when writing CCCD")
             return
         }
 
         val cccd = ch.getDescriptor(CCCD_UUID)
         if (cccd == null) {
-            Log.w("FTMS", "CCCD not found for Indoor Bike Data")
+            abortSetup(gatt = gatt, reason = "CCCD not found for Indoor Bike Data")
             return
         }
 
         setupStep = SetupStep.BIKE_CCCD
         try {
-            val ok = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-            Log.d("FTMS", "Writing BIKE CCCD (notification) -> $ok")
+            val status = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+            Log.d("FTMS", "Writing BIKE CCCD (notification) -> status=$status")
+            if (status != BluetoothStatusCodes.SUCCESS) {
+                abortSetup(gatt = gatt, reason = "Writing Bike CCCD failed to start")
+                return
+            }
         } catch (e: SecurityException) {
-            Log.w("FTMS", "writeDescriptor failed: ${e.message}")
+            abortSetup(gatt = gatt, reason = "writeDescriptor (Bike CCCD) failed: ${e.message}")
         }
+    }
+
+    /**
+     * Aborts FTMS setup through one deterministic teardown path.
+     *
+     * Setup failures can happen from multiple callbacks and API calls. This path
+     * always clears transient setup state, attempts disconnect/close, and emits a
+     * single semantic disconnect signal to the app layer.
+     */
+    private fun abortSetup(gatt: BluetoothGatt, reason: String) {
+        Log.w("FTMS", reason)
+        setupStep = SetupStep.NONE
+        controlPointIndicationEnabled = false
+        indoorBikeDataCharacteristic = null
+        controlPointCharacteristic = null
+        this.gatt = null
+        try {
+            gatt.disconnect()
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "disconnect failed during setup abort: ${e.message}")
+        }
+        try {
+            gatt.close()
+        } catch (e: SecurityException) {
+            Log.w("FTMS", "close failed during setup abort: ${e.message}")
+        }
+        emitDisconnectedOnce()
     }
 
     /**

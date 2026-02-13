@@ -7,6 +7,8 @@ val defaultFtmsDeviceMac = providers.gradleProperty("ergometer.ftms.mac")
     .orElse("E0:DF:01:46:14:2F")
 val defaultHrDeviceMac = providers.gradleProperty("ergometer.hr.mac")
     .orElse("24:AC:AC:04:12:79")
+val defaultFtpWatts = providers.gradleProperty("ergometer.ftp.watts")
+    .orElse("100")
 
 android {
     namespace = "com.example.ergometerapp"
@@ -22,6 +24,7 @@ android {
         versionName = "1.0"
         buildConfigField("String", "DEFAULT_FTMS_DEVICE_MAC", "\"${defaultFtmsDeviceMac.get()}\"")
         buildConfigField("String", "DEFAULT_HR_DEVICE_MAC", "\"${defaultHrDeviceMac.get()}\"")
+        buildConfigField("int", "DEFAULT_FTP_WATTS", defaultFtpWatts.get())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

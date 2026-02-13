@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
     private enum class AppScreen { MENU, CONNECTING, SESSION, SUMMARY }
     private val defaultFtmsDeviceMac = BuildConfig.DEFAULT_FTMS_DEVICE_MAC
     private val defaultHrDeviceMac = BuildConfig.DEFAULT_HR_DEVICE_MAC
+    private val defaultFtpWatts = BuildConfig.DEFAULT_FTP_WATTS.coerceAtLeast(1)
 
     private val screenState = mutableStateOf(AppScreen.MENU)
 
@@ -150,6 +151,7 @@ class MainActivity : ComponentActivity() {
                 val selectedWorkoutImportError = selectedWorkoutImportErrorState.value
                 val selectedWorkout = importedWorkoutForRunner
                 val workoutReady = workoutReadyState.value
+                val ftpWatts = defaultFtpWatts
 
                 if (BuildConfig.DEBUG) {
                     val debugToggleContentDescription =
@@ -162,6 +164,7 @@ class MainActivity : ComponentActivity() {
                                     selectedWorkoutStepCount = selectedWorkoutStepCount,
                                     selectedWorkoutImportError = selectedWorkoutImportError,
                                     selectedWorkout = selectedWorkout,
+                                    ftpWatts = ftpWatts,
                                     startEnabled = workoutReady,
                                     onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                     onStartSession = {
@@ -183,6 +186,7 @@ class MainActivity : ComponentActivity() {
                                 ftmsReady = ftmsReady,
                                 ftmsControlGranted = ftmsControlGranted,
                                 selectedWorkout = selectedWorkout,
+                                ftpWatts = ftpWatts,
                                 runnerState = currentRunnerState,
                                 lastTargetPower = lastTargetPower,
                                 onEndSession = { endSessionAndGoToSummary() }
@@ -232,6 +236,7 @@ class MainActivity : ComponentActivity() {
                                 selectedWorkoutStepCount = selectedWorkoutStepCount,
                                 selectedWorkoutImportError = selectedWorkoutImportError,
                                 selectedWorkout = selectedWorkout,
+                                ftpWatts = ftpWatts,
                                 startEnabled = workoutReady,
                                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                 onStartSession = {
@@ -252,6 +257,7 @@ class MainActivity : ComponentActivity() {
                             ftmsReady = ftmsReady,
                             ftmsControlGranted = ftmsControlGranted,
                             selectedWorkout = selectedWorkout,
+                            ftpWatts = ftpWatts,
                             runnerState = currentRunnerState,
                             lastTargetPower = lastTargetPower,
                             onEndSession = { endSessionAndGoToSummary() }
@@ -423,13 +429,20 @@ class MainActivity : ComponentActivity() {
                 dumpUiState("bleOnControlPointResponse(op=$requestOpcode,result=$resultCode)")
             },
             onDisconnected = {
+                val wasSessionFlowActive =
+                    screenState.value == AppScreen.CONNECTING || screenState.value == AppScreen.SESSION
                 ftmsController.setTransportReady(false)
                 ftmsController.onDisconnected()
                 awaitingStopResponseBeforeBleClose = false
-                pendingCadenceStartAfterControlGranted = false
-                autoPausedByZeroCadence = false
                 resetFtmsUiState(clearReady = true)
-                Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
+                stopWorkout()
+                workoutRunner = null
+                sessionManager.stopSession()
+                if (wasSessionFlowActive) {
+                    allowScreenOff()
+                    screenState.value = AppScreen.MENU
+                }
+                Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false sessionStopped=true")
                 dumpUiState("bleOnDisconnected")
             }
         )
@@ -593,7 +606,7 @@ class MainActivity : ComponentActivity() {
         val existing = workoutRunner
         if (existing != null) return existing
         val runner = WorkoutRunner(
-            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = 100),
+            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = defaultFtpWatts),
             targetWriter = { targetWatts ->
                 if (ftmsReadyState.value && ftmsControlGrantedState.value) {
                     if (targetWatts == null) {

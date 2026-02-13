@@ -62,6 +62,7 @@ internal fun MenuScreen(
     selectedWorkoutStepCount: Int?,
     selectedWorkoutImportError: String?,
     selectedWorkout: WorkoutFile?,
+    ftpWatts: Int,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onStartSession: () -> Unit
@@ -128,7 +129,7 @@ internal fun MenuScreen(
                     SectionCard(title = stringResource(R.string.session_workout_title)) {
                         WorkoutProfileChart(
                             workout = selectedWorkout,
-                            ftpWatts = 100,
+                            ftpWatts = ftpWatts,
                         )
                     }
                 }
@@ -190,6 +191,7 @@ internal fun SessionScreen(
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
     selectedWorkout: WorkoutFile?,
+    ftpWatts: Int,
     runnerState: RunnerState,
     lastTargetPower: Int?,
     onEndSession: () -> Unit
@@ -321,7 +323,8 @@ internal fun SessionScreen(
                                 unknown = unknown
                             )
                             WorkoutProfileSection(
-                                selectedWorkout = selectedWorkout
+                                selectedWorkout = selectedWorkout,
+                                ftpWatts = ftpWatts,
                             )
                         }
 
@@ -352,7 +355,8 @@ internal fun SessionScreen(
                     )
 
                     WorkoutProfileSection(
-                        selectedWorkout = selectedWorkout
+                        selectedWorkout = selectedWorkout,
+                        ftpWatts = ftpWatts,
                     )
 
                     WorkoutControlsSection(
@@ -368,12 +372,12 @@ internal fun SessionScreen(
 }
 
 @Composable
-private fun WorkoutProfileSection(selectedWorkout: WorkoutFile?) {
+private fun WorkoutProfileSection(selectedWorkout: WorkoutFile?, ftpWatts: Int) {
     if (selectedWorkout == null) return
     SectionCard(title = stringResource(R.string.session_workout_title)) {
         WorkoutProfileChart(
             workout = selectedWorkout,
-            ftpWatts = 100,
+            ftpWatts = ftpWatts,
         )
     }
 }

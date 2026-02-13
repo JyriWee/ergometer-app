@@ -33,6 +33,7 @@ class SessionOrchestrator(
     private val allowScreenOff: () -> Unit
 ) {
     private val defaultFtmsDeviceMac = BuildConfig.DEFAULT_FTMS_DEVICE_MAC
+    private val defaultFtpWatts = BuildConfig.DEFAULT_FTP_WATTS.coerceAtLeast(1)
     private var bleClient: FtmsBleClient? = null
     private lateinit var ftmsController: FtmsController
     private var workoutRunner: WorkoutRunner? = null
@@ -215,7 +216,7 @@ class SessionOrchestrator(
         val existing = workoutRunner
         if (existing != null) return existing
         val runner = WorkoutRunner(
-            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = 100),
+            stepper = WorkoutStepper(getWorkoutForRunner(), ftpWatts = defaultFtpWatts),
             targetWriter = { targetWatts ->
                 if (uiState.ftmsReady.value && uiState.ftmsControlGranted.value) {
                     if (targetWatts == null) {
