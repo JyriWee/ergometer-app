@@ -34,7 +34,9 @@ import com.example.ergometerapp.R
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.ui.components.WorkoutProfileChart
 import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
+import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.RunnerState
 import java.util.Locale
 
@@ -59,6 +61,7 @@ internal fun MenuScreen(
     selectedWorkoutFileName: String?,
     selectedWorkoutStepCount: Int?,
     selectedWorkoutImportError: String?,
+    selectedWorkout: WorkoutFile?,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onStartSession: () -> Unit
@@ -121,6 +124,15 @@ internal fun MenuScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                if (selectedWorkout != null) {
+                    SectionCard(title = stringResource(R.string.session_workout_title)) {
+                        WorkoutProfileChart(
+                            workout = selectedWorkout,
+                            ftpWatts = 100,
+                        )
+                    }
+                }
+
                 Button(
                     onClick = onStartSession,
                     enabled = startEnabled,
@@ -177,13 +189,9 @@ internal fun SessionScreen(
     durationSeconds: Int?,
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
+    selectedWorkout: WorkoutFile?,
     runnerState: RunnerState,
     lastTargetPower: Int?,
-    onPauseWorkout: () -> Unit,
-    onResumeWorkout: () -> Unit,
-    onSetTargetPower: (Int) -> Unit,
-    onRelease: () -> Unit,
-    onStopWorkout: () -> Unit,
     onEndSession: () -> Unit
 ) {
     LaunchedEffect(bikeData) {
@@ -193,16 +201,6 @@ internal fun SessionScreen(
     val unknown = stringResource(R.string.value_unknown)
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
     val elapsedTime = formatTime(durationSeconds, unknown)
-
-    val canManualPower =
-        ftmsControlGranted &&
-            runnerState.paused &&
-            !runnerState.done
-
-    val canRelease = ftmsReady && ftmsControlGranted
-
-    val canStopWorkout =
-        runnerState.running || runnerState.paused
 
     val ftmsStatusText =
         if (ftmsReady) stringResource(R.string.status_ready)
@@ -322,6 +320,9 @@ internal fun SessionScreen(
                                 lastTargetPower = lastTargetPower,
                                 unknown = unknown
                             )
+                            WorkoutProfileSection(
+                                selectedWorkout = selectedWorkout
+                            )
                         }
 
                         Column(
@@ -330,14 +331,6 @@ internal fun SessionScreen(
                         ) {
                             WorkoutControlsSection(
                                 runnerState = runnerState,
-                                canManualPower = canManualPower,
-                                canRelease = canRelease,
-                                canStopWorkout = canStopWorkout,
-                                onPauseWorkout = onPauseWorkout,
-                                onResumeWorkout = onResumeWorkout,
-                                onSetTargetPower = onSetTargetPower,
-                                onRelease = onRelease,
-                                onStopWorkout = onStopWorkout,
                                 onEndSession = onEndSession,
                                 endSessionEnabled = phase == SessionPhase.RUNNING,
                                 unknown = unknown
@@ -358,16 +351,12 @@ internal fun SessionScreen(
                         unknown = unknown
                     )
 
+                    WorkoutProfileSection(
+                        selectedWorkout = selectedWorkout
+                    )
+
                     WorkoutControlsSection(
                         runnerState = runnerState,
-                        canManualPower = canManualPower,
-                        canRelease = canRelease,
-                        canStopWorkout = canStopWorkout,
-                        onPauseWorkout = onPauseWorkout,
-                        onResumeWorkout = onResumeWorkout,
-                        onSetTargetPower = onSetTargetPower,
-                        onRelease = onRelease,
-                        onStopWorkout = onStopWorkout,
                         onEndSession = onEndSession,
                         endSessionEnabled = phase == SessionPhase.RUNNING,
                         unknown = unknown
@@ -375,6 +364,17 @@ internal fun SessionScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun WorkoutProfileSection(selectedWorkout: WorkoutFile?) {
+    if (selectedWorkout == null) return
+    SectionCard(title = stringResource(R.string.session_workout_title)) {
+        WorkoutProfileChart(
+            workout = selectedWorkout,
+            ftpWatts = 100,
+        )
     }
 }
 
@@ -552,20 +552,10 @@ private fun MachineStatusSection(
 @Composable
 private fun WorkoutControlsSection(
     runnerState: RunnerState,
-    canManualPower: Boolean,
-    canRelease: Boolean,
-    canStopWorkout: Boolean,
-    onPauseWorkout: () -> Unit,
-    onResumeWorkout: () -> Unit,
-    onSetTargetPower: (Int) -> Unit,
-    onRelease: () -> Unit,
-    onStopWorkout: () -> Unit,
     onEndSession: () -> Unit,
     endSessionEnabled: Boolean,
     unknown: String
 ) {
-    val workoutPaused = runnerState.paused
-
     SectionCard(title = stringResource(R.string.session_workout_title)) {
         LabeledValueRow(
             label = stringResource(R.string.session_workout_state),
@@ -587,71 +577,6 @@ private fun WorkoutControlsSection(
 
         HorizontalDivider()
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            PowerButton(
-                watts = 120,
-                enabled = canManualPower,
-                onSetTargetPower = onSetTargetPower,
-                modifier = Modifier.weight(1f)
-            )
-            PowerButton(
-                watts = 160,
-                enabled = canManualPower,
-                onSetTargetPower = onSetTargetPower,
-                modifier = Modifier.weight(1f)
-            )
-            PowerButton(
-                watts = 200,
-                enabled = canManualPower,
-                onSetTargetPower = onSetTargetPower,
-                modifier = Modifier.weight(1f)
-            )
-        }
-
-        if (!workoutPaused) {
-            Text(
-                text = stringResource(R.string.session_workout_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        Button(
-            onClick = if (workoutPaused) onResumeWorkout else onPauseWorkout,
-            enabled = runnerState.running,
-            modifier = Modifier.fillMaxWidth(),
-            colors = disabledVisibleButtonColors()
-        ) {
-            Text(
-                text = stringResource(
-                    if (workoutPaused) R.string.btn_resume_workout else R.string.btn_pause_workout
-                )
-            )
-        }
-
-        Button(
-            onClick = onRelease,
-            enabled = canRelease,
-            modifier = Modifier.fillMaxWidth(),
-            colors = disabledVisibleButtonColors()
-        ) {
-            Text(stringResource(R.string.btn_release))
-        }
-
-        HorizontalDivider()
-
-        Button(
-            onClick = onStopWorkout,
-            enabled = canStopWorkout,
-            modifier = Modifier.fillMaxWidth(),
-            colors = disabledVisibleButtonColors()
-        ) {
-            Text(stringResource(R.string.btn_stop_workout))
-        }
-
         Button(
             onClick = onEndSession,
             enabled = endSessionEnabled,
@@ -660,23 +585,6 @@ private fun WorkoutControlsSection(
         ) {
             Text(stringResource(R.string.btn_end_session))
         }
-    }
-}
-
-@Composable
-private fun PowerButton(
-    watts: Int,
-    enabled: Boolean,
-    onSetTargetPower: (Int) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Button(
-        onClick = { onSetTargetPower(watts) },
-        enabled = enabled,
-        modifier = modifier,
-        colors = disabledVisibleButtonColors()
-    ) {
-        Text(stringResource(R.string.power_button, watts))
     }
 }
 

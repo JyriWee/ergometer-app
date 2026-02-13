@@ -148,6 +148,7 @@ class MainActivity : ComponentActivity() {
                 val selectedWorkoutFileName = selectedWorkoutFileNameState.value
                 val selectedWorkoutStepCount = selectedWorkoutStepCountState.value
                 val selectedWorkoutImportError = selectedWorkoutImportErrorState.value
+                val selectedWorkout = importedWorkoutForRunner
                 val workoutReady = workoutReadyState.value
 
                 if (BuildConfig.DEBUG) {
@@ -160,6 +161,7 @@ class MainActivity : ComponentActivity() {
                                     selectedWorkoutFileName = selectedWorkoutFileName,
                                     selectedWorkoutStepCount = selectedWorkoutStepCount,
                                     selectedWorkoutImportError = selectedWorkoutImportError,
+                                    selectedWorkout = selectedWorkout,
                                     startEnabled = workoutReady,
                                     onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                     onStartSession = {
@@ -180,16 +182,9 @@ class MainActivity : ComponentActivity() {
                                 durationSeconds = session?.durationSeconds,
                                 ftmsReady = ftmsReady,
                                 ftmsControlGranted = ftmsControlGranted,
+                                selectedWorkout = selectedWorkout,
                                 runnerState = currentRunnerState,
                                 lastTargetPower = lastTargetPower,
-                                onPauseWorkout = { pauseWorkoutManually() },
-                                onResumeWorkout = { resumeWorkoutManually() },
-                                onSetTargetPower = { watts ->
-                                    ftmsController.setTargetPower(watts)
-                                    lastTargetPowerState.value = watts
-                                },
-                                onRelease = { releaseControl(false) },
-                                onStopWorkout = { endSessionAndGoToSummary() },
                                 onEndSession = { endSessionAndGoToSummary() }
                             )
 
@@ -236,6 +231,7 @@ class MainActivity : ComponentActivity() {
                                 selectedWorkoutFileName = selectedWorkoutFileName,
                                 selectedWorkoutStepCount = selectedWorkoutStepCount,
                                 selectedWorkoutImportError = selectedWorkoutImportError,
+                                selectedWorkout = selectedWorkout,
                                 startEnabled = workoutReady,
                                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                                 onStartSession = {
@@ -255,16 +251,9 @@ class MainActivity : ComponentActivity() {
                             durationSeconds = session?.durationSeconds,
                             ftmsReady = ftmsReady,
                             ftmsControlGranted = ftmsControlGranted,
+                            selectedWorkout = selectedWorkout,
                             runnerState = currentRunnerState,
                             lastTargetPower = lastTargetPower,
-                            onPauseWorkout = { pauseWorkoutManually() },
-                            onResumeWorkout = { resumeWorkoutManually() },
-                            onSetTargetPower = { watts ->
-                                ftmsController.setTargetPower(watts)
-                                lastTargetPowerState.value = watts
-                            },
-                            onRelease = { releaseControl(false) },
-                            onStopWorkout = { endSessionAndGoToSummary() },
                             onEndSession = { endSessionAndGoToSummary() }
                         )
 
@@ -488,16 +477,6 @@ class MainActivity : ComponentActivity() {
         autoPausedByZeroCadence = false
         workoutRunner?.stop()
         lastTargetPowerState.value = null
-    }
-
-    private fun pauseWorkoutManually() {
-        autoPausedByZeroCadence = false
-        workoutRunner?.pause()
-    }
-
-    private fun resumeWorkoutManually() {
-        autoPausedByZeroCadence = false
-        workoutRunner?.resume()
     }
 
     /**

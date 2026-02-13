@@ -236,12 +236,19 @@ class WorkoutStepper private constructor(
                 state.stepElapsedMs
             )
 
-            is Step.Cooldown -> interpolatedWatts(
-                step.powerHigh,
-                step.powerLow,
-                step.durationSec,
-                state.stepElapsedMs
-            )
+            is Step.Cooldown -> {
+                val descendingRange = cooldownDescendingRange(step.powerLow, step.powerHigh)
+                if (descendingRange == null) {
+                    null
+                } else {
+                    interpolatedWatts(
+                        descendingRange.first,
+                        descendingRange.second,
+                        step.durationSec,
+                        state.stepElapsedMs
+                    )
+                }
+            }
 
             is Step.Ramp -> interpolatedWatts(
                 step.powerLow,
@@ -272,6 +279,17 @@ class WorkoutStepper private constructor(
         val t = (elapsedMs.toDouble() / durationMs.toDouble()).coerceIn(0.0, 1.0)
         val ratio = low + (high - low) * t
         return ratioToWatts(ratio)
+    }
+
+    /**
+     * Cooldown is always descending, regardless of source field ordering.
+     */
+    private fun cooldownDescendingRange(
+        powerLow: Double?,
+        powerHigh: Double?,
+    ): Pair<Double, Double>? {
+        if (powerLow == null || powerHigh == null) return null
+        return maxOf(powerLow, powerHigh) to minOf(powerLow, powerHigh)
     }
 
     private fun ratioToWatts(ratio: Double?): Int? {

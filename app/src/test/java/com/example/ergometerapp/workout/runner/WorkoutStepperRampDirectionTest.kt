@@ -44,6 +44,25 @@ class WorkoutStepperRampDirectionTest {
         assertEquals(listOf(160, 140, 120, 100), targets)
     }
 
+    @Test
+    fun cooldownStillDescendsWhenPowerFieldsAreSwapped() {
+        val stepper = WorkoutStepper(
+            workout = workoutWithSingleStep(
+                Step.Cooldown(
+                    durationSec = 4,
+                    powerLow = 0.80,
+                    powerHigh = 0.40,
+                    cadence = null,
+                ),
+            ),
+            ftpWatts = 200,
+        )
+
+        val targets = runSecondBySecond(stepper)
+
+        assertEquals(listOf(160, 140, 120, 100), targets)
+    }
+
     private fun runSecondBySecond(stepper: WorkoutStepper): List<Int> {
         val targets = mutableListOf<Int>()
         var now = 0L
