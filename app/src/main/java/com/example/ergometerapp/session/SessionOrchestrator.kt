@@ -151,7 +151,12 @@ class SessionOrchestrator(
             onReady = { controlPointReady ->
                 uiState.ftmsReady.value = controlPointReady
                 ftmsController.setTransportReady(controlPointReady)
-                if (uiState.screen.value == AppScreen.CONNECTING && controlPointReady) {
+                if (!controlPointReady) {
+                    ftmsController.onDisconnected()
+                }
+                if (controlPointReady &&
+                    (uiState.screen.value == AppScreen.CONNECTING || !uiState.ftmsControlGranted.value)
+                ) {
                     ftmsController.requestControl()
                 }
                 dumpUiState("bleOnReady")
@@ -161,7 +166,6 @@ class SessionOrchestrator(
                 Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
 
                 if (requestOpcode == 0x00 && resultCode == 0x01) {
-                    uiState.ftmsControlGranted.value = true
                     if (uiState.screen.value == AppScreen.CONNECTING) {
                         sessionManager.startSession()
                         ensureWorkoutRunner().start()
@@ -182,6 +186,10 @@ class SessionOrchestrator(
                 resetFtmsUiState(clearReady = true)
                 Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false")
                 dumpUiState("bleOnDisconnected")
+            },
+            onControlOwnershipChanged = { controlGranted ->
+                uiState.ftmsControlGranted.value = controlGranted
+                dumpUiState("bleOnControlOwnershipChanged(granted=$controlGranted)")
             }
         )
     }

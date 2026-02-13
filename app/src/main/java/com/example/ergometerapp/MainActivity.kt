@@ -315,8 +315,7 @@ class MainActivity : ComponentActivity() {
             dumpUiState("startSessionConnectionIgnored(noWorkout)")
             return
         }
-        pendingCadenceStartAfterControlGranted = false
-        autoPausedByZeroCadence = false
+        resetFtmsUiState(clearReady = true)
         pendingSessionStartAfterPermission = true
         bikeDataState.value = null
         bleClient?.close()
@@ -450,8 +449,13 @@ class MainActivity : ComponentActivity() {
                 }
                 ftmsReadyState.value = controlPointReady
                 ftmsController.setTransportReady(controlPointReady)
-                if (screenState.value == AppScreen.CONNECTING && controlPointReady) {
-                    // Session starts only after Request Control is acknowledged.
+                if (!controlPointReady) {
+                    ftmsController.onDisconnected()
+                }
+                if (controlPointReady &&
+                    (screenState.value == AppScreen.CONNECTING || !ftmsControlGrantedState.value)
+                ) {
+                    // New session start must always request control; reconnect paths request only when needed.
                     ftmsController.requestControl()
                 }
                 dumpUiState("bleOnReady")
@@ -466,9 +470,8 @@ class MainActivity : ComponentActivity() {
 
                 Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
 
-                // FTMS: Request Control success unlocks power control in the UI.
+                // Session enters active mode only after Request Control is acknowledged.
                 if (requestOpcode == 0x00 && resultCode == 0x01) {
-                    ftmsControlGrantedState.value = true
                     if (screenState.value == AppScreen.CONNECTING) {
                         sessionManager.startSession()
                         pendingCadenceStartAfterControlGranted = true
@@ -505,6 +508,14 @@ class MainActivity : ComponentActivity() {
                 }
                 Log.w("FTMS", "UI state: disconnected -> READY=false CONTROL=false sessionStopped=true")
                 dumpUiState("bleOnDisconnected")
+            },
+            onControlOwnershipChanged = { controlGranted ->
+                if (generation != activeFtmsClientGeneration) {
+                    Log.d("FTMS", "Ignoring stale onControlOwnershipChanged callback (generation=$generation)")
+                    return@FtmsBleClient
+                }
+                ftmsControlGrantedState.value = controlGranted
+                dumpUiState("bleOnControlOwnershipChanged(granted=$controlGranted)")
             }
         )
     }
