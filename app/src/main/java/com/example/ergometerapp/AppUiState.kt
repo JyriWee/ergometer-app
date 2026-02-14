@@ -23,7 +23,6 @@ class AppUiState {
     val ftmsControlGranted: MutableState<Boolean> = mutableStateOf(false)
     val lastTargetPower: MutableState<Int?> = mutableStateOf(null)
     val runner: MutableState<RunnerState> = mutableStateOf(RunnerState.stopped())
-    val showDebugTimeline: MutableState<Boolean> = mutableStateOf(false)
     val selectedWorkout: MutableState<WorkoutFile?> = mutableStateOf(null)
     val selectedWorkoutFileName: MutableState<String?> = mutableStateOf(null)
     val selectedWorkoutStepCount: MutableState<Int?> = mutableStateOf(null)

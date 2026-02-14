@@ -1,24 +1,10 @@
 package com.example.ergometerapp.ui
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.AppScreen
-import com.example.ergometerapp.R
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
-import com.example.ergometerapp.ui.debug.FtmsDebugTimelineScreen
 import com.example.ergometerapp.ui.theme.ErgometerAppTheme
 import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.RunnerState
@@ -44,72 +30,29 @@ internal data class MainActivityUiModel(
     val ftpWatts: Int,
     val ftpInputText: String,
     val ftpInputError: String?,
-    val showDebugTimeline: Boolean
 )
 
 /**
- * Renders the application root destinations and optional debug overlays.
+ * Renders the application root destinations.
  */
 @Composable
 internal fun MainActivityContent(
     model: MainActivityUiModel,
-    showDebugTools: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit,
-    onToggleDebugTimeline: () -> Unit
 ) {
     ErgometerAppTheme {
-        if (!showDebugTools) {
-            MainDestinationContent(
-                model = model,
-                onSelectWorkoutFile = onSelectWorkoutFile,
-                onFtpInputChanged = onFtpInputChanged,
-                onStartSession = onStartSession,
-                onEndSession = onEndSession,
-                onBackToMenu = onBackToMenu
-            )
-            return@ErgometerAppTheme
-        }
-
-        val debugToggleContentDescription =
-            stringResource(R.string.debug_toggle_content_description)
-
-        Box {
-            MainDestinationContent(
-                model = model,
-                onSelectWorkoutFile = onSelectWorkoutFile,
-                onFtpInputChanged = onFtpInputChanged,
-                onStartSession = onStartSession,
-                onEndSession = onEndSession,
-                onBackToMenu = onBackToMenu
-            )
-
-            FloatingActionButton(
-                onClick = onToggleDebugTimeline,
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(16.dp)
-                    .semantics {
-                        contentDescription = debugToggleContentDescription
-                    }
-            ) {
-                Text(stringResource(R.string.debug_toggle))
-            }
-
-            if (model.showDebugTimeline) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .height(200.dp)
-                ) {
-                    FtmsDebugTimelineScreen()
-                }
-            }
-        }
+        MainDestinationContent(
+            model = model,
+            onSelectWorkoutFile = onSelectWorkoutFile,
+            onFtpInputChanged = onFtpInputChanged,
+            onStartSession = onStartSession,
+            onEndSession = onEndSession,
+            onBackToMenu = onBackToMenu
+        )
     }
 }
 

@@ -58,15 +58,12 @@ class MainActivity : ComponentActivity() {
                     ftpWatts = viewModel.ftpWattsState.intValue,
                     ftpInputText = viewModel.ftpInputTextState.value,
                     ftpInputError = viewModel.ftpInputErrorState.value,
-                    showDebugTimeline = viewModel.uiState.showDebugTimeline.value
                 ),
-                showDebugTools = BuildConfig.DEBUG,
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                 onFtpInputChanged = { input -> viewModel.onFtpInputChanged(input) },
                 onStartSession = { viewModel.onStartSession() },
                 onEndSession = { viewModel.onEndSessionAndGoToSummary() },
                 onBackToMenu = { viewModel.onBackToMenu() },
-                onToggleDebugTimeline = { viewModel.toggleDebugTimeline() }
             )
         }
     }

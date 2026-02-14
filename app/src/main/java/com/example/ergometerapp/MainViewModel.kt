@@ -121,10 +121,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         allowScreenOffCallback?.invoke()
     }
 
-    fun toggleDebugTimeline() {
-        uiState.showDebugTimeline.value = !uiState.showDebugTimeline.value
-    }
-
     /**
      * Accepts only positive numeric FTP input and persists the latest valid value.
      */
