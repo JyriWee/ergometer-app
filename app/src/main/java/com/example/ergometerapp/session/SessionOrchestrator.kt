@@ -20,6 +20,7 @@ import com.example.ergometerapp.workout.WorkoutImportError
 import com.example.ergometerapp.workout.WorkoutImportFormat
 import com.example.ergometerapp.workout.WorkoutImportResult
 import com.example.ergometerapp.workout.WorkoutImportService
+import com.example.ergometerapp.workout.WorkoutExecutionStepCounter
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
 
@@ -180,15 +181,19 @@ class SessionOrchestrator(
 
         when (val result = workoutImportService.importFromText(sourceName = sourceName, content = content)) {
             is WorkoutImportResult.Success -> {
+                val executionStepCount = WorkoutExecutionStepCounter.count(
+                    workout = result.workoutFile,
+                    ftpWatts = currentFtpWatts(),
+                )
                 uiState.selectedWorkout.value = result.workoutFile
                 workoutRunner = null
                 uiState.selectedWorkoutFileName.value = sourceName
-                uiState.selectedWorkoutStepCount.value = result.workoutFile.steps.size
+                uiState.selectedWorkoutStepCount.value = executionStepCount
                 uiState.selectedWorkoutImportError.value = null
                 uiState.workoutReady.value = true
                 Log.d(
                     "WORKOUT",
-                    "Selected workout imported name=$sourceName steps=${result.workoutFile.steps.size}"
+                    "Selected workout imported name=$sourceName executionSteps=$executionStepCount rawSteps=${result.workoutFile.steps.size}"
                 )
                 dumpUiState("workoutImportSuccess(name=$sourceName)")
             }
