@@ -14,5 +14,6 @@ data class SessionSummary(
     val maxCadence: Int?,
     val avgHeartRate: Int?,
     val maxHeartRate: Int?,
-    val distanceMeters: Int?
+    val distanceMeters: Int?,
+    val totalEnergyKcal: Int?,
 )

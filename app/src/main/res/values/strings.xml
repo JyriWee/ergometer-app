@@ -40,6 +40,9 @@
         <string name="session_elapsed_time">Elapsed time</string>
         <string name="session_elapsed">Elapsed</string>
         <string name="session_remaining">Remaining</string>
+        <string name="session_workout_remaining">Workout remaining</string>
+        <string name="session_elapsed_of_total">Elapsed / total</string>
+        <string name="session_elapsed_of_total_value">%1$s / %2$s</string>
         <string name="session_workout_complete">Workout complete</string>
         <string name="session_state_label">Session state</string>
         <string name="session_state_waiting">waiting start</string>
@@ -50,15 +53,22 @@
         <!-- Telemetry labels -->
         <string name="session_power_label">Power</string>
         <string name="session_power_value">%1$s W</string>
+        <string name="session_instant_power_label">Instant power</string>
 
         <string name="session_cadence_label">Cadence</string>
         <string name="session_cadence_value">%1$s rpm</string>
+        <string name="session_cadence_target_label">Cadence / target</string>
+        <string name="session_cadence_target_value">%1$s / %2$s rpm</string>
 
         <string name="session_speed_label">Speed</string>
         <string name="session_speed_value">%1$s km/h</string>
 
         <string name="session_hr_label">Heart rate</string>
         <string name="session_hr_value">%1$s bpm</string>
+        <string name="session_hr_short_label">HR</string>
+
+        <string name="session_kcal_label">Kcal</string>
+        <string name="session_kcal_value">%1$s kcal</string>
 
         <!-- Machine status -->
         <string name="session_status_title">Machine status</string>
@@ -69,11 +79,19 @@
 
         <!-- Workout -->
         <string name="session_workout_title">Workout</string>
+        <string name="session_workout_name_value">Workout: %1$s</string>
         <string name="session_workout_state">Workout state</string>
         <string name="session_workout_step">Step</string>
+        <string name="session_workout_step_type">Step type</string>
+        <string name="session_workout_step_type_ramp">Ramp</string>
+        <string name="session_workout_step_type_steady">Steady</string>
+        <string name="session_workout_step_type_interval">Interval</string>
+        <string name="session_workout_step_type_free_ride">Free ride</string>
         <string name="session_workout_step_remaining">Step remaining</string>
+        <string name="session_workout_messages">Messages</string>
         <string name="session_workout_interval">Interval</string>
         <string name="session_workout_interval_progress">%1$s %2$d/%3$d • %4$s left</string>
+        <string name="session_workout_interval_countdown">%1$s %2$d sec</string>
         <string name="session_workout_interval_phase_on">ON</string>
         <string name="session_workout_interval_phase_off">OFF</string>
         <string name="session_workout_step_start">Start</string>
@@ -94,7 +112,7 @@
         <string name="btn_resume_workout">Resume workout</string>
         <string name="btn_stop_workout">Stop workout</string>
         <string name="btn_end_session">End session</string>
-        <string name="btn_quit_session_now">Quit session now</string>
+        <string name="btn_quit_session_now">Quit and go to summary</string>
 
         <string name="power_button">%1$d W</string>
 
@@ -106,6 +124,8 @@
 
         <string name="summary_distance">Distance</string>
         <string name="summary_distance_value">%1$s m</string>
+        <string name="summary_total_calories">Total calories</string>
+        <string name="summary_kcal_value">%1$s kcal</string>
 
         <string name="summary_avg_power">Average power</string>
         <string name="summary_max_power">Max power</string>

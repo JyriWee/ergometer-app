@@ -19,7 +19,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -29,26 +28,29 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.R
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.ui.components.SegmentKind
 import com.example.ergometerapp.ui.components.WorkoutProfileChart
+import com.example.ergometerapp.ui.components.WorkoutProfileSegment
 import com.example.ergometerapp.ui.components.buildWorkoutProfileSegments
 import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
 import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.IntervalPartPhase
 import com.example.ergometerapp.workout.runner.RunnerState
+import kotlin.math.roundToInt
 import java.util.Locale
 
 private val WideLayoutMinWidth = 900.dp
-private val PrimaryMetricsStackWidth = 560.dp
+private val SessionTopMetricsCompactWidth = 700.dp
 private val MenuMaxContentWidth = 560.dp
 private val SessionMaxContentWidth = 1200.dp
 private val SummaryMaxContentWidth = 920.dp
@@ -226,6 +228,7 @@ internal fun SessionScreen(
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
     selectedWorkout: WorkoutFile?,
+    selectedWorkoutFileName: String?,
     ftpWatts: Int,
     runnerState: RunnerState,
     lastTargetPower: Int?,
@@ -237,50 +240,55 @@ internal fun SessionScreen(
 
     val unknown = stringResource(R.string.value_unknown)
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
-    val totalWorkoutSec = remember(selectedWorkout) {
-        selectedWorkout?.let { workout ->
-            buildWorkoutProfileSegments(workout).sumOf { it.durationSec }
-        }
+    val powerValue = stringResource(
+        R.string.session_power_value,
+        format0(bikeData?.instantaneousPowerW, unknown)
+    )
+    val heartRateValue = stringResource(
+        R.string.session_hr_value,
+        format0(effectiveHr, unknown)
+    )
+    val speedValue = stringResource(
+        R.string.session_speed_value,
+        format1(bikeData?.instantaneousSpeedKmh, unknown)
+    )
+    val distanceValue = stringResource(
+        R.string.summary_distance_value,
+        format0(bikeData?.totalDistanceMeters, unknown)
+    )
+    val kcalValue = stringResource(
+        R.string.session_kcal_value,
+        format0(bikeData?.totalEnergyKcal, unknown)
+    )
+    val cadenceRpm = bikeData?.instantaneousCadenceRpm
+    val cadenceTargetValue = stringResource(
+        R.string.session_cadence_target_value,
+        format1(cadenceRpm, unknown),
+        format0(runnerState.targetCadence, unknown),
+    )
+    val workoutSegments = remember(selectedWorkout) {
+        selectedWorkout?.let { buildWorkoutProfileSegments(it) }.orEmpty()
     }
+    val totalWorkoutSec = workoutSegments.sumOf { it.durationSec }.takeIf { it > 0 }
     val elapsedWorkoutSec = runnerState.workoutElapsedSec?.coerceAtLeast(0) ?: 0
     val remainingWorkoutSec = totalWorkoutSec?.let { total ->
         (total - elapsedWorkoutSec).coerceAtLeast(0)
     }
+    val elapsedText = formatTime(elapsedWorkoutSec, unknown)
+    val remainingText = formatTime(remainingWorkoutSec, unknown)
+    val totalText = formatTime(totalWorkoutSec, unknown)
+    val elapsedOfTotalText = stringResource(
+        R.string.session_elapsed_of_total_value,
+        elapsedText,
+        totalText,
+    )
     val workoutComplete = totalWorkoutSec != null &&
         totalWorkoutSec > 0 &&
         remainingWorkoutSec == 0
-
-    val cadenceRpm = bikeData?.instantaneousCadenceRpm
-
-    val secondaryMetrics = listOf(
-        MetricItem(
-            label = stringResource(R.string.session_cadence_label),
-            value = stringResource(
-                R.string.session_cadence_value,
-                format1(cadenceRpm, unknown)
-            )
-        ),
-        MetricItem(
-            label = stringResource(R.string.session_speed_label),
-            value = stringResource(
-                R.string.session_speed_value,
-                format1(bikeData?.instantaneousSpeedKmh, unknown)
-            )
-        ),
-        MetricItem(
-            label = stringResource(R.string.summary_distance),
-            value = stringResource(
-                R.string.summary_distance_value,
-                format0(bikeData?.totalDistanceMeters, unknown)
-            )
-        ),
-        MetricItem(
-            label = stringResource(R.string.session_target_label),
-            value = stringResource(
-                R.string.session_target_value,
-                format0(lastTargetPower, unknown)
-            )
-        )
+    val workoutName = resolveWorkoutDisplayName(
+        selectedWorkout = selectedWorkout,
+        selectedWorkoutFileName = selectedWorkoutFileName,
+        fallback = unknown,
     )
     val sessionIssues = buildList {
         if (!ftmsReady) {
@@ -296,8 +304,7 @@ internal fun SessionScreen(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        val isWide = maxWidth >= WideLayoutMinWidth
-        val stackPrimaryMetrics = maxWidth < PrimaryMetricsStackWidth
+        val compactTopMetrics = maxWidth < SessionTopMetricsCompactWidth
 
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -317,38 +324,34 @@ internal fun SessionScreen(
                         .padding(bottom = SessionStickyActionBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    PrimaryMetricsSection(
-                        powerValue = stringResource(
-                            R.string.session_power_value,
-                            format0(bikeData?.instantaneousPowerW, unknown)
-                        ),
-                        heartRateValue = stringResource(
-                            R.string.session_hr_value,
-                            format0(effectiveHr, unknown)
-                        ),
-                        stackCards = stackPrimaryMetrics,
+                    TopTelemetrySection(
+                        compactLayout = compactTopMetrics,
+                        heartRateValue = heartRateValue,
+                        speedValue = speedValue,
+                        powerValue = powerValue,
+                        cadenceTargetValue = cadenceTargetValue,
+                        distanceValue = distanceValue,
+                        kcalValue = kcalValue,
                     )
 
                     WorkoutProgressSection(
                         selectedWorkout = selectedWorkout,
+                        workoutName = workoutName,
+                        workoutSegments = workoutSegments,
                         ftpWatts = ftpWatts,
                         runnerState = runnerState,
                         phase = phase,
                         cadenceRpm = cadenceRpm,
-                        elapsedText = formatTime(elapsedWorkoutSec, unknown),
-                        remainingText = formatTime(remainingWorkoutSec, unknown),
+                        remainingText = remainingText,
+                        elapsedOfTotalText = elapsedOfTotalText,
                         unknown = unknown,
+                        lastTargetPower = lastTargetPower,
                         workoutComplete = workoutComplete,
                     )
 
                     if (sessionIssues.isNotEmpty()) {
                         SessionIssuesSection(messages = sessionIssues)
                     }
-
-                    SecondaryMetricsSection(
-                        metrics = secondaryMetrics,
-                        columns = if (isWide) 2 else 1
-                    )
                 }
             }
 
@@ -357,9 +360,8 @@ internal fun SessionScreen(
                 enabled = phase == SessionPhase.RUNNING,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .widthIn(max = SessionMaxContentWidth)
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                    .fillMaxWidth(0.5f)
+                    .padding(vertical = 16.dp),
                 colors = disabledVisibleButtonColors()
             ) {
                 Text(stringResource(R.string.btn_quit_session_now))
@@ -369,76 +371,136 @@ internal fun SessionScreen(
 }
 
 @Composable
-private fun PrimaryMetricsSection(
-    powerValue: String,
+private fun TopTelemetrySection(
+    compactLayout: Boolean,
     heartRateValue: String,
-    stackCards: Boolean,
+    speedValue: String,
+    powerValue: String,
+    cadenceTargetValue: String,
+    distanceValue: String,
+    kcalValue: String,
 ) {
-    if (stackCards) {
-        Column(
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            PrimaryMetricCard(
-                label = stringResource(R.string.session_power_label),
-                value = powerValue,
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
-                modifier = Modifier.fillMaxWidth()
-            )
-            PrimaryMetricCard(
-                label = stringResource(R.string.session_hr_label),
-                value = heartRateValue,
-                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
-                modifier = Modifier.fillMaxWidth()
-            )
+    SectionCard(title = null) {
+        if (compactLayout) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TopMetricCard(
+                    label = stringResource(R.string.session_hr_short_label),
+                    value = heartRateValue,
+                    modifier = Modifier.weight(1f),
+                )
+                TopMetricCard(
+                    label = stringResource(R.string.session_instant_power_label),
+                    value = powerValue,
+                    modifier = Modifier.weight(1f),
+                )
+                TopMetricCard(
+                    label = stringResource(R.string.summary_distance),
+                    value = distanceValue,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TopMetricCard(
+                    label = stringResource(R.string.session_speed_label),
+                    value = speedValue,
+                    modifier = Modifier.weight(1f),
+                )
+                TopMetricCard(
+                    label = stringResource(R.string.session_cadence_target_label),
+                    value = cadenceTargetValue,
+                    modifier = Modifier.weight(1f),
+                )
+                TopMetricCard(
+                    label = stringResource(R.string.session_kcal_label),
+                    value = kcalValue,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            return@SectionCard
         }
-        return
-    }
 
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        PrimaryMetricCard(
-            label = stringResource(R.string.session_power_label),
-            value = powerValue,
-            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
-            modifier = Modifier.weight(1f)
-        )
-        PrimaryMetricCard(
-            label = stringResource(R.string.session_hr_label),
-            value = heartRateValue,
-            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
-            modifier = Modifier.weight(1f)
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TopMetricCard(
+                    label = stringResource(R.string.session_hr_short_label),
+                    value = heartRateValue,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TopMetricCard(
+                    label = stringResource(R.string.session_speed_label),
+                    value = speedValue,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TopMetricCard(
+                    label = stringResource(R.string.session_instant_power_label),
+                    value = powerValue,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TopMetricCard(
+                    label = stringResource(R.string.session_cadence_target_label),
+                    value = cadenceTargetValue,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                TopMetricCard(
+                    label = stringResource(R.string.summary_distance),
+                    value = distanceValue,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TopMetricCard(
+                    label = stringResource(R.string.session_kcal_label),
+                    value = kcalValue,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun PrimaryMetricCard(
+private fun TopMetricCard(
     label: String,
     value: String,
-    containerColor: Color,
     modifier: Modifier = Modifier,
 ) {
-    ElevatedCard(
-        modifier = modifier,
-        colors = CardDefaults.elevatedCardColors(containerColor = containerColor)
-    ) {
+    ElevatedCard(modifier = modifier) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(3.dp)
         ) {
             Text(
                 text = label,
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineLarge,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.SemiBold
             )
         }
     }
@@ -447,83 +509,136 @@ private fun PrimaryMetricCard(
 @Composable
 private fun WorkoutProgressSection(
     selectedWorkout: WorkoutFile?,
+    workoutName: String,
+    workoutSegments: List<WorkoutProfileSegment>,
     ftpWatts: Int,
     runnerState: RunnerState,
     phase: SessionPhase,
     cadenceRpm: Double?,
-    elapsedText: String,
     remainingText: String,
+    elapsedOfTotalText: String,
     unknown: String,
+    lastTargetPower: Int?,
     workoutComplete: Boolean,
 ) {
-    SectionCard(title = stringResource(R.string.session_workout_title)) {
+    val activeSegment = remember(workoutSegments, runnerState.workoutElapsedSec, workoutComplete) {
+        currentWorkoutProfileSegment(
+            workoutSegments = workoutSegments,
+            elapsedSec = runnerState.workoutElapsedSec,
+            completed = workoutComplete,
+        )
+    }
+    SectionCard(title = null) {
+        Text(
+            text = stringResource(R.string.session_workout_name_value, workoutName),
+            style = MaterialTheme.typography.bodyLarge,
+            fontWeight = FontWeight.SemiBold,
+        )
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             MetricCard(
-                label = stringResource(R.string.session_elapsed),
-                value = elapsedText,
+                label = stringResource(R.string.session_workout_step_remaining),
+                value = formatTime(runnerState.stepRemainingSec, unknown),
                 modifier = Modifier.weight(1f)
             )
             MetricCard(
-                label = stringResource(R.string.session_remaining),
+                label = stringResource(R.string.session_workout_remaining),
                 value = remainingText,
                 modifier = Modifier.weight(1f)
             )
+            MetricCard(
+                label = stringResource(R.string.session_elapsed_of_total),
+                value = elapsedOfTotalText,
+                modifier = Modifier.weight(1f),
+                valueStyle = MaterialTheme.typography.titleMedium,
+                valueMaxLines = 1,
+            )
         }
 
-        LabeledValueRow(
-            label = stringResource(R.string.session_state_label),
-            value = sessionStateLabel(
-                phase = phase,
-                runnerState = runnerState,
-                cadenceRpm = cadenceRpm,
-            ),
-        )
-
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_step),
-            value = workoutStepLabel(
-                phase = phase,
-                runnerState = runnerState,
-                cadenceRpm = cadenceRpm,
-                unknown = unknown,
-            )
-        )
-
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_step_remaining),
-            value = formatTime(runnerState.stepRemainingSec, unknown),
-        )
-
-        val intervalPart = runnerState.intervalPart
-        if (intervalPart != null) {
-            LabeledValueRow(
-                label = stringResource(R.string.session_workout_interval),
-                value = intervalProgressLabel(
-                    phase = intervalPart.phase,
-                    repIndex = intervalPart.repIndex,
-                    repTotal = intervalPart.repTotal,
-                    remainingText = formatTime(intervalPart.remainingSec, unknown),
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            MetricCard(
+                label = stringResource(R.string.session_workout_step_type),
+                value = sessionStepTypeLabel(
+                    phase = phase,
+                    runnerState = runnerState,
+                    cadenceRpm = cadenceRpm,
+                    activeSegment = activeSegment,
+                    unknown = unknown,
                 ),
+                modifier = Modifier.weight(1f),
+            )
+            MetricCard(
+                label = stringResource(R.string.session_target_label),
+                value = sessionTargetPowerLabel(
+                    runnerState = runnerState,
+                    activeSegment = activeSegment,
+                    ftpWatts = ftpWatts,
+                    fallbackTargetPower = lastTargetPower,
+                    unknown = unknown,
+                ),
+                modifier = Modifier.weight(1f),
             )
         }
 
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_target_cadence),
-            value = stringResource(
-                R.string.session_workout_target_cadence_value,
-                format0(runnerState.targetCadence, unknown)
-            )
+        val stateMessage = sessionStateLabel(
+            phase = phase,
+            runnerState = runnerState,
+            cadenceRpm = cadenceRpm,
         )
+        val intervalMessage = runnerState.intervalPart?.let { intervalPart ->
+            intervalCountdownLabel(
+                phase = intervalPart.phase,
+                remainingSec = intervalPart.remainingSec,
+            )
+        }
+        val extraMessages = buildList {
+            if (workoutComplete) {
+                add(stringResource(R.string.session_workout_complete))
+            }
+        }
 
-        if (workoutComplete) {
+        Text(
+            text = stringResource(R.string.session_workout_messages),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             Text(
-                text = stringResource(R.string.session_workout_complete),
+                text = stateMessage,
                 style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
+            )
+            if (intervalMessage != null) {
+                Text(
+                    text = " \u2022 ",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Text(
+                    text = intervalMessage,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold,
+                )
+            }
+        }
+        extraMessages.forEach { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
@@ -532,10 +647,103 @@ private fun WorkoutProgressSection(
                 workout = selectedWorkout,
                 ftpWatts = ftpWatts,
                 elapsedSec = runnerState.workoutElapsedSec,
+                currentTargetWatts = runnerState.targetPowerWatts ?: lastTargetPower,
                 chartHeight = SessionWorkoutChartHeight
             )
         }
     }
+}
+
+private fun resolveWorkoutDisplayName(
+    selectedWorkout: WorkoutFile?,
+    selectedWorkoutFileName: String?,
+    fallback: String,
+): String {
+    val parsedName = selectedWorkout?.name?.trim().orEmpty()
+    if (parsedName.isNotEmpty()) {
+        return parsedName
+    }
+    val fileName = selectedWorkoutFileName
+        ?.substringAfterLast('/')
+        ?.trim()
+        .orEmpty()
+    if (fileName.isNotEmpty()) {
+        return fileName.substringBeforeLast('.', missingDelimiterValue = fileName)
+    }
+    return fallback
+}
+
+private fun currentWorkoutProfileSegment(
+    workoutSegments: List<WorkoutProfileSegment>,
+    elapsedSec: Int?,
+    completed: Boolean,
+): WorkoutProfileSegment? {
+    if (workoutSegments.isEmpty()) return null
+    if (completed) return workoutSegments.last()
+    val elapsed = (elapsedSec ?: 0).coerceAtLeast(0)
+    return workoutSegments.firstOrNull { segment ->
+        elapsed < (segment.startSec + segment.durationSec)
+    } ?: workoutSegments.last()
+}
+
+@Composable
+private fun sessionStepTypeLabel(
+    phase: SessionPhase,
+    runnerState: RunnerState,
+    cadenceRpm: Double?,
+    activeSegment: WorkoutProfileSegment?,
+    unknown: String,
+): String {
+    if (isWaitingStartState(phase = phase, runnerState = runnerState, cadenceRpm = cadenceRpm)) {
+        return stringResource(R.string.session_workout_step_start)
+    }
+    if (runnerState.done) {
+        return stringResource(R.string.session_workout_state_done)
+    }
+    if (runnerState.intervalPart != null) {
+        return stringResource(R.string.session_workout_step_type_interval)
+    }
+    return when (activeSegment?.kind) {
+        SegmentKind.RAMP -> stringResource(R.string.session_workout_step_type_ramp)
+        SegmentKind.STEADY -> stringResource(R.string.session_workout_step_type_steady)
+        SegmentKind.FREERIDE -> stringResource(R.string.session_workout_step_type_free_ride)
+        null -> runnerState.label ?: unknown
+    }
+}
+
+private fun sessionTargetPowerLabel(
+    runnerState: RunnerState,
+    activeSegment: WorkoutProfileSegment?,
+    ftpWatts: Int,
+    fallbackTargetPower: Int?,
+    unknown: String,
+): String {
+    if (runnerState.intervalPart != null) {
+        return formatWatts(runnerState.targetPowerWatts ?: fallbackTargetPower, unknown)
+    }
+    if (activeSegment?.kind == SegmentKind.RAMP) {
+        val startWatts = activeSegment.startPowerRelFtp?.let { relativePowerToWatts(it, ftpWatts) }
+        val endWatts = activeSegment.endPowerRelFtp?.let { relativePowerToWatts(it, ftpWatts) }
+        if (startWatts != null && endWatts != null) {
+            return if (startWatts == endWatts) {
+                formatWatts(startWatts, unknown)
+            } else {
+                "$startWatts -> $endWatts W"
+            }
+        }
+    }
+    val resolvedTarget = runnerState.targetPowerWatts
+        ?: activeSegment?.startPowerRelFtp?.let { relativePowerToWatts(it, ftpWatts) }
+        ?: fallbackTargetPower
+    return formatWatts(resolvedTarget, unknown)
+}
+
+private fun relativePowerToWatts(relativePower: Double, ftpWatts: Int): Int {
+    return (relativePower * ftpWatts.coerceAtLeast(1)).roundToInt()
+}
+
+private fun formatWatts(value: Int?, fallback: String): String {
+    return value?.let { "$it W" } ?: fallback
 }
 
 /**
@@ -594,6 +802,13 @@ internal fun SummaryScreen(
                             stringResource(
                                 R.string.summary_distance_value,
                                 format0(summary.distanceMeters, unknown)
+                            )
+                        ),
+                        MetricItem(
+                            stringResource(R.string.summary_total_calories),
+                            stringResource(
+                                R.string.summary_kcal_value,
+                                format0(summary.totalEnergyKcal, unknown)
                             )
                         ),
                         MetricItem(
@@ -676,19 +891,6 @@ private fun SessionIssuesSection(
 }
 
 @Composable
-private fun SecondaryMetricsSection(
-    metrics: List<MetricItem>,
-    columns: Int
-) {
-    SectionCard(title = stringResource(R.string.session_title)) {
-        MetricsGrid(
-            items = metrics,
-            columns = columns
-        )
-    }
-}
-
-@Composable
 private fun sessionStateLabel(
     phase: SessionPhase,
     runnerState: RunnerState,
@@ -701,19 +903,6 @@ private fun sessionStateLabel(
         return stringResource(R.string.session_state_waiting)
     }
     return workoutStateLabel(runnerState)
-}
-
-@Composable
-private fun workoutStepLabel(
-    phase: SessionPhase,
-    runnerState: RunnerState,
-    cadenceRpm: Double?,
-    unknown: String,
-): String {
-    if (isWaitingStartState(phase = phase, runnerState = runnerState, cadenceRpm = cadenceRpm)) {
-        return stringResource(R.string.session_workout_step_start)
-    }
-    return runnerState.label ?: unknown
 }
 
 private fun isWaitingStartState(
@@ -729,22 +918,18 @@ private fun isWaitingStartState(
 }
 
 @Composable
-private fun intervalProgressLabel(
+private fun intervalCountdownLabel(
     phase: IntervalPartPhase,
-    repIndex: Int,
-    repTotal: Int,
-    remainingText: String,
+    remainingSec: Int,
 ): String {
     val phaseLabel = when (phase) {
         IntervalPartPhase.ON -> stringResource(R.string.session_workout_interval_phase_on)
         IntervalPartPhase.OFF -> stringResource(R.string.session_workout_interval_phase_off)
     }
     return stringResource(
-        R.string.session_workout_interval_progress,
+        R.string.session_workout_interval_countdown,
         phaseLabel,
-        repIndex,
-        repTotal,
-        remainingText,
+        remainingSec.coerceAtLeast(0),
     )
 }
 
@@ -817,7 +1002,9 @@ private fun MetricsGrid(
 private fun MetricCard(
     label: String,
     value: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    valueStyle: TextStyle = MaterialTheme.typography.headlineSmall,
+    valueMaxLines: Int = Int.MAX_VALUE,
 ) {
     ElevatedCard(modifier = modifier) {
         Column(
@@ -833,8 +1020,10 @@ private fun MetricCard(
             )
             Text(
                 text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold
+                style = valueStyle,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = valueMaxLines,
+                overflow = TextOverflow.Ellipsis,
             )
         }
     }
@@ -842,7 +1031,7 @@ private fun MetricCard(
 
 @Composable
 private fun SectionCard(
-    title: String,
+    title: String?,
     modifier: Modifier = Modifier,
     content: @Composable ColumnScope.() -> Unit
 ) {
@@ -853,39 +1042,15 @@ private fun SectionCard(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold
-            )
+            if (!title.isNullOrBlank()) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
             content()
         }
-    }
-}
-
-@Composable
-private fun LabeledValueRow(
-    label: String,
-    value: String
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = label,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Text(
-            text = value,
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-            textAlign = TextAlign.End,
-            fontWeight = FontWeight.Medium
-        )
     }
 }
 

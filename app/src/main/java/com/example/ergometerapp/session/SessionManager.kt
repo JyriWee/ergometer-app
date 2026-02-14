@@ -31,6 +31,7 @@ class SessionManager(
     private var durationAtStopSec: Int? = null
 
     private var lastDistanceMeters: Int? = null
+    private var lastTotalEnergyKcal: Int? = null
 
     private var sessionPhase: SessionPhase = SessionPhase.IDLE
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
@@ -62,6 +63,8 @@ class SessionManager(
                 // Distance is cumulative; store the latest for the summary.
                 latestBikeData?.totalDistanceMeters
                     ?.let { lastDistanceMeters = it }
+                latestBikeData?.totalEnergyKcal
+                    ?.let { lastTotalEnergyKcal = it }
 
                 // Prefer external HR strap if present; fall back to bike HR otherwise.
                 // This avoids mixing two sensors with different latencies.
@@ -137,10 +140,12 @@ class SessionManager(
             cadenceSamples.clear()
             heartRateSamples.clear()
             lastDistanceMeters = null
+            lastTotalEnergyKcal = null
             lastSummary = null
             latestBikeData = null
             latestHeartRate = null
             lastDistanceMeters = null
+            lastTotalEnergyKcal = null
             durationAtStopSec = null
             emitState()
         }
@@ -188,7 +193,8 @@ class SessionManager(
                 maxCadence = maxCadence,
                 avgHeartRate = avgHeartRate,
                 maxHeartRate = maxHeartRate,
-                distanceMeters = lastDistanceMeters
+                distanceMeters = lastDistanceMeters,
+                totalEnergyKcal = lastTotalEnergyKcal,
             )
 
             lastSummary = summary

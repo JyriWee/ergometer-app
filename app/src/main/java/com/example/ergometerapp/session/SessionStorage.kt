@@ -30,6 +30,7 @@ object SessionStorage {
             appendLine("Avg power: ${summary.avgPower ?: "--"} W")
             appendLine("Max HR: ${summary.maxHeartRate ?: "--"} bpm")
             appendLine("Distance: ${summary.distanceMeters ?: "--"} m")
+            appendLine("Total calories: ${summary.totalEnergyKcal ?: "--"} kcal")
         }
 
         context.openFileOutput(filename, Context.MODE_PRIVATE)

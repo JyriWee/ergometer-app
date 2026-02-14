@@ -94,6 +94,7 @@ private fun MainDestinationContent(
                 ftmsReady = model.ftmsReady,
                 ftmsControlGranted = model.ftmsControlGranted,
                 selectedWorkout = model.selectedWorkout,
+                selectedWorkoutFileName = model.selectedWorkoutFileName,
                 ftpWatts = model.ftpWatts,
                 runnerState = model.runnerState,
                 lastTargetPower = model.lastTargetPower,
