@@ -104,12 +104,14 @@ internal fun MenuScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 20.dp, vertical = 24.dp),
-            contentAlignment = Alignment.Center
+            contentAlignment = Alignment.TopCenter
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = MenuMaxContentWidth),
+                    .widthIn(max = MenuMaxContentWidth)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(

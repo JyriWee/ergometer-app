@@ -8,9 +8,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
-import com.example.ergometerapp.ble.HrBleClient
-import com.example.ergometerapp.session.SessionManager
-import com.example.ergometerapp.session.SessionOrchestrator
+import androidx.activity.viewModels
 import com.example.ergometerapp.ui.MainActivityContent
 import com.example.ergometerapp.ui.MainActivityUiModel
 
@@ -18,118 +16,63 @@ import com.example.ergometerapp.ui.MainActivityUiModel
  * App entry point that binds lifecycle/permissions to UI and orchestration services.
  */
 class MainActivity : ComponentActivity() {
-    private val defaultHrDeviceMac = BuildConfig.DEFAULT_HR_DEVICE_MAC
-    private val defaultFtpWatts = BuildConfig.DEFAULT_FTP_WATTS.coerceAtLeast(1)
-    private val ftpInputMaxLength = 4
-
-    private val uiState = AppUiState()
-    private val ftpWattsState = androidx.compose.runtime.mutableStateOf(defaultFtpWatts)
-    private val ftpInputTextState = androidx.compose.runtime.mutableStateOf(defaultFtpWatts.toString())
-    private val ftpInputErrorState = androidx.compose.runtime.mutableStateOf<String?>(null)
-
-    private lateinit var hrClient: HrBleClient
-    private lateinit var sessionManager: SessionManager
-    private lateinit var sessionOrchestrator: SessionOrchestrator
+    private val viewModel: MainViewModel by viewModels()
 
     private val requestBluetoothConnectPermission =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            sessionOrchestrator.onBluetoothPermissionResult(granted)
+            viewModel.onBluetoothPermissionResult(granted)
         }
 
     private val selectWorkoutFile =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-            sessionOrchestrator.onWorkoutFileSelected(uri)
+            viewModel.onWorkoutFileSelected(uri)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val storedFtpWatts = FtpSettingsStorage.loadFtpWatts(this, defaultFtpWatts)
-        ftpWattsState.value = storedFtpWatts
-        ftpInputTextState.value = storedFtpWatts.toString()
-        ftpInputErrorState.value = null
-
-        sessionManager = SessionManager(this) { state ->
-            uiState.session.value = state
-        }
-
-        hrClient = HrBleClient(this) { bpm ->
-            uiState.heartRate.value = bpm
-            sessionManager.updateHeartRate(bpm)
-        }
-
-        sessionOrchestrator = SessionOrchestrator(
-            context = this,
-            uiState = uiState,
-            sessionManager = sessionManager,
+        viewModel.bindActivityCallbacks(
             ensureBluetoothPermission = { ensureBluetoothPermission() },
-            connectHeartRate = { hrClient.connect(defaultHrDeviceMac) },
-            closeHeartRate = { hrClient.close() },
             keepScreenOn = { keepScreenOn() },
             allowScreenOff = { allowScreenOff() },
-            currentFtpWatts = { ftpWattsState.value },
         )
-        sessionOrchestrator.initialize()
 
         setContent {
             MainActivityContent(
                 model = MainActivityUiModel(
-                    screen = uiState.screen.value,
-                    bikeData = uiState.bikeData.value,
-                    heartRate = uiState.heartRate.value,
-                    phase = sessionManager.getPhase(),
-                    ftmsReady = uiState.ftmsReady.value,
-                    ftmsControlGranted = uiState.ftmsControlGranted.value,
-                    lastTargetPower = uiState.lastTargetPower.value,
-                    runnerState = uiState.runner.value,
-                    summary = uiState.summary.value,
-                    selectedWorkout = uiState.selectedWorkout.value,
-                    selectedWorkoutFileName = uiState.selectedWorkoutFileName.value,
-                    selectedWorkoutStepCount = uiState.selectedWorkoutStepCount.value,
-                    selectedWorkoutImportError = uiState.selectedWorkoutImportError.value,
-                    workoutReady = uiState.workoutReady.value,
-                    ftpWatts = ftpWattsState.value,
-                    ftpInputText = ftpInputTextState.value,
-                    ftpInputError = ftpInputErrorState.value,
-                    showDebugTimeline = uiState.showDebugTimeline.value
+                    screen = viewModel.uiState.screen.value,
+                    bikeData = viewModel.uiState.bikeData.value,
+                    heartRate = viewModel.uiState.heartRate.value,
+                    phase = viewModel.phase(),
+                    ftmsReady = viewModel.uiState.ftmsReady.value,
+                    ftmsControlGranted = viewModel.uiState.ftmsControlGranted.value,
+                    lastTargetPower = viewModel.uiState.lastTargetPower.value,
+                    runnerState = viewModel.uiState.runner.value,
+                    summary = viewModel.uiState.summary.value,
+                    selectedWorkout = viewModel.uiState.selectedWorkout.value,
+                    selectedWorkoutFileName = viewModel.uiState.selectedWorkoutFileName.value,
+                    selectedWorkoutStepCount = viewModel.uiState.selectedWorkoutStepCount.value,
+                    selectedWorkoutImportError = viewModel.uiState.selectedWorkoutImportError.value,
+                    workoutReady = viewModel.uiState.workoutReady.value,
+                    ftpWatts = viewModel.ftpWattsState.intValue,
+                    ftpInputText = viewModel.ftpInputTextState.value,
+                    ftpInputError = viewModel.ftpInputErrorState.value,
+                    showDebugTimeline = viewModel.uiState.showDebugTimeline.value
                 ),
                 showDebugTools = BuildConfig.DEBUG,
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
-                onFtpInputChanged = { input -> onFtpInputChanged(input) },
-                onStartSession = { sessionOrchestrator.startSessionConnection() },
-                onEndSession = { sessionOrchestrator.endSessionAndGoToSummary() },
-                onBackToMenu = {
-                    uiState.summary.value = null
-                    uiState.screen.value = AppScreen.MENU
-                },
-                onToggleDebugTimeline = {
-                    uiState.showDebugTimeline.value = !uiState.showDebugTimeline.value
-                }
+                onFtpInputChanged = { input -> viewModel.onFtpInputChanged(input) },
+                onStartSession = { viewModel.onStartSession() },
+                onEndSession = { viewModel.onEndSessionAndGoToSummary() },
+                onBackToMenu = { viewModel.onBackToMenu() },
+                onToggleDebugTimeline = { viewModel.toggleDebugTimeline() }
             )
         }
-
-        ensureBluetoothPermission()
     }
 
     /**
-     * Accepts only positive numeric FTP input and persists the latest valid value.
-     */
-    private fun onFtpInputChanged(rawInput: String) {
-        val sanitized = rawInput.filter { it.isDigit() }.take(ftpInputMaxLength)
-        ftpInputTextState.value = sanitized
-        val parsed = sanitized.toIntOrNull()
-        if (parsed == null || parsed <= 0) {
-            ftpInputErrorState.value = getString(R.string.menu_ftp_error_invalid)
-            return
-        }
-        ftpInputErrorState.value = null
-        ftpWattsState.value = parsed
-        FtpSettingsStorage.saveFtpWatts(this, parsed)
-    }
-
-    /**
-     * Requests BLUETOOTH_CONNECT when needed; required for GATT operations on Android 12+.
+     * Requests BLUETOOTH_CONNECT when needed; required for session GATT operations on Android 12+.
      */
     private fun ensureBluetoothPermission(): Boolean {
         if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
@@ -139,7 +82,6 @@ class MainActivity : ComponentActivity() {
             return false
         }
 
-        sessionOrchestrator.connectBleClients()
         return true
     }
 
@@ -158,7 +100,13 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        sessionOrchestrator.stopAndClose()
+        if (isChangingConfigurations) {
+            viewModel.unbindActivityCallbacks()
+        } else if (isFinishing) {
+            viewModel.stopAndClose()
+        } else {
+            viewModel.unbindActivityCallbacks()
+        }
         super.onDestroy()
     }
 }

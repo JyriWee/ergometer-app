@@ -83,6 +83,7 @@ class SessionOrchestrator(
         if (connectInitiated) {
             uiState.pendingSessionStartAfterPermission = false
             uiState.screen.value = AppScreen.CONNECTING
+            connectBleClients()
         }
         dumpUiState("startSessionConnection(connectInitiated=$connectInitiated)")
     }
@@ -93,10 +94,12 @@ class SessionOrchestrator(
     fun onBluetoothPermissionResult(granted: Boolean) {
         if (granted) {
             Log.d("BLE", "BLUETOOTH_CONNECT granted")
-            connectBleClients()
             if (uiState.pendingSessionStartAfterPermission) {
                 uiState.pendingSessionStartAfterPermission = false
                 uiState.screen.value = AppScreen.CONNECTING
+                connectBleClients()
+            } else {
+                Log.d("BLE", "Permission granted without pending session start; connect skipped")
             }
             dumpUiState("permissionResult(granted=true)")
             return
@@ -108,7 +111,7 @@ class SessionOrchestrator(
     }
 
     /**
-     * Called by Activity when permission check already passed.
+     * Opens FTMS and HR links for a pending session-start flow.
      */
     fun connectBleClients() {
         bleClient?.connect(defaultFtmsDeviceMac)
@@ -279,8 +282,12 @@ class SessionOrchestrator(
                 if (!controlPointReady) {
                     ftmsController.onDisconnected()
                 }
-                if (controlPointReady &&
-                    (uiState.screen.value == AppScreen.CONNECTING || !uiState.ftmsControlGranted.value)
+                if (
+                    controlPointReady &&
+                    (
+                        uiState.screen.value == AppScreen.CONNECTING ||
+                            (uiState.screen.value == AppScreen.SESSION && !uiState.ftmsControlGranted.value)
+                    )
                 ) {
                     // New session start must always request control; reconnect paths request only when needed.
                     ftmsController.requestControl()

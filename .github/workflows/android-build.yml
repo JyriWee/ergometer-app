@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  compile-debug-kotlin:
+  build-test-lint:
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -39,3 +39,9 @@ jobs:
 
       - name: Compile Debug Kotlin
         run: ./gradlew :app:compileDebugKotlin --no-daemon --stacktrace
+
+      - name: Run Debug Unit Tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon --stacktrace
+
+      - name: Run Debug Lint
+        run: ./gradlew :app:lintDebug --no-daemon --stacktrace
