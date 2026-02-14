@@ -22,6 +22,10 @@
         <string name="menu_workout_not_selected">No workout file selected</string>
         <string name="menu_workout_selected">Selected: %1$s (%2$d steps)</string>
         <string name="menu_workout_import_failed">Import failed: %1$s</string>
+        <string name="menu_ftp_label">FTP (W)</string>
+        <string name="menu_ftp_placeholder">e.g. 240</string>
+        <string name="menu_ftp_hint">Current FTP: %1$d W</string>
+        <string name="menu_ftp_error_invalid">Enter a positive FTP value.</string>
         <string name="menu_start_session">Start session</string>
 
         <!-- Session -->

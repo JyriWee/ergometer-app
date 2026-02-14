@@ -42,6 +42,8 @@ internal data class MainActivityUiModel(
     val selectedWorkoutImportError: String?,
     val workoutReady: Boolean,
     val ftpWatts: Int,
+    val ftpInputText: String,
+    val ftpInputError: String?,
     val showDebugTimeline: Boolean
 )
 
@@ -53,6 +55,7 @@ internal fun MainActivityContent(
     model: MainActivityUiModel,
     showDebugTools: Boolean,
     onSelectWorkoutFile: () -> Unit,
+    onFtpInputChanged: (String) -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit,
@@ -63,6 +66,7 @@ internal fun MainActivityContent(
             MainDestinationContent(
                 model = model,
                 onSelectWorkoutFile = onSelectWorkoutFile,
+                onFtpInputChanged = onFtpInputChanged,
                 onStartSession = onStartSession,
                 onEndSession = onEndSession,
                 onBackToMenu = onBackToMenu
@@ -77,6 +81,7 @@ internal fun MainActivityContent(
             MainDestinationContent(
                 model = model,
                 onSelectWorkoutFile = onSelectWorkoutFile,
+                onFtpInputChanged = onFtpInputChanged,
                 onStartSession = onStartSession,
                 onEndSession = onEndSession,
                 onBackToMenu = onBackToMenu
@@ -112,6 +117,7 @@ internal fun MainActivityContent(
 private fun MainDestinationContent(
     model: MainActivityUiModel,
     onSelectWorkoutFile: () -> Unit,
+    onFtpInputChanged: (String) -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit
@@ -124,8 +130,11 @@ private fun MainDestinationContent(
                 selectedWorkoutImportError = model.selectedWorkoutImportError,
                 selectedWorkout = model.selectedWorkout,
                 ftpWatts = model.ftpWatts,
+                ftpInputText = model.ftpInputText,
+                ftpInputError = model.ftpInputError,
                 startEnabled = model.workoutReady,
                 onSelectWorkoutFile = onSelectWorkoutFile,
+                onFtpInputChanged = onFtpInputChanged,
                 onStartSession = onStartSession
             )
         }

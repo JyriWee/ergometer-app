@@ -20,8 +20,12 @@ import com.example.ergometerapp.ui.MainActivityUiModel
 class MainActivity : ComponentActivity() {
     private val defaultHrDeviceMac = BuildConfig.DEFAULT_HR_DEVICE_MAC
     private val defaultFtpWatts = BuildConfig.DEFAULT_FTP_WATTS.coerceAtLeast(1)
+    private val ftpInputMaxLength = 4
 
     private val uiState = AppUiState()
+    private val ftpWattsState = androidx.compose.runtime.mutableStateOf(defaultFtpWatts)
+    private val ftpInputTextState = androidx.compose.runtime.mutableStateOf(defaultFtpWatts.toString())
+    private val ftpInputErrorState = androidx.compose.runtime.mutableStateOf<String?>(null)
 
     private lateinit var hrClient: HrBleClient
     private lateinit var sessionManager: SessionManager
@@ -41,6 +45,11 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        val storedFtpWatts = FtpSettingsStorage.loadFtpWatts(this, defaultFtpWatts)
+        ftpWattsState.value = storedFtpWatts
+        ftpInputTextState.value = storedFtpWatts.toString()
+        ftpInputErrorState.value = null
+
         sessionManager = SessionManager(this) { state ->
             uiState.session.value = state
         }
@@ -58,7 +67,8 @@ class MainActivity : ComponentActivity() {
             connectHeartRate = { hrClient.connect(defaultHrDeviceMac) },
             closeHeartRate = { hrClient.close() },
             keepScreenOn = { keepScreenOn() },
-            allowScreenOff = { allowScreenOff() }
+            allowScreenOff = { allowScreenOff() },
+            currentFtpWatts = { ftpWattsState.value },
         )
         sessionOrchestrator.initialize()
 
@@ -79,11 +89,14 @@ class MainActivity : ComponentActivity() {
                     selectedWorkoutStepCount = uiState.selectedWorkoutStepCount.value,
                     selectedWorkoutImportError = uiState.selectedWorkoutImportError.value,
                     workoutReady = uiState.workoutReady.value,
-                    ftpWatts = defaultFtpWatts,
+                    ftpWatts = ftpWattsState.value,
+                    ftpInputText = ftpInputTextState.value,
+                    ftpInputError = ftpInputErrorState.value,
                     showDebugTimeline = uiState.showDebugTimeline.value
                 ),
                 showDebugTools = BuildConfig.DEBUG,
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
+                onFtpInputChanged = { input -> onFtpInputChanged(input) },
                 onStartSession = { sessionOrchestrator.startSessionConnection() },
                 onEndSession = { sessionOrchestrator.endSessionAndGoToSummary() },
                 onBackToMenu = {
@@ -97,6 +110,22 @@ class MainActivity : ComponentActivity() {
         }
 
         ensureBluetoothPermission()
+    }
+
+    /**
+     * Accepts only positive numeric FTP input and persists the latest valid value.
+     */
+    private fun onFtpInputChanged(rawInput: String) {
+        val sanitized = rawInput.filter { it.isDigit() }.take(ftpInputMaxLength)
+        ftpInputTextState.value = sanitized
+        val parsed = sanitized.toIntOrNull()
+        if (parsed == null || parsed <= 0) {
+            ftpInputErrorState.value = getString(R.string.menu_ftp_error_invalid)
+            return
+        }
+        ftpInputErrorState.value = null
+        ftpWattsState.value = parsed
+        FtpSettingsStorage.saveFtpWatts(this, parsed)
     }
 
     /**

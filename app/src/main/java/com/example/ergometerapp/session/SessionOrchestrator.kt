@@ -38,10 +38,10 @@ class SessionOrchestrator(
     private val closeHeartRate: () -> Unit,
     private val keepScreenOn: () -> Unit,
     private val allowScreenOff: () -> Unit,
+    private val currentFtpWatts: () -> Int,
     private val workoutImportService: WorkoutImportService = WorkoutImportService()
 ) {
     private val defaultFtmsDeviceMac = BuildConfig.DEFAULT_FTMS_DEVICE_MAC
-    private val defaultFtpWatts = BuildConfig.DEFAULT_FTP_WATTS.coerceAtLeast(1)
 
     private var bleClient: FtmsBleClient? = null
     private lateinit var ftmsController: FtmsController
@@ -458,7 +458,8 @@ class SessionOrchestrator(
      * Prefers strict execution mapping while preserving legacy fallback for unsupported steps.
      */
     private fun createRunnerStepper(workout: WorkoutFile): WorkoutStepper {
-        return when (val mapped = ExecutionWorkoutMapper.map(workout, ftp = defaultFtpWatts)) {
+        val ftpWatts = currentFtpWatts().coerceAtLeast(1)
+        return when (val mapped = ExecutionWorkoutMapper.map(workout, ftp = ftpWatts)) {
             is MappingResult.Success -> {
                 WorkoutStepper.fromExecutionWorkout(mapped.workout)
             }
@@ -466,7 +467,7 @@ class SessionOrchestrator(
             is MappingResult.Failure -> {
                 val summary = mapped.errors.joinToString(separator = ", ") { it.code.name }
                 Log.w("WORKOUT", "Execution mapping failed; falling back to legacy stepper: $summary")
-                WorkoutStepper(workout, ftpWatts = defaultFtpWatts)
+                WorkoutStepper(workout, ftpWatts = ftpWatts)
             }
         }
     }
