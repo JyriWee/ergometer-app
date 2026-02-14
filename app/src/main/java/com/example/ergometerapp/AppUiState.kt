@@ -4,6 +4,7 @@ import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateOf
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.RunnerState
 
 /**
@@ -23,9 +24,15 @@ class AppUiState {
     val lastTargetPower: MutableState<Int?> = mutableStateOf(null)
     val runner: MutableState<RunnerState> = mutableStateOf(RunnerState.stopped())
     val showDebugTimeline: MutableState<Boolean> = mutableStateOf(false)
+    val selectedWorkout: MutableState<WorkoutFile?> = mutableStateOf(null)
+    val selectedWorkoutFileName: MutableState<String?> = mutableStateOf(null)
+    val selectedWorkoutStepCount: MutableState<Int?> = mutableStateOf(null)
+    val selectedWorkoutImportError: MutableState<String?> = mutableStateOf(null)
+    val workoutReady: MutableState<Boolean> = mutableStateOf(false)
 
     var reconnectBleOnNextSessionStart: Boolean = false
     var awaitingStopResponseBeforeBleClose: Boolean = false
     var pendingSessionStartAfterPermission: Boolean = false
+    var pendingCadenceStartAfterControlGranted: Boolean = false
+    var autoPausedByZeroCadence: Boolean = false
 }
-

@@ -2,10 +2,13 @@ package com.example.ergometerapp.workout.runner
 
 import com.example.ergometerapp.workout.CadenceTarget
 import com.example.ergometerapp.workout.ExecutionSegment
+import com.example.ergometerapp.workout.ExecutionWorkoutMapper
 import com.example.ergometerapp.workout.ExecutionWorkout
+import com.example.ergometerapp.workout.MappingResult
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
 import org.junit.Test
 
 class WorkoutStepperElapsedProgressTest {
@@ -65,6 +68,82 @@ class WorkoutStepperElapsedProgressTest {
 
         assertEquals(listOf(0, 1, 2, 3), observed.activeElapsedSec)
         assertEquals(4, observed.doneElapsedSec)
+    }
+
+    @Test
+    fun legacyIntervalsExposeStepAndPartRemaining() {
+        val workout = WorkoutFile(
+            name = "Intervals",
+            description = null,
+            author = null,
+            tags = emptyList(),
+            steps = listOf(
+                Step.IntervalsT(
+                    onDurationSec = 2,
+                    offDurationSec = 3,
+                    onPower = 0.8,
+                    offPower = 0.5,
+                    repeat = 2,
+                    cadence = null,
+                ),
+            ),
+        )
+        val stepper = WorkoutStepper(workout = workout, ftpWatts = 200)
+
+        stepper.start()
+        val start = stepper.tick(0L)
+        assertEquals(10, start.stepRemainingSec)
+        assertNotNull(start.intervalPart)
+        assertEquals(IntervalPartPhase.ON, start.intervalPart?.phase)
+        assertEquals(1, start.intervalPart?.repIndex)
+        assertEquals(2, start.intervalPart?.repTotal)
+        assertEquals(2, start.intervalPart?.remainingSec)
+
+        val second = stepper.tick(1000L)
+        assertEquals(9, second.stepRemainingSec)
+        assertEquals(IntervalPartPhase.ON, second.intervalPart?.phase)
+        assertEquals(1, second.intervalPart?.remainingSec)
+
+        val transitionToOff = stepper.tick(2000L)
+        assertEquals(8, transitionToOff.stepRemainingSec)
+        assertEquals(IntervalPartPhase.OFF, transitionToOff.intervalPart?.phase)
+        assertEquals(3, transitionToOff.intervalPart?.remainingSec)
+    }
+
+    @Test
+    fun executionIntervalsExposeStepAndPartRemaining() {
+        val source = WorkoutFile(
+            name = "Intervals",
+            description = null,
+            author = null,
+            tags = emptyList(),
+            steps = listOf(
+                Step.IntervalsT(
+                    onDurationSec = 2,
+                    offDurationSec = 3,
+                    onPower = 0.8,
+                    offPower = 0.5,
+                    repeat = 2,
+                    cadence = null,
+                ),
+            ),
+        )
+        val mapped = ExecutionWorkoutMapper.map(source, ftp = 200) as MappingResult.Success
+        val stepper = WorkoutStepper.fromExecutionWorkout(mapped.workout)
+
+        stepper.start()
+        val start = stepper.tick(0L)
+        assertEquals(10, start.stepRemainingSec)
+        assertEquals(IntervalPartPhase.ON, start.intervalPart?.phase)
+        assertEquals(1, start.intervalPart?.repIndex)
+        assertEquals(2, start.intervalPart?.repTotal)
+        assertEquals(2, start.intervalPart?.remainingSec)
+
+        val transitionToOff = stepper.tick(2000L)
+        assertEquals(8, transitionToOff.stepRemainingSec)
+        assertEquals(IntervalPartPhase.OFF, transitionToOff.intervalPart?.phase)
+        assertEquals(1, transitionToOff.intervalPart?.repIndex)
+        assertEquals(3, transitionToOff.intervalPart?.remainingSec)
     }
 
     private fun runSecondBySecondElapsed(stepper: WorkoutStepper): ObservedElapsed {

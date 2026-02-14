@@ -54,6 +54,8 @@ class WorkoutRunner(
                 targetPowerWatts = null,
                 targetCadence = null,
                 workoutElapsedSec = 0,
+                stepRemainingSec = null,
+                intervalPart = null,
             )
         )
         handler.post(tickRunnable)
@@ -90,6 +92,8 @@ class WorkoutRunner(
                 paused = state.paused,
                 done = false,
                 workoutElapsedSec = stepper.currentElapsedSec(),
+                stepRemainingSec = null,
+                intervalPart = null,
             )
         )
     }
@@ -120,12 +124,16 @@ class WorkoutRunner(
             targetPowerWatts = output.targetPowerWatts,
             targetCadence = output.targetCadence,
             workoutElapsedSec = output.elapsedSec,
+            stepRemainingSec = output.stepRemainingSec,
+            intervalPart = output.intervalPart,
         )
         val labelTargetOrProgressChanged =
             nextState.label != state.label ||
                 nextState.targetPowerWatts != state.targetPowerWatts ||
                 nextState.targetCadence != state.targetCadence ||
-                nextState.workoutElapsedSec != state.workoutElapsedSec
+                nextState.workoutElapsedSec != state.workoutElapsedSec ||
+                nextState.stepRemainingSec != state.stepRemainingSec ||
+                nextState.intervalPart != state.intervalPart
         state = nextState
         if (labelTargetOrProgressChanged) {
             onStateChanged(nextState)

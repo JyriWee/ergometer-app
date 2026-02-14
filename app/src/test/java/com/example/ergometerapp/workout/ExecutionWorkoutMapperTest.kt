@@ -117,9 +117,11 @@ class ExecutionWorkoutMapperTest {
         assertEquals(5, firstOn.durationSec)
         assertEquals(180, firstOn.targetWatts)
         assertEquals(CadenceTarget.FixedCadence(95), firstOn.cadence)
+        assertEquals(IntervalSegmentMetadata(IntervalPhase.ON, 1, 3), firstOn.intervalMetadata)
         assertEquals(10, firstOff.durationSec)
         assertEquals(100, firstOff.targetWatts)
         assertEquals(CadenceTarget.FixedCadence(95), firstOff.cadence)
+        assertEquals(IntervalSegmentMetadata(IntervalPhase.OFF, 1, 3), firstOff.intervalMetadata)
     }
 
     @Test

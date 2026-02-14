@@ -18,14 +18,16 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -35,15 +37,20 @@ import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
 import com.example.ergometerapp.ui.components.WorkoutProfileChart
+import com.example.ergometerapp.ui.components.buildWorkoutProfileSegments
 import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
 import com.example.ergometerapp.workout.WorkoutFile
+import com.example.ergometerapp.workout.runner.IntervalPartPhase
 import com.example.ergometerapp.workout.runner.RunnerState
 import java.util.Locale
 
 private val WideLayoutMinWidth = 900.dp
+private val PrimaryMetricsStackWidth = 560.dp
 private val MenuMaxContentWidth = 560.dp
 private val SessionMaxContentWidth = 1200.dp
 private val SummaryMaxContentWidth = 920.dp
+private val SessionStickyActionBottomPadding = 96.dp
+private val SessionWorkoutChartHeight = 220.dp
 
 private data class MetricItem(
     val label: String,
@@ -187,7 +194,6 @@ internal fun SessionScreen(
     phase: SessionPhase,
     bikeData: IndoorBikeData?,
     heartRate: Int?,
-    durationSeconds: Int?,
     ftmsReady: Boolean,
     ftmsControlGranted: Boolean,
     selectedWorkout: WorkoutFile?,
@@ -202,29 +208,27 @@ internal fun SessionScreen(
 
     val unknown = stringResource(R.string.value_unknown)
     val effectiveHr = heartRate ?: bikeData?.heartRateBpm
-    val elapsedTime = formatTime(durationSeconds, unknown)
+    val totalWorkoutSec = remember(selectedWorkout) {
+        selectedWorkout?.let { workout ->
+            buildWorkoutProfileSegments(workout).sumOf { it.durationSec }
+        }
+    }
+    val elapsedWorkoutSec = runnerState.workoutElapsedSec?.coerceAtLeast(0) ?: 0
+    val remainingWorkoutSec = totalWorkoutSec?.let { total ->
+        (total - elapsedWorkoutSec).coerceAtLeast(0)
+    }
+    val workoutComplete = totalWorkoutSec != null &&
+        totalWorkoutSec > 0 &&
+        remainingWorkoutSec == 0
 
-    val ftmsStatusText =
-        if (ftmsReady) stringResource(R.string.status_ready)
-        else stringResource(R.string.status_connecting)
+    val cadenceRpm = bikeData?.instantaneousCadenceRpm
 
-    val controlStatusText =
-        if (ftmsControlGranted) stringResource(R.string.status_control)
-        else stringResource(R.string.status_unavailable)
-
-    val metrics = listOf(
-        MetricItem(
-            label = stringResource(R.string.session_power_label),
-            value = stringResource(
-                R.string.session_power_value,
-                format0(bikeData?.instantaneousPowerW, unknown)
-            )
-        ),
+    val secondaryMetrics = listOf(
         MetricItem(
             label = stringResource(R.string.session_cadence_label),
             value = stringResource(
                 R.string.session_cadence_value,
-                format1(bikeData?.instantaneousCadenceRpm, unknown)
+                format1(cadenceRpm, unknown)
             )
         ),
         MetricItem(
@@ -235,13 +239,28 @@ internal fun SessionScreen(
             )
         ),
         MetricItem(
-            label = stringResource(R.string.session_hr_label),
+            label = stringResource(R.string.summary_distance),
             value = stringResource(
-                R.string.session_hr_value,
-                format0(effectiveHr, unknown)
+                R.string.summary_distance_value,
+                format0(bikeData?.totalDistanceMeters, unknown)
+            )
+        ),
+        MetricItem(
+            label = stringResource(R.string.session_target_label),
+            value = stringResource(
+                R.string.session_target_value,
+                format0(lastTargetPower, unknown)
             )
         )
     )
+    val sessionIssues = buildList {
+        if (!ftmsReady) {
+            add(stringResource(R.string.session_issue_ftms_not_ready))
+        }
+        if (ftmsReady && !ftmsControlGranted) {
+            add(stringResource(R.string.session_issue_control_missing))
+        }
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -249,6 +268,7 @@ internal fun SessionScreen(
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         val isWide = maxWidth >= WideLayoutMinWidth
+        val stackPrimaryMetrics = maxWidth < PrimaryMetricsStackWidth
 
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -256,136 +276,236 @@ internal fun SessionScreen(
         ) {
             Column(
                 modifier = Modifier
+                    .fillMaxSize()
                     .fillMaxWidth()
-                    .widthIn(max = SessionMaxContentWidth)
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+                    .widthIn(max = SessionMaxContentWidth),
             ) {
-                ElevatedCard {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = stringResource(R.string.session_title),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = stringResource(R.string.session_phase, phaseLabel(phase)),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-
-                        Column(
-                            horizontalAlignment = Alignment.End,
-                            verticalArrangement = Arrangement.spacedBy(2.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.session_elapsed_time),
-                                style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Text(
-                                text = elapsedTime,
-                                style = MaterialTheme.typography.headlineSmall,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                        }
-                    }
-                }
-
-                if (isWide) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.Top
-                    ) {
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            TelemetrySection(
-                                bikeData = bikeData,
-                                metrics = metrics,
-                                isWide = true
-                            )
-                            MachineStatusSection(
-                                ftmsStatusText = ftmsStatusText,
-                                controlStatusText = controlStatusText,
-                                lastTargetPower = lastTargetPower,
-                                unknown = unknown
-                            )
-                            WorkoutProfileSection(
-                                selectedWorkout = selectedWorkout,
-                                ftpWatts = ftpWatts,
-                                workoutElapsedSec = runnerState.workoutElapsedSec,
-                            )
-                        }
-
-                        Column(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(16.dp)
-                        ) {
-                            WorkoutControlsSection(
-                                runnerState = runnerState,
-                                onEndSession = onEndSession,
-                                endSessionEnabled = phase == SessionPhase.RUNNING,
-                                unknown = unknown
-                            )
-                        }
-                    }
-                } else {
-                    TelemetrySection(
-                        bikeData = bikeData,
-                        metrics = metrics,
-                        isWide = false
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .padding(bottom = SessionStickyActionBottomPadding),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    PrimaryMetricsSection(
+                        powerValue = stringResource(
+                            R.string.session_power_value,
+                            format0(bikeData?.instantaneousPowerW, unknown)
+                        ),
+                        heartRateValue = stringResource(
+                            R.string.session_hr_value,
+                            format0(effectiveHr, unknown)
+                        ),
+                        stackCards = stackPrimaryMetrics,
                     )
 
-                    MachineStatusSection(
-                        ftmsStatusText = ftmsStatusText,
-                        controlStatusText = controlStatusText,
-                        lastTargetPower = lastTargetPower,
-                        unknown = unknown
-                    )
-
-                    WorkoutProfileSection(
+                    WorkoutProgressSection(
                         selectedWorkout = selectedWorkout,
                         ftpWatts = ftpWatts,
-                        workoutElapsedSec = runnerState.workoutElapsedSec,
+                        runnerState = runnerState,
+                        phase = phase,
+                        cadenceRpm = cadenceRpm,
+                        elapsedText = formatTime(elapsedWorkoutSec, unknown),
+                        remainingText = formatTime(remainingWorkoutSec, unknown),
+                        unknown = unknown,
+                        workoutComplete = workoutComplete,
                     )
 
-                    WorkoutControlsSection(
-                        runnerState = runnerState,
-                        onEndSession = onEndSession,
-                        endSessionEnabled = phase == SessionPhase.RUNNING,
-                        unknown = unknown
+                    if (sessionIssues.isNotEmpty()) {
+                        SessionIssuesSection(messages = sessionIssues)
+                    }
+
+                    SecondaryMetricsSection(
+                        metrics = secondaryMetrics,
+                        columns = if (isWide) 2 else 1
                     )
                 }
+            }
+
+            Button(
+                onClick = onEndSession,
+                enabled = phase == SessionPhase.RUNNING,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .widthIn(max = SessionMaxContentWidth)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                colors = disabledVisibleButtonColors()
+            ) {
+                Text(stringResource(R.string.btn_quit_session_now))
             }
         }
     }
 }
 
 @Composable
-private fun WorkoutProfileSection(
+private fun PrimaryMetricsSection(
+    powerValue: String,
+    heartRateValue: String,
+    stackCards: Boolean,
+) {
+    if (stackCards) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            PrimaryMetricCard(
+                label = stringResource(R.string.session_power_label),
+                value = powerValue,
+                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+                modifier = Modifier.fillMaxWidth()
+            )
+            PrimaryMetricCard(
+                label = stringResource(R.string.session_hr_label),
+                value = heartRateValue,
+                containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+        return
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        PrimaryMetricCard(
+            label = stringResource(R.string.session_power_label),
+            value = powerValue,
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.85f),
+            modifier = Modifier.weight(1f)
+        )
+        PrimaryMetricCard(
+            label = stringResource(R.string.session_hr_label),
+            value = heartRateValue,
+            containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f),
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun PrimaryMetricCard(
+    label: String,
+    value: String,
+    containerColor: Color,
+    modifier: Modifier = Modifier,
+) {
+    ElevatedCard(
+        modifier = modifier,
+        colors = CardDefaults.elevatedCardColors(containerColor = containerColor)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkoutProgressSection(
     selectedWorkout: WorkoutFile?,
     ftpWatts: Int,
-    workoutElapsedSec: Int?,
+    runnerState: RunnerState,
+    phase: SessionPhase,
+    cadenceRpm: Double?,
+    elapsedText: String,
+    remainingText: String,
+    unknown: String,
+    workoutComplete: Boolean,
 ) {
-    if (selectedWorkout == null) return
     SectionCard(title = stringResource(R.string.session_workout_title)) {
-        WorkoutProfileChart(
-            workout = selectedWorkout,
-            ftpWatts = ftpWatts,
-            elapsedSec = workoutElapsedSec,
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MetricCard(
+                label = stringResource(R.string.session_elapsed),
+                value = elapsedText,
+                modifier = Modifier.weight(1f)
+            )
+            MetricCard(
+                label = stringResource(R.string.session_remaining),
+                value = remainingText,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        LabeledValueRow(
+            label = stringResource(R.string.session_state_label),
+            value = sessionStateLabel(
+                phase = phase,
+                runnerState = runnerState,
+                cadenceRpm = cadenceRpm,
+            ),
         )
+
+        LabeledValueRow(
+            label = stringResource(R.string.session_workout_step),
+            value = workoutStepLabel(
+                phase = phase,
+                runnerState = runnerState,
+                cadenceRpm = cadenceRpm,
+                unknown = unknown,
+            )
+        )
+
+        LabeledValueRow(
+            label = stringResource(R.string.session_workout_step_remaining),
+            value = formatTime(runnerState.stepRemainingSec, unknown),
+        )
+
+        val intervalPart = runnerState.intervalPart
+        if (intervalPart != null) {
+            LabeledValueRow(
+                label = stringResource(R.string.session_workout_interval),
+                value = intervalProgressLabel(
+                    phase = intervalPart.phase,
+                    repIndex = intervalPart.repIndex,
+                    repTotal = intervalPart.repTotal,
+                    remainingText = formatTime(intervalPart.remainingSec, unknown),
+                ),
+            )
+        }
+
+        LabeledValueRow(
+            label = stringResource(R.string.session_workout_target_cadence),
+            value = stringResource(
+                R.string.session_workout_target_cadence_value,
+                format0(runnerState.targetCadence, unknown)
+            )
+        )
+
+        if (workoutComplete) {
+            Text(
+                text = stringResource(R.string.session_workout_complete),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        if (selectedWorkout != null) {
+            WorkoutProfileChart(
+                workout = selectedWorkout,
+                ftpWatts = ftpWatts,
+                elapsedSec = runnerState.workoutElapsedSec,
+                chartHeight = SessionWorkoutChartHeight
+            )
+        }
     }
 }
 
@@ -512,90 +632,116 @@ internal fun SummaryScreen(
 }
 
 @Composable
-private fun TelemetrySection(
-    bikeData: IndoorBikeData?,
+private fun SessionIssuesSection(
+    messages: List<String>
+) {
+    SectionCard(title = stringResource(R.string.session_issue_title)) {
+        messages.forEach { message ->
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+@Composable
+private fun SecondaryMetricsSection(
     metrics: List<MetricItem>,
-    isWide: Boolean
+    columns: Int
 ) {
     SectionCard(title = stringResource(R.string.session_title)) {
-        if (bikeData == null) {
-            Text(
-                text = stringResource(R.string.session_waiting),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
         MetricsGrid(
             items = metrics,
-            columns = if (isWide) 2 else 1
+            columns = columns
         )
     }
 }
 
 @Composable
-private fun MachineStatusSection(
-    ftmsStatusText: String,
-    controlStatusText: String,
-    lastTargetPower: Int?,
-    unknown: String
-) {
-    SectionCard(title = stringResource(R.string.session_status_title)) {
-        LabeledValueRow(
-            label = stringResource(R.string.session_status_ftms),
-            value = ftmsStatusText
-        )
-
-        LabeledValueRow(
-            label = stringResource(R.string.session_status_control),
-            value = controlStatusText
-        )
-
-        LabeledValueRow(
-            label = stringResource(R.string.session_target_label),
-            value = stringResource(
-                R.string.session_target_value,
-                format0(lastTargetPower, unknown)
-            )
-        )
-    }
-}
-
-@Composable
-private fun WorkoutControlsSection(
+private fun sessionStateLabel(
+    phase: SessionPhase,
     runnerState: RunnerState,
-    onEndSession: () -> Unit,
-    endSessionEnabled: Boolean,
-    unknown: String
-) {
-    SectionCard(title = stringResource(R.string.session_workout_title)) {
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_state),
-            value = workoutStateLabel(runnerState)
-        )
+    cadenceRpm: Double?,
+): String {
+    if (phase != SessionPhase.RUNNING) {
+        return phaseLabel(phase)
+    }
+    if (isWaitingStartState(phase = phase, runnerState = runnerState, cadenceRpm = cadenceRpm)) {
+        return stringResource(R.string.session_state_waiting)
+    }
+    return workoutStateLabel(runnerState)
+}
 
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_step),
-            value = runnerState.label ?: unknown
-        )
+@Composable
+private fun workoutStepLabel(
+    phase: SessionPhase,
+    runnerState: RunnerState,
+    cadenceRpm: Double?,
+    unknown: String,
+): String {
+    if (isWaitingStartState(phase = phase, runnerState = runnerState, cadenceRpm = cadenceRpm)) {
+        return stringResource(R.string.session_workout_step_start)
+    }
+    return runnerState.label ?: unknown
+}
 
-        LabeledValueRow(
-            label = stringResource(R.string.session_workout_target_cadence),
-            value = stringResource(
-                R.string.session_workout_target_cadence_value,
-                format0(runnerState.targetCadence, unknown)
-            )
-        )
+private fun isWaitingStartState(
+    phase: SessionPhase,
+    runnerState: RunnerState,
+    cadenceRpm: Double?,
+): Boolean {
+    if (phase != SessionPhase.RUNNING) return false
+    val elapsedSec = runnerState.workoutElapsedSec ?: 0
+    return !runnerState.running &&
+        (cadenceRpm ?: 0.0) <= 0.0 &&
+        elapsedSec == 0
+}
 
-        HorizontalDivider()
+@Composable
+private fun intervalProgressLabel(
+    phase: IntervalPartPhase,
+    repIndex: Int,
+    repTotal: Int,
+    remainingText: String,
+): String {
+    val phaseLabel = when (phase) {
+        IntervalPartPhase.ON -> stringResource(R.string.session_workout_interval_phase_on)
+        IntervalPartPhase.OFF -> stringResource(R.string.session_workout_interval_phase_off)
+    }
+    return stringResource(
+        R.string.session_workout_interval_progress,
+        phaseLabel,
+        repIndex,
+        repTotal,
+        remainingText,
+    )
+}
 
-        Button(
-            onClick = onEndSession,
-            enabled = endSessionEnabled,
-            modifier = Modifier.fillMaxWidth(),
-            colors = disabledVisibleButtonColors()
-        ) {
-            Text(stringResource(R.string.btn_end_session))
-        }
+@Composable
+private fun phaseLabel(phase: SessionPhase): String {
+    return when (phase) {
+        SessionPhase.IDLE -> stringResource(R.string.session_phase_idle)
+        SessionPhase.RUNNING -> stringResource(R.string.session_phase_running)
+        SessionPhase.STOPPED -> stringResource(R.string.session_phase_stopped)
+    }
+}
+
+@Composable
+private fun workoutStateLabel(runnerState: RunnerState): String {
+    return when {
+        runnerState.running && runnerState.paused ->
+            stringResource(R.string.session_workout_state_paused)
+
+        runnerState.running ->
+            stringResource(R.string.session_workout_state_running)
+
+        runnerState.done ->
+            stringResource(R.string.session_workout_state_done)
+
+        else ->
+            stringResource(R.string.session_workout_state_stopped)
     }
 }
 
@@ -714,32 +860,6 @@ private fun LabeledValueRow(
     }
 }
 
-@Composable
-private fun phaseLabel(phase: SessionPhase): String {
-    return when (phase) {
-        SessionPhase.IDLE -> stringResource(R.string.session_phase_idle)
-        SessionPhase.RUNNING -> stringResource(R.string.session_phase_running)
-        SessionPhase.STOPPED -> stringResource(R.string.session_phase_stopped)
-    }
-}
-
-@Composable
-private fun workoutStateLabel(runnerState: RunnerState): String {
-    return when {
-        runnerState.running && runnerState.paused ->
-            stringResource(R.string.session_workout_state_paused)
-
-        runnerState.running ->
-            stringResource(R.string.session_workout_state_running)
-
-        runnerState.done ->
-            stringResource(R.string.session_workout_state_done)
-
-        else ->
-            stringResource(R.string.session_workout_state_stopped)
-    }
-}
-
 private fun format1(value: Double?, fallback: String): String {
     return value?.let { String.format(Locale.getDefault(), "%.1f", it) } ?: fallback
 }
@@ -749,11 +869,11 @@ private fun format0(value: Int?, fallback: String): String {
 }
 
 /**
- * Formats seconds as `M:SS` for human readability.
+ * Formats seconds as `mm:ss` for human readability.
  */
 private fun formatTime(seconds: Int?, fallback: String): String {
     val safeSeconds = seconds ?: return fallback
     val minutes = safeSeconds / 60
     val remainingSeconds = safeSeconds % 60
-    return String.format(Locale.getDefault(), "%d:%02d", minutes, remainingSeconds)
+    return String.format(Locale.getDefault(), "%02d:%02d", minutes, remainingSeconds)
 }

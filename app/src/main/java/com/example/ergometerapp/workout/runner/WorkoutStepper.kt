@@ -3,6 +3,7 @@ package com.example.ergometerapp.workout.runner
 import com.example.ergometerapp.workout.ExecutionWorkout
 import com.example.ergometerapp.workout.ExecutionSegment
 import com.example.ergometerapp.workout.CadenceTarget
+import com.example.ergometerapp.workout.IntervalPhase
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
 import kotlin.math.roundToInt
@@ -238,6 +239,8 @@ class WorkoutStepper private constructor(
                 done = true,
                 label = "Done",
                 elapsedSec = currentElapsedSec(),
+                stepRemainingSec = null,
+                intervalPart = null,
             )
         }
 
@@ -261,6 +264,8 @@ class WorkoutStepper private constructor(
                     done = true,
                     label = "Done",
                     elapsedSec = currentElapsedSec(),
+                    stepRemainingSec = null,
+                    intervalPart = null,
                 )
             }
 
@@ -293,6 +298,8 @@ class WorkoutStepper private constructor(
                 done = true,
                 label = "Done",
                 elapsedSec = currentElapsedSec(),
+                stepRemainingSec = null,
+                intervalPart = null,
             )
         }
         val step = workout.steps[state.stepIndex]
@@ -311,6 +318,40 @@ class WorkoutStepper private constructor(
             done = false,
             label = label,
             elapsedSec = currentElapsedSec(),
+            stepRemainingSec = legacyStepRemainingSec(step),
+            intervalPart = legacyIntervalPartProgress(step),
+        )
+    }
+
+    private fun legacyStepRemainingSec(step: Step): Int? {
+        val totalDurationMs = stepTotalDurationMs(step)
+        if (totalDurationMs <= 0L) return null
+        val elapsedMs = currentStepElapsedMs(step).coerceIn(0L, totalDurationMs)
+        return remainingSec(
+            durationMs = totalDurationMs,
+            elapsedMs = elapsedMs,
+        )
+    }
+
+    private fun legacyIntervalPartProgress(step: Step): IntervalPartProgress? {
+        if (step !is Step.IntervalsT) return null
+        val onDurationMs = step.onDurationSec?.toLong()?.times(1000L)?.takeIf { it > 0L } ?: return null
+        val offDurationMs = step.offDurationSec?.toLong()?.times(1000L)?.takeIf { it > 0L } ?: return null
+        val repTotal = step.repeat?.takeIf { it > 0 } ?: return null
+
+        val phaseDurationMs = if (state.inOn) onDurationMs else offDurationMs
+        val phaseElapsedMs = state.stepElapsedMs.coerceIn(0L, phaseDurationMs)
+        val repIndex = (state.intervalRep + 1).coerceIn(1, repTotal)
+        val phase = if (state.inOn) IntervalPartPhase.ON else IntervalPartPhase.OFF
+
+        return IntervalPartProgress(
+            phase = phase,
+            repIndex = repIndex,
+            repTotal = repTotal,
+            remainingSec = remainingSec(
+                durationMs = phaseDurationMs,
+                elapsedMs = phaseElapsedMs,
+            ),
         )
     }
 
@@ -479,6 +520,8 @@ class WorkoutStepper private constructor(
                 done = true,
                 label = "Done",
                 elapsedSec = currentElapsedSec(),
+                stepRemainingSec = null,
+                intervalPart = null,
             )
         }
 
@@ -509,6 +552,8 @@ class WorkoutStepper private constructor(
                 done = true,
                 label = "Done",
                 elapsedSec = currentElapsedSec(),
+                stepRemainingSec = null,
+                intervalPart = null,
             )
         }
 
@@ -523,6 +568,8 @@ class WorkoutStepper private constructor(
                 done = true,
                 label = "Done",
                 elapsedSec = currentElapsedSec(),
+                stepRemainingSec = null,
+                intervalPart = null,
             )
         }
 
@@ -533,6 +580,48 @@ class WorkoutStepper private constructor(
             done = false,
             label = executionLabel(segment),
             elapsedSec = currentElapsedSec(),
+            stepRemainingSec = executionStepRemainingSec(),
+            intervalPart = executionIntervalPartProgress(segment),
+        )
+    }
+
+    private fun executionStepRemainingSec(): Int? {
+        val segments = requireExecutionWorkout().segments
+        if (executionCurrentSegmentIndex !in segments.indices) return null
+
+        val currentSegment = segments[executionCurrentSegmentIndex]
+        val currentDurationMs = currentSegment.durationSec.coerceAtLeast(0).toLong() * 1000L
+        var totalRemainingSec = remainingSec(
+            durationMs = currentDurationMs,
+            elapsedMs = state.stepElapsedMs.coerceAtLeast(0L),
+        )
+
+        var nextIndex = executionCurrentSegmentIndex + 1
+        while (nextIndex < segments.size &&
+            segments[nextIndex].sourceStepIndex == currentSegment.sourceStepIndex
+        ) {
+            totalRemainingSec += segments[nextIndex].durationSec.coerceAtLeast(0)
+            nextIndex += 1
+        }
+        return totalRemainingSec
+    }
+
+    private fun executionIntervalPartProgress(segment: ExecutionSegment): IntervalPartProgress? {
+        val metadata = segment.intervalMetadata ?: return null
+        val repTotal = metadata.repTotal.coerceAtLeast(1)
+        val repIndex = metadata.repIndex.coerceIn(1, repTotal)
+        val phase = when (metadata.phase) {
+            IntervalPhase.ON -> IntervalPartPhase.ON
+            IntervalPhase.OFF -> IntervalPartPhase.OFF
+        }
+        return IntervalPartProgress(
+            phase = phase,
+            repIndex = repIndex,
+            repTotal = repTotal,
+            remainingSec = remainingSec(
+                durationMs = segment.durationSec.coerceAtLeast(0).toLong() * 1000L,
+                elapsedMs = state.stepElapsedMs.coerceAtLeast(0L),
+            ),
         )
     }
 
@@ -597,5 +686,11 @@ class WorkoutStepper private constructor(
             ?: throw UnsupportedOperationException(
                 "ExecutionWorkout path is not available in legacy mode.",
             )
+    }
+
+    private fun remainingSec(durationMs: Long, elapsedMs: Long): Int {
+        if (durationMs <= 0L) return 0
+        val remainingMs = (durationMs - elapsedMs).coerceAtLeast(0L)
+        return ((remainingMs + 999L) / 1000L).toInt()
     }
 }
