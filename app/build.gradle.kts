@@ -9,6 +9,10 @@ val defaultHrDeviceMac = providers.gradleProperty("ergometer.hr.mac")
     .orElse("24:AC:AC:04:12:79")
 val defaultFtpWatts = providers.gradleProperty("ergometer.ftp.watts")
     .orElse("100")
+val releaseMinifyEnabled = providers.gradleProperty("ergometer.release.minify")
+    .orElse("true")
+val allowDebugSigningForRelease = providers.gradleProperty("ergometer.release.debugSigning")
+    .orElse("false")
 
 android {
     namespace = "com.example.ergometerapp"
@@ -30,24 +34,26 @@ android {
     }
     buildFeatures {
         buildConfig = true
+        compose = true
     }
-    
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = releaseMinifyEnabled.get().toBoolean()
+            isShrinkResources = isMinifyEnabled
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            if (allowDebugSigningForRelease.get().toBoolean()) {
+                // Internal-only escape hatch. Release builds should normally use real release signing.
+                signingConfig = signingConfigs.getByName("debug")
+            }
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
         targetCompatibility = JavaVersion.VERSION_11
-    }
-    buildFeatures {
-        compose = true
     }
 }
 

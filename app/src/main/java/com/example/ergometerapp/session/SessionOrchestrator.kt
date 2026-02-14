@@ -14,7 +14,6 @@ import com.example.ergometerapp.ble.FtmsController
 import com.example.ergometerapp.ftms.parseIndoorBikeData
 import com.example.ergometerapp.workout.ExecutionWorkoutMapper
 import com.example.ergometerapp.workout.MappingResult
-import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.WorkoutImportError
 import com.example.ergometerapp.workout.WorkoutImportFormat
@@ -414,7 +413,12 @@ class SessionOrchestrator(
             if (!cadencePositive) return
             uiState.pendingCadenceStartAfterControlGranted = false
             uiState.autoPausedByZeroCadence = false
-            ensureWorkoutRunner().start()
+            val runner = ensureWorkoutRunner()
+            if (runner == null) {
+                dumpUiState("runnerStartSkippedNoWorkout")
+                return
+            }
+            runner.start()
             dumpUiState("runnerStartByCadence")
             return
         }
@@ -440,11 +444,17 @@ class SessionOrchestrator(
     /**
      * Lazily builds a runner bound to the currently selected workout.
      */
-    private fun ensureWorkoutRunner(): WorkoutRunner {
+    private fun ensureWorkoutRunner(): WorkoutRunner? {
         val existing = workoutRunner
         if (existing != null) return existing
 
-        val stepper = createRunnerStepper(getWorkoutForRunner())
+        val selectedWorkout = uiState.selectedWorkout.value
+        if (selectedWorkout == null) {
+            Log.e("WORKOUT", "Runner creation skipped: no selected workout in session flow")
+            return null
+        }
+
+        val stepper = createRunnerStepper(selectedWorkout)
         val runner = WorkoutRunner(
             stepper = stepper,
             targetWriter = { targetWatts ->
@@ -482,31 +492,6 @@ class SessionOrchestrator(
                 WorkoutStepper(workout, ftpWatts = ftpWatts)
             }
         }
-    }
-
-    private fun getWorkoutForRunner(): WorkoutFile {
-        val cached = uiState.selectedWorkout.value
-        if (cached != null) return cached
-
-        Log.w("WORKOUT", "No selected workout imported; using fallback workout")
-        return createTestWorkout()
-    }
-
-    /**
-     * Minimal local fallback workout to keep runner testable without import.
-     */
-    private fun createTestWorkout(): WorkoutFile {
-        return WorkoutFile(
-            name = "Test Workout",
-            description = "Minimal hardcoded workout for runner testing.",
-            author = "ErgometerApp",
-            tags = emptyList(),
-            steps = listOf(
-                Step.Warmup(durationSec = 120, powerLow = 0.5, powerHigh = 0.7, cadence = 90),
-                Step.SteadyState(durationSec = 180, power = 0.75, cadence = 90),
-                Step.Cooldown(durationSec = 120, powerLow = 0.6, powerHigh = 0.4, cadence = 85)
-            )
-        )
     }
 
     /**
