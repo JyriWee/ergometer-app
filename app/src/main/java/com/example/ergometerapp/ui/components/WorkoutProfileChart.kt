@@ -15,6 +15,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.WorkoutFile
@@ -48,6 +49,7 @@ internal fun WorkoutProfileChart(
     ftpWatts: Int,
     modifier: Modifier = Modifier,
     elapsedSec: Int? = null,
+    chartHeight: Dp = CHART_HEIGHT_DP.dp,
 ) {
     val segments = remember(workout) { buildWorkoutProfileSegments(workout) }
     val semanticsDescription =
@@ -56,7 +58,7 @@ internal fun WorkoutProfileChart(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(CHART_HEIGHT_DP.dp)
+            .height(chartHeight)
             .semantics { contentDescription = semanticsDescription }
     ) {
         if (segments.isEmpty()) {

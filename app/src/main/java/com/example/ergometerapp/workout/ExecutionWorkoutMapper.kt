@@ -501,12 +501,22 @@ object ExecutionWorkoutMapper {
                 durationSec = onDurationSec!!,
                 targetWatts = onTargetWatts,
                 cadence = cadence,
+                intervalMetadata = IntervalSegmentMetadata(
+                    phase = IntervalPhase.ON,
+                    repIndex = it + 1,
+                    repTotal = repeatCount,
+                ),
             )
             segments += ExecutionSegment.Steady(
                 sourceStepIndex = stepIndex,
                 durationSec = offDurationSec!!,
                 targetWatts = offTargetWatts,
                 cadence = cadence,
+                intervalMetadata = IntervalSegmentMetadata(
+                    phase = IntervalPhase.OFF,
+                    repIndex = it + 1,
+                    repTotal = repeatCount,
+                ),
             )
         }
     }

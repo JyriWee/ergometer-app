@@ -4,4 +4,3 @@
 
 “Do not restate what the code already says; explain why, invariants, protocol details, edge cases.”
 
-“No behavior changes, no refactors unless required for clarity.”

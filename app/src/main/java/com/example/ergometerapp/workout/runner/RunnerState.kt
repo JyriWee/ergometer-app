@@ -8,6 +8,8 @@ package com.example.ergometerapp.workout.runner
  * - `paused=true` while `running=true` indicates the workout is paused in place.
  * - `done=true` is terminal and must pair with `running=false`, `paused=true`, and cleared targets.
  * - `workoutElapsedSec` is null outside an active workout lifecycle.
+ * - `stepRemainingSec` is null when no active step is available.
+ * - `intervalPart` is populated only during interval-origin step parts.
  */
 data class RunnerState(
     val running: Boolean,
@@ -17,6 +19,8 @@ data class RunnerState(
     val targetPowerWatts: Int?,
     val targetCadence: Int?,
     val workoutElapsedSec: Int?,
+    val stepRemainingSec: Int?,
+    val intervalPart: IntervalPartProgress?,
 ) {
     companion object {
         fun stopped(workoutElapsedSec: Int? = null): RunnerState = RunnerState(
@@ -27,6 +31,8 @@ data class RunnerState(
             targetPowerWatts = null,
             targetCadence = null,
             workoutElapsedSec = workoutElapsedSec,
+            stepRemainingSec = null,
+            intervalPart = null,
         )
     }
 }

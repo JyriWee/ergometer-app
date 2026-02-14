@@ -20,12 +20,14 @@ sealed class ExecutionSegment {
     abstract val sourceStepIndex: Int
     abstract val durationSec: Int
     abstract val cadence: CadenceTarget
+    abstract val intervalMetadata: IntervalSegmentMetadata?
 
     data class Steady(
         override val sourceStepIndex: Int,
         override val durationSec: Int,
         val targetWatts: Int,
         override val cadence: CadenceTarget,
+        override val intervalMetadata: IntervalSegmentMetadata? = null,
     ) : ExecutionSegment()
 
     data class Ramp(
@@ -34,7 +36,25 @@ sealed class ExecutionSegment {
         val startWatts: Int,
         val endWatts: Int,
         override val cadence: CadenceTarget,
+        override val intervalMetadata: IntervalSegmentMetadata? = null,
     ) : ExecutionSegment()
+}
+
+/**
+ * Metadata for execution segments that originate from `IntervalsT`.
+ */
+data class IntervalSegmentMetadata(
+    val phase: IntervalPhase,
+    val repIndex: Int,
+    val repTotal: Int,
+)
+
+/**
+ * Active interval phase for interval-origin segments.
+ */
+enum class IntervalPhase {
+    ON,
+    OFF,
 }
 
 /**

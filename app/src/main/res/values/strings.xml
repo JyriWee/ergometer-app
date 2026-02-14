@@ -22,6 +22,10 @@
         <string name="menu_workout_not_selected">No workout file selected</string>
         <string name="menu_workout_selected">Selected: %1$s (%2$d steps)</string>
         <string name="menu_workout_import_failed">Import failed: %1$s</string>
+        <string name="menu_ftp_label">FTP (W)</string>
+        <string name="menu_ftp_placeholder">e.g. 240</string>
+        <string name="menu_ftp_hint">Current FTP: %1$d W</string>
+        <string name="menu_ftp_error_invalid">Enter a positive FTP value.</string>
         <string name="menu_start_session">Start session</string>
 
         <!-- Session -->
@@ -34,6 +38,14 @@
         <string name="session_phase_stopped">Stopped</string>
 
         <string name="session_elapsed_time">Elapsed time</string>
+        <string name="session_elapsed">Elapsed</string>
+        <string name="session_remaining">Remaining</string>
+        <string name="session_workout_complete">Workout complete</string>
+        <string name="session_state_label">Session state</string>
+        <string name="session_state_waiting">waiting start</string>
+        <string name="session_issue_title">Connection issue</string>
+        <string name="session_issue_ftms_not_ready">Trainer not ready</string>
+        <string name="session_issue_control_missing">Control not granted</string>
 
         <!-- Telemetry labels -->
         <string name="session_power_label">Power</string>
@@ -59,6 +71,12 @@
         <string name="session_workout_title">Workout</string>
         <string name="session_workout_state">Workout state</string>
         <string name="session_workout_step">Step</string>
+        <string name="session_workout_step_remaining">Step remaining</string>
+        <string name="session_workout_interval">Interval</string>
+        <string name="session_workout_interval_progress">%1$s %2$d/%3$d • %4$s left</string>
+        <string name="session_workout_interval_phase_on">ON</string>
+        <string name="session_workout_interval_phase_off">OFF</string>
+        <string name="session_workout_step_start">Start</string>
         <string name="session_workout_target_cadence">Target cadence</string>
         <string name="session_workout_target_cadence_value">%1$s rpm</string>
 
@@ -76,6 +94,7 @@
         <string name="btn_resume_workout">Resume workout</string>
         <string name="btn_stop_workout">Stop workout</string>
         <string name="btn_end_session">End session</string>
+        <string name="btn_quit_session_now">Quit session now</string>
 
         <string name="power_button">%1$d W</string>
 
