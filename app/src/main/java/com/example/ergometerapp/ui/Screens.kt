@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -57,7 +58,6 @@ import com.example.ergometerapp.workout.runner.RunnerState
 import kotlin.math.roundToInt
 import java.util.Locale
 
-private val WideLayoutMinWidth = 900.dp
 private val SessionTopMetricsCompactWidth = 700.dp
 private val MenuMaxContentWidth = 560.dp
 private val SessionMaxContentWidth = 1200.dp
@@ -66,6 +66,7 @@ private val SessionStickyActionBottomPadding = 96.dp
 private val SessionWorkoutChartHeight = 220.dp
 private val MenuNormalTextColor = Color.Black
 private val MenuErrorTextColor = Color(0xFFD50000)
+private val MenuPickerStatusColor = Color(0xFFFFC107)
 
 private data class MetricItem(
     val label: String,
@@ -91,7 +92,7 @@ private fun menuTextFieldColors() = OutlinedTextFieldDefaults.colors(
 /**
  * Entry screen for starting a session.
  *
- * The start action is gated on successful workout import and valid FTMS MAC
+ * The start action is gated on successful workout import and selected trainer
  * so runner execution always starts from a validated plan and explicit device.
  */
 @Composable
@@ -103,11 +104,7 @@ internal fun MenuScreen(
     ftpWatts: Int,
     ftpInputText: String,
     ftpInputError: String?,
-    ftmsMacInputText: String,
-    ftmsMacInputError: String?,
     ftmsDeviceName: String,
-    hrMacInputText: String,
-    hrMacInputError: String?,
     hrDeviceName: String,
     workoutExecutionModeMessage: String?,
     workoutExecutionModeIsError: Boolean,
@@ -120,8 +117,6 @@ internal fun MenuScreen(
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
-    onFtmsMacInputChanged: (String) -> Unit,
-    onHrMacInputChanged: (String) -> Unit,
     onSearchFtmsDevices: () -> Unit,
     onSearchHrDevices: () -> Unit,
     onScannedDeviceSelected: (ScannedBleDevice) -> Unit,
@@ -130,26 +125,32 @@ internal fun MenuScreen(
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit
 ) {
+    val unknown = stringResource(R.string.value_unknown)
     val statusText =
         when {
             selectedWorkoutImportError != null -> {
                 stringResource(R.string.menu_workout_import_failed, selectedWorkoutImportError)
             }
             selectedWorkoutFileName != null && selectedWorkoutStepCount != null -> {
-                stringResource(
-                    R.string.menu_workout_selected,
-                    selectedWorkoutFileName,
-                    selectedWorkoutStepCount
-                )
+                stringResource(R.string.menu_workout_step_count, selectedWorkoutStepCount)
             }
             else -> stringResource(R.string.menu_workout_not_selected)
         }
-    val trainerDisplayName = ftmsDeviceName.ifBlank {
-        stringResource(R.string.menu_device_unknown_name)
-    }
-    val hrDisplayName = hrDeviceName.ifBlank {
-        stringResource(R.string.menu_device_unknown_name)
-    }
+    val workoutFileDisplayName = selectedWorkoutFileName
+        ?.substringAfterLast('/')
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: stringResource(R.string.menu_workout_file_none)
+    val workoutNameTagValue = selectedWorkout?.name
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: unknown
+    val workoutDescriptionTagValue = selectedWorkout?.description
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?: unknown
+    val trainerDisplayName = ftmsDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
+    val hrDisplayName = hrDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
 
     Box(
         modifier = Modifier
@@ -177,81 +178,63 @@ internal fun MenuScreen(
                     color = MenuNormalTextColor
                 )
 
-                Text(
-                    text = stringResource(R.string.menu_subtitle),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MenuNormalTextColor
-                )
-
-                Button(
-                    onClick = onSelectWorkoutFile,
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    colors = disabledVisibleButtonColors()
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(stringResource(R.string.menu_select_workout_file))
-                }
-
-                OutlinedTextField(
-                    value = ftpInputText,
-                    onValueChange = onFtpInputChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.menu_ftp_label)) },
-                    placeholder = { Text(stringResource(R.string.menu_ftp_placeholder)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = ftpInputError != null,
-                    colors = menuTextFieldColors(),
-                )
-
-                Text(
-                    text = ftpInputError ?: stringResource(R.string.menu_ftp_hint, ftpWatts),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (ftpInputError != null) {
-                        MenuErrorTextColor
-                    } else {
-                        MenuNormalTextColor
-                    }
-                )
-
-                OutlinedTextField(
-                    value = ftmsMacInputText,
-                    onValueChange = onFtmsMacInputChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.menu_ftms_mac_label)) },
-                    prefix = { Text("$trainerDisplayName / MAC= ", color = MenuNormalTextColor) },
-                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder_short)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                    isError = ftmsMacInputError != null,
-                    colors = menuTextFieldColors(),
-                )
-
-                if (ftmsMacInputError != null) {
                     Text(
-                        text = ftmsMacInputError,
+                        text = stringResource(R.string.menu_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MenuNormalTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(0.5f),
+                    )
+
+                    OutlinedTextField(
+                        value = ftpInputText,
+                        onValueChange = onFtpInputChanged,
+                        modifier = Modifier.weight(0.16666667f),
+                        placeholder = { Text("FTP") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = ftpInputError != null,
+                        colors = menuTextFieldColors(),
+                    )
+
+                    Text(
+                        text = stringResource(R.string.menu_ftp_hint, ftpWatts),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MenuErrorTextColor
+                        color = MenuNormalTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(0.33333334f),
                     )
                 }
 
-                OutlinedTextField(
-                    value = hrMacInputText,
-                    onValueChange = onHrMacInputChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.menu_hr_mac_label)) },
-                    prefix = { Text("$hrDisplayName / MAC= ", color = MenuNormalTextColor) },
-                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder_short)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
-                    isError = hrMacInputError != null,
-                    colors = menuTextFieldColors(),
-                )
-
-                if (hrMacInputError != null) {
+                if (ftpInputError != null) {
                     Text(
-                        text = hrMacInputError,
+                        text = ftpInputError,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MenuErrorTextColor
+                        color = MenuErrorTextColor,
+                    )
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    DeviceSelectionInfoCard(
+                        label = stringResource(R.string.menu_trainer_device_label),
+                        value = trainerDisplayName,
+                        modifier = Modifier.weight(1f),
+                    )
+                    DeviceSelectionInfoCard(
+                        label = stringResource(R.string.menu_hr_device_label),
+                        value = hrDisplayName,
+                        modifier = Modifier.weight(1f),
                     )
                 }
 
@@ -296,7 +279,7 @@ internal fun MenuScreen(
                             Text(
                                 text = deviceScanStatus,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MenuNormalTextColor
+                                color = MenuPickerStatusColor
                             )
                         }
 
@@ -307,8 +290,6 @@ internal fun MenuScreen(
                                 val baseName = device.displayName?.takeIf { it.isNotBlank() }
                                     ?: unknownDeviceName
                                 append(baseName)
-                                append(" • ")
-                                append(device.macAddress)
                                 append(" • RSSI ")
                                 append(device.rssi)
                             }
@@ -341,6 +322,49 @@ internal fun MenuScreen(
                                 )
                             )
                         }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(
+                        onClick = onSelectWorkoutFile,
+                        modifier = Modifier
+                            .weight(0.3f)
+                            .height(40.dp),
+                        colors = disabledVisibleButtonColors(),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.menu_select_workout_file_short),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    MenuInlineValueCard(
+                        value = workoutFileDisplayName,
+                        modifier = Modifier.weight(0.7f),
+                    )
+                }
+
+                if (selectedWorkout != null) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        WorkoutMetaListBox(
+                            label = stringResource(R.string.menu_workout_name_tag),
+                            value = workoutNameTagValue,
+                            modifier = Modifier.weight(1f),
+                        )
+                        WorkoutMetaListBox(
+                            label = stringResource(R.string.menu_workout_description_tag),
+                            value = workoutDescriptionTagValue,
+                            modifier = Modifier.weight(1f),
+                        )
                     }
                 }
 
@@ -426,6 +450,112 @@ internal fun ConnectingScreen() {
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+    }
+}
+
+@Composable
+private fun DeviceSelectionInfoCard(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    ElevatedCard(
+        modifier = modifier.height(78.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color.White,
+            contentColor = MenuNormalTextColor,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MenuNormalTextColor,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun MenuInlineValueCard(
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    ElevatedCard(
+        modifier = modifier.height(40.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color.White,
+            contentColor = MenuNormalTextColor,
+        ),
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp),
+            contentAlignment = Alignment.CenterStart,
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodySmall,
+                color = MenuNormalTextColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+@Composable
+private fun WorkoutMetaListBox(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+) {
+    ElevatedCard(
+        modifier = modifier.height(92.dp),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = Color.White,
+            contentColor = MenuNormalTextColor,
+        ),
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp, vertical = 10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState()),
+            ) {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MenuNormalTextColor,
+                )
+            }
         }
     }
 }
@@ -1017,8 +1147,6 @@ internal fun SummaryScreen(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        val isWide = maxWidth >= WideLayoutMinWidth
-
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter
@@ -1112,7 +1240,7 @@ internal fun SummaryScreen(
                     SectionCard(title = stringResource(R.string.summary_title)) {
                         MetricsGrid(
                             items = summaryItems,
-                            columns = if (isWide) 2 else 1
+                            columns = 2,
                         )
                     }
                 }
