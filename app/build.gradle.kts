@@ -5,6 +5,8 @@ plugins {
 
 val defaultFtpWatts = providers.gradleProperty("ergometer.ftp.watts")
     .orElse("100")
+val allowLegacyWorkoutFallback = providers.gradleProperty("ergometer.workout.allowLegacyFallback")
+    .orElse("true")
 val releaseMinifyEnabled = providers.gradleProperty("ergometer.release.minify")
     .orElse("true")
 val debugSigningRequested = providers.gradleProperty("ergometer.release.debugSigning")
@@ -35,6 +37,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         buildConfigField("int", "DEFAULT_FTP_WATTS", defaultFtpWatts.get())
+        buildConfigField("boolean", "ALLOW_LEGACY_WORKOUT_FALLBACK", allowLegacyWorkoutFallback.get())
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

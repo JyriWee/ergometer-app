@@ -69,6 +69,8 @@ class MainActivity : ComponentActivity() {
                     hrMacInputText = viewModel.hrMacInputTextState.value,
                     hrMacInputError = viewModel.hrMacInputErrorState.value,
                     hrDeviceName = viewModel.hrDeviceNameState.value,
+                    workoutExecutionModeMessage = viewModel.uiState.workoutExecutionModeMessage.value,
+                    workoutExecutionModeIsError = viewModel.uiState.workoutExecutionModeIsError.value,
                     connectionIssueMessage = viewModel.uiState.connectionIssueMessage.value,
                     suggestTrainerSearchAfterConnectionIssue = viewModel.uiState.suggestTrainerSearchAfterConnectionIssue.value,
                     activeDeviceSelectionKind = viewModel.activeDeviceSelectionKindState.value,

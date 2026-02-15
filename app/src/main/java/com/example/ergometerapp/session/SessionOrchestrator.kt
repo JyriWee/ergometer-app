@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.AppUiState
+import com.example.ergometerapp.BuildConfig
 import com.example.ergometerapp.R
 import com.example.ergometerapp.StopFlowState
 import com.example.ergometerapp.ble.FtmsBleClient
@@ -39,15 +40,18 @@ class SessionOrchestrator(
     private val closeHeartRate: () -> Unit,
     private val keepScreenOn: () -> Unit,
     private val allowScreenOff: () -> Unit,
+    private val onExecutionMappingFailure: () -> Unit = {},
     private val currentFtmsDeviceMac: () -> String?,
     private val currentFtpWatts: () -> Int,
     private val workoutImportService: WorkoutImportService = WorkoutImportService()
 ) {
+    private val allowLegacyWorkoutFallback = BuildConfig.ALLOW_LEGACY_WORKOUT_FALLBACK
     private var bleClient: FtmsBleClient? = null
     private lateinit var ftmsController: FtmsController
     private var workoutRunner: WorkoutRunner? = null
     private var ftmsClientGeneration: Int = 0
     private var activeFtmsClientGeneration: Int = 0
+    private var lastExecutionFailureSignalKey: String? = null
     private val mainThreadHandler = Handler(Looper.getMainLooper())
     private val stopFlowTimeoutMs = 4000L
     private var stopFlowTimeoutRunnable: Runnable? = null
@@ -70,6 +74,17 @@ class SessionOrchestrator(
         if (!uiState.workoutReady.value) {
             Log.w("WORKOUT", "Start ignored: no valid workout selected")
             dumpUiState("startSessionConnectionIgnored(noWorkout)")
+            return
+        }
+        val selectedWorkout = uiState.selectedWorkout.value
+        if (selectedWorkout == null) {
+            Log.w("WORKOUT", "Start ignored: selected workout missing")
+            dumpUiState("startSessionConnectionIgnored(workoutMissing)")
+            return
+        }
+        if (!evaluateWorkoutExecutionEligibility(selectedWorkout)) {
+            uiState.workoutReady.value = false
+            dumpUiState("startSessionConnectionIgnored(executionBlocked)")
             return
         }
         if (currentFtmsDeviceMac() == null) {
@@ -158,6 +173,28 @@ class SessionOrchestrator(
     }
 
     /**
+     * Re-evaluates execution readiness when FTP changes.
+     *
+     * Execution mapper output depends on FTP; this keeps menu readiness and
+     * degraded-mode messaging in sync with the current FTP value.
+     */
+    fun onFtpWattsChanged() {
+        val selectedWorkout = uiState.selectedWorkout.value
+        if (selectedWorkout == null) {
+            uiState.workoutExecutionModeMessage.value = null
+            uiState.workoutExecutionModeIsError.value = false
+            return
+        }
+
+        uiState.selectedWorkoutStepCount.value = WorkoutExecutionStepCounter.count(
+            workout = selectedWorkout,
+            ftpWatts = currentFtpWatts(),
+        )
+        uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(selectedWorkout)
+        dumpUiState("onFtpWattsChanged")
+    }
+
+    /**
      * Stops the active session and enters explicit stop-flow before summary.
      *
      * Summary is shown only after STOP acknowledgement, disconnect, or timeout,
@@ -213,6 +250,9 @@ class SessionOrchestrator(
             uiState.selectedWorkoutStepCount.value = null
             uiState.selectedWorkoutImportError.value =
                 formatReadFailureMessage(readFailureDetails = readFailureDetails)
+            uiState.workoutExecutionModeMessage.value = null
+            uiState.workoutExecutionModeIsError.value = false
+            lastExecutionFailureSignalKey = null
             uiState.workoutReady.value = false
             dumpUiState("workoutImportReadFailed(name=$sourceName)")
             return
@@ -229,7 +269,7 @@ class SessionOrchestrator(
                 uiState.selectedWorkoutFileName.value = sourceName
                 uiState.selectedWorkoutStepCount.value = executionStepCount
                 uiState.selectedWorkoutImportError.value = null
-                uiState.workoutReady.value = true
+                uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(result.workoutFile)
                 Log.d(
                     "WORKOUT",
                     "Selected workout imported name=$sourceName executionSteps=$executionStepCount rawSteps=${result.workoutFile.steps.size}"
@@ -243,6 +283,9 @@ class SessionOrchestrator(
                 uiState.selectedWorkoutFileName.value = sourceName
                 uiState.selectedWorkoutStepCount.value = null
                 uiState.selectedWorkoutImportError.value = formatImportFailureMessage(result.error)
+                uiState.workoutExecutionModeMessage.value = null
+                uiState.workoutExecutionModeIsError.value = false
+                lastExecutionFailureSignalKey = null
                 uiState.workoutReady.value = false
                 Log.w(
                     "WORKOUT",
@@ -536,6 +579,10 @@ class SessionOrchestrator(
         }
 
         val stepper = createRunnerStepper(selectedWorkout)
+        if (stepper == null) {
+            handleRunnerCreationBlocked()
+            return null
+        }
         val runner = WorkoutRunner(
             stepper = stepper,
             targetWriter = { targetWatts ->
@@ -560,7 +607,7 @@ class SessionOrchestrator(
     /**
      * Prefers strict execution mapping while preserving legacy fallback for unsupported steps.
      */
-    private fun createRunnerStepper(workout: WorkoutFile): WorkoutStepper {
+    private fun createRunnerStepper(workout: WorkoutFile): WorkoutStepper? {
         val ftpWatts = currentFtpWatts().coerceAtLeast(1)
         return when (val mapped = ExecutionWorkoutMapper.map(workout, ftp = ftpWatts)) {
             is MappingResult.Success -> {
@@ -569,10 +616,102 @@ class SessionOrchestrator(
 
             is MappingResult.Failure -> {
                 val summary = mapped.errors.joinToString(separator = ", ") { it.code.name }
-                Log.w("WORKOUT", "Execution mapping failed; falling back to legacy stepper: $summary")
+                if (!allowLegacyWorkoutFallback) {
+                    uiState.workoutExecutionModeMessage.value = context.getString(
+                        R.string.menu_workout_execution_blocked,
+                        summary,
+                    )
+                    uiState.workoutExecutionModeIsError.value = true
+                    signalExecutionMappingFailure(summary)
+                    Log.e(
+                        "WORKOUT",
+                        "Execution mapping failed with fallback disabled; runner creation blocked: $summary",
+                    )
+                    return null
+                }
+                uiState.workoutExecutionModeMessage.value = context.getString(
+                    R.string.menu_workout_execution_degraded,
+                    summary,
+                )
+                uiState.workoutExecutionModeIsError.value = true
+                signalExecutionMappingFailure(summary)
+                Log.w(
+                    "WORKOUT",
+                    "Execution mapping failed; degraded mode active with legacy fallback: $summary",
+                )
                 WorkoutStepper(workout, ftpWatts = ftpWatts)
             }
         }
+    }
+
+    /**
+     * Validates whether selected workout can execute under current strict/fallback policy.
+     */
+    private fun evaluateWorkoutExecutionEligibility(workout: WorkoutFile): Boolean {
+        val ftpWatts = currentFtpWatts().coerceAtLeast(1)
+        return when (val mapped = ExecutionWorkoutMapper.map(workout, ftp = ftpWatts)) {
+            is MappingResult.Success -> {
+                uiState.workoutExecutionModeMessage.value = null
+                uiState.workoutExecutionModeIsError.value = false
+                lastExecutionFailureSignalKey = null
+                true
+            }
+
+            is MappingResult.Failure -> {
+                val summary = mapped.errors.joinToString(separator = ", ") { it.code.name }
+                if (!allowLegacyWorkoutFallback) {
+                    uiState.workoutExecutionModeMessage.value = context.getString(
+                        R.string.menu_workout_execution_blocked,
+                        summary,
+                    )
+                    uiState.workoutExecutionModeIsError.value = true
+                    signalExecutionMappingFailure(summary)
+                    Log.e(
+                        "WORKOUT",
+                        "Execution mapping failed with fallback disabled; start blocked: $summary",
+                    )
+                    return false
+                }
+                uiState.workoutExecutionModeMessage.value = context.getString(
+                    R.string.menu_workout_execution_degraded,
+                    summary,
+                )
+                uiState.workoutExecutionModeIsError.value = true
+                signalExecutionMappingFailure(summary)
+                Log.w(
+                    "WORKOUT",
+                    "Execution mapping failed; degraded mode active with legacy fallback: $summary",
+                )
+                true
+            }
+        }
+    }
+
+    private fun handleRunnerCreationBlocked() {
+        stopWorkout()
+        workoutRunner = null
+        sessionManager.stopSession()
+        uiState.workoutReady.value = false
+        uiState.pendingCadenceStartAfterControlGranted = false
+        uiState.autoPausedByZeroCadence = false
+
+        val wasSessionFlowActive =
+            uiState.screen.value == AppScreen.CONNECTING || uiState.screen.value == AppScreen.SESSION
+        if (wasSessionFlowActive) {
+            allowScreenOff()
+            uiState.screen.value = AppScreen.MENU
+        }
+
+        bleClient?.close()
+        dumpUiState("handleRunnerCreationBlocked")
+    }
+
+    private fun signalExecutionMappingFailure(summary: String) {
+        val signalKey = summary.trim()
+        if (signalKey.isEmpty()) return
+        if (lastExecutionFailureSignalKey == signalKey) return
+        lastExecutionFailureSignalKey = signalKey
+        onExecutionMappingFailure()
     }
 
     /**
@@ -602,6 +741,8 @@ class SessionOrchestrator(
                 "lastTarget=${uiState.lastTargetPower.value} runnerState=${uiState.runner.value} " +
                 "reconnectPending=${uiState.reconnectBleOnNextSessionStart} " +
                 "stopFlowState=${uiState.stopFlowState.value} " +
+                "executionMessage=${uiState.workoutExecutionModeMessage.value} " +
+                "executionMessageIsError=${uiState.workoutExecutionModeIsError.value} " +
                 "pendingSessionStart=${uiState.pendingSessionStartAfterPermission} " +
                 "pendingCadenceStart=${uiState.pendingCadenceStartAfterControlGranted} " +
                 "autoPausedByZeroCadence=${uiState.autoPausedByZeroCadence}"

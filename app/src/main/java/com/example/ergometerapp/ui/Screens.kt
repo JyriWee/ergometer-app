@@ -109,6 +109,8 @@ internal fun MenuScreen(
     hrMacInputText: String,
     hrMacInputError: String?,
     hrDeviceName: String,
+    workoutExecutionModeMessage: String?,
+    workoutExecutionModeIsError: Boolean,
     connectionIssueMessage: String?,
     suggestTrainerSearchAfterConnectionIssue: Boolean,
     activeDeviceSelectionKind: DeviceSelectionKind?,
@@ -348,6 +350,18 @@ internal fun MenuScreen(
                     color = MenuNormalTextColor
                 )
 
+                if (workoutExecutionModeMessage != null) {
+                    Text(
+                        text = workoutExecutionModeMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (workoutExecutionModeIsError) {
+                            MenuErrorTextColor
+                        } else {
+                            MenuNormalTextColor
+                        }
+                    )
+                }
+
                 if (selectedWorkout != null) {
                     SectionCard(title = stringResource(R.string.session_workout_title)) {
                         WorkoutProfileChart(
@@ -463,6 +477,8 @@ internal fun SessionScreen(
     ftpWatts: Int,
     runnerState: RunnerState,
     lastTargetPower: Int?,
+    workoutExecutionModeMessage: String?,
+    workoutExecutionModeIsError: Boolean,
     onEndSession: () -> Unit
 ) {
     LaunchedEffect(bikeData) {
@@ -578,6 +594,8 @@ internal fun SessionScreen(
                         unknown = unknown,
                         lastTargetPower = lastTargetPower,
                         workoutComplete = workoutComplete,
+                        workoutExecutionModeMessage = workoutExecutionModeMessage,
+                        workoutExecutionModeIsError = workoutExecutionModeIsError,
                     )
 
                     if (sessionIssues.isNotEmpty()) {
@@ -751,6 +769,8 @@ private fun WorkoutProgressSection(
     unknown: String,
     lastTargetPower: Int?,
     workoutComplete: Boolean,
+    workoutExecutionModeMessage: String?,
+    workoutExecutionModeIsError: Boolean,
 ) {
     val activeSegment = remember(workoutSegments, runnerState.workoutElapsedSec, workoutComplete) {
         currentWorkoutProfileSegment(
@@ -828,9 +848,12 @@ private fun WorkoutProgressSection(
                 remainingSec = intervalPart.remainingSec,
             )
         }
-        val extraMessages = buildList {
+        val extraMessages = buildList<Pair<String, Boolean>> {
+            if (!workoutExecutionModeMessage.isNullOrBlank()) {
+                add(workoutExecutionModeMessage to workoutExecutionModeIsError)
+            }
             if (workoutComplete) {
-                add(stringResource(R.string.session_workout_complete))
+                add(stringResource(R.string.session_workout_complete) to false)
             }
         }
 
@@ -865,11 +888,11 @@ private fun WorkoutProgressSection(
                 )
             }
         }
-        extraMessages.forEach { message ->
+        extraMessages.forEach { (message, isError) ->
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = if (isError) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
