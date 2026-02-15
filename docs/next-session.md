@@ -7,6 +7,7 @@
 - Added CI release verification (`:app:assembleRelease` with minify + `:app:lintRelease`).
 - Added optional secrets-based release signing wiring (no signing data in repository).
 - Added release/signing documentation in `docs/ci-release-signing.md`.
+- Fixed GitHub Actions expression error by removing direct `secrets` usage from step-level `if` condition.
 
 ## Next Task
 - DISCUSS: Define V1 scope for `session -> activity export` (prefer `.fit`, optional `.tcx` fallback).

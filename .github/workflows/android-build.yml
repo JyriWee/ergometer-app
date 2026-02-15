@@ -45,10 +45,13 @@ jobs:
           fi
 
       - name: Decode release keystore (optional)
-        if: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 != '' }}
+        env:
+          ANDROID_RELEASE_KEYSTORE_B64: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}
         run: |
-          echo "${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}" | base64 --decode > "$RUNNER_TEMP/release-keystore.jks"
-          echo "ERGOMETER_RELEASE_STORE_FILE=$RUNNER_TEMP/release-keystore.jks" >> "$GITHUB_ENV"
+          if [ -n "$ANDROID_RELEASE_KEYSTORE_B64" ]; then
+            echo "$ANDROID_RELEASE_KEYSTORE_B64" | base64 --decode > "$RUNNER_TEMP/release-keystore.jks"
+            echo "ERGOMETER_RELEASE_STORE_FILE=$RUNNER_TEMP/release-keystore.jks" >> "$GITHUB_ENV"
+          fi
 
       - name: Compile Debug Kotlin
         run: ./gradlew :app:compileDebugKotlin --no-daemon --stacktrace
