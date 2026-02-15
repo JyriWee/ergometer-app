@@ -11,18 +11,23 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -33,8 +38,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.R
+import com.example.ergometerapp.DeviceSelectionKind
+import com.example.ergometerapp.ScannedBleDevice
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
@@ -56,10 +64,28 @@ private val SessionMaxContentWidth = 1200.dp
 private val SummaryMaxContentWidth = 920.dp
 private val SessionStickyActionBottomPadding = 96.dp
 private val SessionWorkoutChartHeight = 220.dp
+private val MenuNormalTextColor = Color.Black
+private val MenuErrorTextColor = Color(0xFFD50000)
 
 private data class MetricItem(
     val label: String,
     val value: String
+)
+
+@Composable
+private fun menuTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    focusedTextColor = MenuNormalTextColor,
+    unfocusedTextColor = MenuNormalTextColor,
+    cursorColor = MenuNormalTextColor,
+    focusedBorderColor = MenuNormalTextColor,
+    unfocusedBorderColor = MenuNormalTextColor,
+    focusedLabelColor = MenuNormalTextColor,
+    unfocusedLabelColor = MenuNormalTextColor,
+    focusedPlaceholderColor = MenuNormalTextColor.copy(alpha = 0.7f),
+    unfocusedPlaceholderColor = MenuNormalTextColor.copy(alpha = 0.7f),
+    errorBorderColor = MenuErrorTextColor,
+    errorLabelColor = MenuErrorTextColor,
+    errorCursorColor = MenuErrorTextColor,
 )
 
 /**
@@ -79,13 +105,27 @@ internal fun MenuScreen(
     ftpInputError: String?,
     ftmsMacInputText: String,
     ftmsMacInputError: String?,
+    ftmsDeviceName: String,
     hrMacInputText: String,
     hrMacInputError: String?,
+    hrDeviceName: String,
+    connectionIssueMessage: String?,
+    suggestTrainerSearchAfterConnectionIssue: Boolean,
+    activeDeviceSelectionKind: DeviceSelectionKind?,
+    scannedDevices: List<ScannedBleDevice>,
+    deviceScanInProgress: Boolean,
+    deviceScanStatus: String?,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
     onFtmsMacInputChanged: (String) -> Unit,
     onHrMacInputChanged: (String) -> Unit,
+    onSearchFtmsDevices: () -> Unit,
+    onSearchHrDevices: () -> Unit,
+    onScannedDeviceSelected: (ScannedBleDevice) -> Unit,
+    onDismissDeviceSelection: () -> Unit,
+    onDismissConnectionIssue: () -> Unit,
+    onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit
 ) {
     val statusText =
@@ -102,6 +142,12 @@ internal fun MenuScreen(
             }
             else -> stringResource(R.string.menu_workout_not_selected)
         }
+    val trainerDisplayName = ftmsDeviceName.ifBlank {
+        stringResource(R.string.menu_device_unknown_name)
+    }
+    val hrDisplayName = hrDeviceName.ifBlank {
+        stringResource(R.string.menu_device_unknown_name)
+    }
 
     Box(
         modifier = Modifier
@@ -125,13 +171,14 @@ internal fun MenuScreen(
                 Text(
                     text = stringResource(R.string.menu_title),
                     style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold
+                    fontWeight = FontWeight.SemiBold,
+                    color = MenuNormalTextColor
                 )
 
                 Text(
                     text = stringResource(R.string.menu_subtitle),
                     style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MenuNormalTextColor
                 )
 
                 Button(
@@ -151,15 +198,16 @@ internal fun MenuScreen(
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     isError = ftpInputError != null,
+                    colors = menuTextFieldColors(),
                 )
 
                 Text(
                     text = ftpInputError ?: stringResource(R.string.menu_ftp_hint, ftpWatts),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (ftpInputError != null) {
-                        MaterialTheme.colorScheme.error
+                        MenuErrorTextColor
                     } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                        MenuNormalTextColor
                     }
                 )
 
@@ -168,47 +216,136 @@ internal fun MenuScreen(
                     onValueChange = onFtmsMacInputChanged,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.menu_ftms_mac_label)) },
-                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder)) },
+                    prefix = { Text("$trainerDisplayName / MAC= ", color = MenuNormalTextColor) },
+                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder_short)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     isError = ftmsMacInputError != null,
+                    colors = menuTextFieldColors(),
                 )
 
-                Text(
-                    text = ftmsMacInputError ?: stringResource(R.string.menu_ftms_mac_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (ftmsMacInputError != null) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    }
-                )
+                if (ftmsMacInputError != null) {
+                    Text(
+                        text = ftmsMacInputError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MenuErrorTextColor
+                    )
+                }
 
                 OutlinedTextField(
                     value = hrMacInputText,
                     onValueChange = onHrMacInputChanged,
                     modifier = Modifier.fillMaxWidth(),
                     label = { Text(stringResource(R.string.menu_hr_mac_label)) },
-                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder)) },
+                    prefix = { Text("$hrDisplayName / MAC= ", color = MenuNormalTextColor) },
+                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder_short)) },
                     singleLine = true,
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
                     isError = hrMacInputError != null,
+                    colors = menuTextFieldColors(),
                 )
 
-                Text(
-                    text = hrMacInputError ?: stringResource(R.string.menu_hr_mac_hint),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = if (hrMacInputError != null) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
+                if (hrMacInputError != null) {
+                    Text(
+                        text = hrMacInputError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MenuErrorTextColor
+                    )
+                }
+
+                BoxWithConstraints(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    val halfWidth = (maxWidth - 8.dp) / 2
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = onSearchFtmsDevices,
+                            modifier = Modifier
+                                .width(halfWidth)
+                                .height(40.dp),
+                            colors = disabledVisibleButtonColors()
+                        ) {
+                            Text(stringResource(R.string.menu_search_trainer_devices_short))
+                        }
+
+                        Button(
+                            onClick = onSearchHrDevices,
+                            modifier = Modifier
+                                .width(halfWidth)
+                                .height(40.dp),
+                            colors = disabledVisibleButtonColors()
+                        ) {
+                            Text(stringResource(R.string.menu_search_hr_devices_short))
+                        }
                     }
-                )
+                }
+
+                if (activeDeviceSelectionKind != null) {
+                    val unknownDeviceName = stringResource(R.string.menu_device_unknown_name)
+                    val title = when (activeDeviceSelectionKind) {
+                        DeviceSelectionKind.FTMS -> stringResource(R.string.menu_trainer_picker_title)
+                        DeviceSelectionKind.HEART_RATE -> stringResource(R.string.menu_hr_picker_title)
+                    }
+                    SectionCard(title = title) {
+                        if (deviceScanStatus != null) {
+                            Text(
+                                text = deviceScanStatus,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MenuNormalTextColor
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        scannedDevices.forEach { device ->
+                            val label = buildString {
+                                val baseName = device.displayName?.takeIf { it.isNotBlank() }
+                                    ?: unknownDeviceName
+                                append(baseName)
+                                append(" • ")
+                                append(device.macAddress)
+                                append(" • RSSI ")
+                                append(device.rssi)
+                            }
+                            Button(
+                                onClick = { onScannedDeviceSelected(device) },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = disabledVisibleButtonColors()
+                            ) {
+                                Text(
+                                    text = label,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                        }
+
+                        Button(
+                            onClick = onDismissDeviceSelection,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = disabledVisibleButtonColors()
+                        ) {
+                            Text(
+                                stringResource(
+                                    if (deviceScanInProgress) {
+                                        R.string.menu_cancel_device_scan
+                                    } else {
+                                        R.string.menu_close_device_picker
+                                    }
+                                )
+                            )
+                        }
+                    }
+                }
 
                 Text(
                     text = statusText,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MenuNormalTextColor
                 )
 
                 if (selectedWorkout != null) {
@@ -230,6 +367,24 @@ internal fun MenuScreen(
                 }
             }
         }
+    }
+
+    if (suggestTrainerSearchAfterConnectionIssue && connectionIssueMessage != null) {
+        AlertDialog(
+            onDismissRequest = onDismissConnectionIssue,
+            title = { Text(stringResource(R.string.menu_connection_issue_title)) },
+            text = { Text(connectionIssueMessage) },
+            confirmButton = {
+                TextButton(onClick = onSearchFtmsDevicesFromConnectionIssue) {
+                    Text(stringResource(R.string.menu_connection_issue_search_again))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = onDismissConnectionIssue) {
+                    Text(stringResource(R.string.menu_connection_issue_dismiss))
+                }
+            }
+        )
     }
 }
 

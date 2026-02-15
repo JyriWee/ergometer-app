@@ -28,13 +28,30 @@
         <string name="menu_ftp_placeholder">e.g. 240</string>
         <string name="menu_ftp_hint">Current FTP: %1$d W</string>
         <string name="menu_ftp_error_invalid">Enter a positive FTP value.</string>
-        <string name="menu_ftms_mac_label">Trainer MAC</string>
-        <string name="menu_hr_mac_label">Heart rate MAC (optional)</string>
+        <string name="menu_ftms_mac_label">Trainer device and MAC-address (required to start session)</string>
+        <string name="menu_hr_mac_label">HR device and MAC-address (optional)</string>
         <string name="menu_mac_placeholder">AA:BB:CC:DD:EE:FF</string>
-        <string name="menu_ftms_mac_hint">Required to start session.</string>
-        <string name="menu_hr_mac_hint">Leave empty to disable external HR strap.</string>
+        <string name="menu_mac_placeholder_short">AA:BB:CC:DD:EE:FF</string>
         <string name="menu_ftms_mac_error_required">Trainer MAC is required.</string>
         <string name="menu_mac_error_invalid">Use format AA:BB:CC:DD:EE:FF.</string>
+        <string name="menu_search_trainer_devices">Search trainer devices</string>
+        <string name="menu_search_hr_devices">Search HR devices</string>
+        <string name="menu_search_trainer_devices_short">Search trainer</string>
+        <string name="menu_search_hr_devices_short">Search HR</string>
+        <string name="menu_trainer_picker_title">Trainer devices</string>
+        <string name="menu_hr_picker_title">Heart rate devices</string>
+        <string name="menu_close_device_picker">Close picker</string>
+        <string name="menu_cancel_device_scan">Cancel scan</string>
+        <string name="menu_device_unknown_name">Unnamed device</string>
+        <string name="menu_device_scan_permission_required">Scan permission is required to search devices.</string>
+        <string name="menu_device_scan_status_scanning">Scanning nearby BLE devices…</string>
+        <string name="menu_device_scan_status_no_results">No matching devices found. Keep trainer/strap powered on and try again.</string>
+        <string name="menu_device_scan_status_done">%1$d device(s) found.</string>
+        <string name="menu_device_scan_status_failed">Device scan could not be started.</string>
+        <string name="menu_connection_issue_title">Trainer connection issue</string>
+        <string name="menu_saved_trainer_connect_failed">Could not connect to the saved trainer. Confirm the trainer is powered on. Do you want to search for devices again?</string>
+        <string name="menu_connection_issue_search_again">Search again</string>
+        <string name="menu_connection_issue_dismiss">Not now</string>
         <string name="menu_start_session">Start session</string>
 
         <!-- Session -->

@@ -8,6 +8,7 @@ import android.provider.OpenableColumns
 import android.util.Log
 import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.AppUiState
+import com.example.ergometerapp.R
 import com.example.ergometerapp.StopFlowState
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
@@ -78,6 +79,8 @@ class SessionOrchestrator(
         }
 
         cancelStopFlowTimeout()
+        uiState.connectionIssueMessage.value = null
+        uiState.suggestTrainerSearchAfterConnectionIssue.value = false
         uiState.stopFlowState.value = StopFlowState.IDLE
         resetFtmsUiState(clearReady = true)
         uiState.pendingSessionStartAfterPermission = true
@@ -126,6 +129,8 @@ class SessionOrchestrator(
 
     /**
      * Opens FTMS and HR links for a pending session-start flow.
+     *
+     * Returns true only when FTMS connect was started with a valid configured trainer MAC.
      */
     fun connectBleClients(): Boolean {
         val ftmsDeviceMac = currentFtmsDeviceMac()
@@ -361,6 +366,7 @@ class SessionOrchestrator(
                     return@FtmsBleClient
                 }
                 val stopFlowInProgress = uiState.stopFlowState.value == StopFlowState.STOPPING_AWAIT_ACK
+                val wasConnecting = uiState.screen.value == AppScreen.CONNECTING
                 val wasSessionFlowActive =
                     uiState.screen.value == AppScreen.CONNECTING || uiState.screen.value == AppScreen.SESSION
                 ftmsController.setTransportReady(false)
@@ -373,6 +379,11 @@ class SessionOrchestrator(
                     completeStopFlowToSummary(reason = "bleOnDisconnectedDuringStopFlow")
                 } else if (wasSessionFlowActive) {
                     uiState.stopFlowState.value = StopFlowState.IDLE
+                    if (wasConnecting) {
+                        uiState.connectionIssueMessage.value =
+                            context.getString(R.string.menu_saved_trainer_connect_failed)
+                        uiState.suggestTrainerSearchAfterConnectionIssue.value = true
+                    }
                     allowScreenOff()
                     uiState.screen.value = AppScreen.MENU
                 }

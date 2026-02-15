@@ -22,6 +22,10 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             viewModel.onBluetoothPermissionResult(granted)
         }
+    private val requestBluetoothScanPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            viewModel.onBluetoothScanPermissionResult(granted)
+        }
 
     private val selectWorkoutFile =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -33,7 +37,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         viewModel.bindActivityCallbacks(
-            ensureBluetoothPermission = { ensureBluetoothPermission() },
+            ensureBluetoothConnectPermission = { ensureBluetoothConnectPermission() },
+            ensureBluetoothScanPermission = { ensureBluetoothScanPermission() },
             keepScreenOn = { keepScreenOn() },
             allowScreenOff = { allowScreenOff() },
         )
@@ -60,13 +65,27 @@ class MainActivity : ComponentActivity() {
                     ftpInputError = viewModel.ftpInputErrorState.value,
                     ftmsMacInputText = viewModel.ftmsMacInputTextState.value,
                     ftmsMacInputError = viewModel.ftmsMacInputErrorState.value,
+                    ftmsDeviceName = viewModel.ftmsDeviceNameState.value,
                     hrMacInputText = viewModel.hrMacInputTextState.value,
                     hrMacInputError = viewModel.hrMacInputErrorState.value,
+                    hrDeviceName = viewModel.hrDeviceNameState.value,
+                    connectionIssueMessage = viewModel.uiState.connectionIssueMessage.value,
+                    suggestTrainerSearchAfterConnectionIssue = viewModel.uiState.suggestTrainerSearchAfterConnectionIssue.value,
+                    activeDeviceSelectionKind = viewModel.activeDeviceSelectionKindState.value,
+                    scannedDevices = viewModel.scannedDevicesState.toList(),
+                    deviceScanInProgress = viewModel.deviceScanInProgressState.value,
+                    deviceScanStatus = viewModel.deviceScanStatusState.value,
                 ),
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                 onFtpInputChanged = { input -> viewModel.onFtpInputChanged(input) },
                 onFtmsMacInputChanged = { input -> viewModel.onFtmsMacInputChanged(input) },
                 onHrMacInputChanged = { input -> viewModel.onHrMacInputChanged(input) },
+                onSearchFtmsDevices = { viewModel.onSearchFtmsDevicesRequested() },
+                onSearchHrDevices = { viewModel.onSearchHrDevicesRequested() },
+                onScannedDeviceSelected = { device -> viewModel.onScannedDeviceSelected(device) },
+                onDismissDeviceSelection = { viewModel.onDismissDeviceSelection() },
+                onDismissConnectionIssue = { viewModel.clearConnectionIssuePrompt() },
+                onSearchFtmsDevicesFromConnectionIssue = { viewModel.onSearchFtmsDevicesFromConnectionIssue() },
                 onStartSession = { viewModel.onStartSession() },
                 onEndSession = { viewModel.onEndSessionAndGoToSummary() },
                 onBackToMenu = { viewModel.onBackToMenu() },
@@ -77,7 +96,7 @@ class MainActivity : ComponentActivity() {
     /**
      * Requests BLUETOOTH_CONNECT when needed; required for session GATT operations on Android 12+.
      */
-    private fun ensureBluetoothPermission(): Boolean {
+    private fun ensureBluetoothConnectPermission(): Boolean {
         if (checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
             != PackageManager.PERMISSION_GRANTED
         ) {
@@ -85,6 +104,19 @@ class MainActivity : ComponentActivity() {
             return false
         }
 
+        return true
+    }
+
+    /**
+     * Requests BLUETOOTH_SCAN when needed; required for in-app BLE discovery on Android 12+.
+     */
+    private fun ensureBluetoothScanPermission(): Boolean {
+        if (checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestBluetoothScanPermission.launch(Manifest.permission.BLUETOOTH_SCAN)
+            return false
+        }
         return true
     }
 

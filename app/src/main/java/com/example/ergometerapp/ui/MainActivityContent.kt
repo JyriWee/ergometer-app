@@ -2,6 +2,8 @@ package com.example.ergometerapp.ui
 
 import androidx.compose.runtime.Composable
 import com.example.ergometerapp.AppScreen
+import com.example.ergometerapp.DeviceSelectionKind
+import com.example.ergometerapp.ScannedBleDevice
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
@@ -32,8 +34,16 @@ internal data class MainActivityUiModel(
     val ftpInputError: String?,
     val ftmsMacInputText: String,
     val ftmsMacInputError: String?,
+    val ftmsDeviceName: String,
     val hrMacInputText: String,
     val hrMacInputError: String?,
+    val hrDeviceName: String,
+    val connectionIssueMessage: String?,
+    val suggestTrainerSearchAfterConnectionIssue: Boolean,
+    val activeDeviceSelectionKind: DeviceSelectionKind?,
+    val scannedDevices: List<ScannedBleDevice>,
+    val deviceScanInProgress: Boolean,
+    val deviceScanStatus: String?,
 )
 
 /**
@@ -46,6 +56,12 @@ internal fun MainActivityContent(
     onFtpInputChanged: (String) -> Unit,
     onFtmsMacInputChanged: (String) -> Unit,
     onHrMacInputChanged: (String) -> Unit,
+    onSearchFtmsDevices: () -> Unit,
+    onSearchHrDevices: () -> Unit,
+    onScannedDeviceSelected: (ScannedBleDevice) -> Unit,
+    onDismissDeviceSelection: () -> Unit,
+    onDismissConnectionIssue: () -> Unit,
+    onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit,
@@ -57,6 +73,12 @@ internal fun MainActivityContent(
             onFtpInputChanged = onFtpInputChanged,
             onFtmsMacInputChanged = onFtmsMacInputChanged,
             onHrMacInputChanged = onHrMacInputChanged,
+            onSearchFtmsDevices = onSearchFtmsDevices,
+            onSearchHrDevices = onSearchHrDevices,
+            onScannedDeviceSelected = onScannedDeviceSelected,
+            onDismissDeviceSelection = onDismissDeviceSelection,
+            onDismissConnectionIssue = onDismissConnectionIssue,
+            onSearchFtmsDevicesFromConnectionIssue = onSearchFtmsDevicesFromConnectionIssue,
             onStartSession = onStartSession,
             onEndSession = onEndSession,
             onBackToMenu = onBackToMenu
@@ -71,6 +93,12 @@ private fun MainDestinationContent(
     onFtpInputChanged: (String) -> Unit,
     onFtmsMacInputChanged: (String) -> Unit,
     onHrMacInputChanged: (String) -> Unit,
+    onSearchFtmsDevices: () -> Unit,
+    onSearchHrDevices: () -> Unit,
+    onScannedDeviceSelected: (ScannedBleDevice) -> Unit,
+    onDismissDeviceSelection: () -> Unit,
+    onDismissConnectionIssue: () -> Unit,
+    onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit
@@ -87,13 +115,27 @@ private fun MainDestinationContent(
                 ftpInputError = model.ftpInputError,
                 ftmsMacInputText = model.ftmsMacInputText,
                 ftmsMacInputError = model.ftmsMacInputError,
+                ftmsDeviceName = model.ftmsDeviceName,
                 hrMacInputText = model.hrMacInputText,
                 hrMacInputError = model.hrMacInputError,
+                hrDeviceName = model.hrDeviceName,
+                connectionIssueMessage = model.connectionIssueMessage,
+                suggestTrainerSearchAfterConnectionIssue = model.suggestTrainerSearchAfterConnectionIssue,
+                activeDeviceSelectionKind = model.activeDeviceSelectionKind,
+                scannedDevices = model.scannedDevices,
+                deviceScanInProgress = model.deviceScanInProgress,
+                deviceScanStatus = model.deviceScanStatus,
                 startEnabled = model.startEnabled,
                 onSelectWorkoutFile = onSelectWorkoutFile,
                 onFtpInputChanged = onFtpInputChanged,
                 onFtmsMacInputChanged = onFtmsMacInputChanged,
                 onHrMacInputChanged = onHrMacInputChanged,
+                onSearchFtmsDevices = onSearchFtmsDevices,
+                onSearchHrDevices = onSearchHrDevices,
+                onScannedDeviceSelected = onScannedDeviceSelected,
+                onDismissDeviceSelection = onDismissDeviceSelection,
+                onDismissConnectionIssue = onDismissConnectionIssue,
+                onSearchFtmsDevicesFromConnectionIssue = onSearchFtmsDevicesFromConnectionIssue,
                 onStartSession = onStartSession
             )
         }
