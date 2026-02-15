@@ -17,23 +17,26 @@
 
         <!-- Menu -->
         <string name="menu_title">Ergometer</string>
-        <string name="menu_subtitle">FTMS-based training session</string>
+        <string name="menu_subtitle">FTMS based training session</string>
         <string name="menu_connection_title">Connection</string>
         <string name="menu_connection_hint">Waiting for trainer connection</string>
         <string name="menu_select_workout_file">Select workout file</string>
+        <string name="menu_select_workout_file_short">Select workout</string>
+        <string name="menu_workout_file_none">No file selected</string>
+        <string name="menu_workout_file_dialog_title">Workout file</string>
+        <string name="menu_dialog_ok">OK</string>
+        <string name="menu_device_not_selected">Not selected</string>
+        <string name="menu_trainer_device_label">Trainer device (required)</string>
+        <string name="menu_hr_device_label">HR device (optional)</string>
         <string name="menu_workout_not_selected">No workout file selected</string>
-        <string name="menu_workout_selected">Selected: %1$s (%2$d steps)</string>
+        <string name="menu_workout_step_count">Selected workout steps: %1$d</string>
         <string name="menu_workout_import_failed">Import failed: %1$s</string>
+        <string name="menu_workout_name_tag">Workout name</string>
+        <string name="menu_workout_description_tag">Workout description</string>
         <string name="menu_ftp_label">FTP (W)</string>
         <string name="menu_ftp_placeholder">e.g. 240</string>
         <string name="menu_ftp_hint">Current FTP: %1$d W</string>
         <string name="menu_ftp_error_invalid">Enter a positive FTP value.</string>
-        <string name="menu_ftms_mac_label">Trainer device and MAC-address (required to start session)</string>
-        <string name="menu_hr_mac_label">HR device and MAC-address (optional)</string>
-        <string name="menu_mac_placeholder">AA:BB:CC:DD:EE:FF</string>
-        <string name="menu_mac_placeholder_short">AA:BB:CC:DD:EE:FF</string>
-        <string name="menu_ftms_mac_error_required">Trainer MAC is required.</string>
-        <string name="menu_mac_error_invalid">Use format AA:BB:CC:DD:EE:FF.</string>
         <string name="menu_search_trainer_devices">Search trainer devices</string>
         <string name="menu_search_hr_devices">Search HR devices</string>
         <string name="menu_search_trainer_devices_short">Search trainer</string>
@@ -41,7 +44,7 @@
         <string name="menu_trainer_picker_title">Trainer devices</string>
         <string name="menu_hr_picker_title">Heart rate devices</string>
         <string name="menu_close_device_picker">Close picker</string>
-        <string name="menu_cancel_device_scan">Cancel scan</string>
+        <string name="menu_cancel_device_scan">Stop scan</string>
         <string name="menu_device_unknown_name">Unnamed device</string>
         <string name="menu_device_scan_permission_required">Scan permission is required to search devices.</string>
         <string name="menu_device_scan_status_scanning">Scanning nearby BLE devices…</string>
