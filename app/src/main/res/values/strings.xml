@@ -52,6 +52,8 @@
         <string name="menu_saved_trainer_connect_failed">Could not connect to the saved trainer. Confirm the trainer is powered on. Do you want to search for devices again?</string>
         <string name="menu_connection_issue_search_again">Search again</string>
         <string name="menu_connection_issue_dismiss">Not now</string>
+        <string name="menu_workout_execution_degraded">Degraded execution mode active (legacy fallback): %1$s</string>
+        <string name="menu_workout_execution_blocked">Strict execution mapping failed: %1$s</string>
         <string name="menu_start_session">Start session</string>
 
         <!-- Session -->

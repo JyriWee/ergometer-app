@@ -38,6 +38,8 @@ internal data class MainActivityUiModel(
     val hrMacInputText: String,
     val hrMacInputError: String?,
     val hrDeviceName: String,
+    val workoutExecutionModeMessage: String?,
+    val workoutExecutionModeIsError: Boolean,
     val connectionIssueMessage: String?,
     val suggestTrainerSearchAfterConnectionIssue: Boolean,
     val activeDeviceSelectionKind: DeviceSelectionKind?,
@@ -119,6 +121,8 @@ private fun MainDestinationContent(
                 hrMacInputText = model.hrMacInputText,
                 hrMacInputError = model.hrMacInputError,
                 hrDeviceName = model.hrDeviceName,
+                workoutExecutionModeMessage = model.workoutExecutionModeMessage,
+                workoutExecutionModeIsError = model.workoutExecutionModeIsError,
                 connectionIssueMessage = model.connectionIssueMessage,
                 suggestTrainerSearchAfterConnectionIssue = model.suggestTrainerSearchAfterConnectionIssue,
                 activeDeviceSelectionKind = model.activeDeviceSelectionKind,
@@ -160,6 +164,8 @@ private fun MainDestinationContent(
                 ftpWatts = model.ftpWatts,
                 runnerState = model.runnerState,
                 lastTargetPower = model.lastTargetPower,
+                workoutExecutionModeMessage = model.workoutExecutionModeMessage,
+                workoutExecutionModeIsError = model.workoutExecutionModeIsError,
                 onEndSession = onEndSession
             )
         }

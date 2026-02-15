@@ -1,6 +1,8 @@
 package com.example.ergometerapp
 
 import android.app.Application
+import android.media.AudioManager
+import android.media.ToneGenerator
 import android.net.Uri
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
@@ -24,6 +26,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val ftpInputMaxLength = 4
     private val ftmsServiceUuid: UUID = UUID.fromString("00001826-0000-1000-8000-00805f9b34fb")
     private val hrServiceUuid: UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")
+    private val errorToneDurationMs = 120
 
     val uiState = AppUiState()
     val ftpWattsState = mutableIntStateOf(defaultFtpWatts)
@@ -47,6 +50,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingDeviceScanKind: DeviceSelectionKind? = null
     private var closed = false
     private val bleDeviceScanner = BleDeviceScanner(appContext)
+    private var errorToneGenerator: ToneGenerator? = null
 
     private val sessionManager = SessionManager(appContext) { state ->
         uiState.session.value = state
@@ -71,6 +75,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         closeHeartRate = { hrClient.close() },
         keepScreenOn = { keepScreenOnCallback?.invoke() },
         allowScreenOff = { allowScreenOffCallback?.invoke() },
+        onExecutionMappingFailure = { playExecutionFailureTone() },
         currentFtmsDeviceMac = { currentFtmsDeviceMac() },
         currentFtpWatts = { ftpWattsState.intValue },
     )
@@ -129,6 +134,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         if (closed) return
         closed = true
         bleDeviceScanner.stop()
+        releaseErrorTone()
         sessionOrchestrator.stopAndClose()
     }
 
@@ -255,6 +261,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ftpInputErrorState.value = null
         ftpWattsState.intValue = parsed
         FtpSettingsStorage.saveFtpWatts(appContext, parsed)
+        sessionOrchestrator.onFtpWattsChanged()
     }
 
     /**
@@ -418,5 +425,29 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     override fun onCleared() {
         stopAndClose()
         super.onCleared()
+    }
+
+    private fun playExecutionFailureTone() {
+        try {
+            val generator = errorToneGenerator ?: ToneGenerator(
+                AudioManager.STREAM_NOTIFICATION,
+                80
+            ).also { created ->
+                errorToneGenerator = created
+            }
+            generator.startTone(ToneGenerator.TONE_PROP_BEEP, errorToneDurationMs)
+        } catch (_: Throwable) {
+            // Tone playback is non-critical; failures should not affect session flow.
+        }
+    }
+
+    private fun releaseErrorTone() {
+        try {
+            errorToneGenerator?.release()
+        } catch (_: Throwable) {
+            // Best-effort release only.
+        } finally {
+            errorToneGenerator = null
+        }
     }
 }
