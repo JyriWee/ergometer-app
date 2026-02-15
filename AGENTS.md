@@ -4,3 +4,4 @@
 
 “Do not restate what the code already says; explain why, invariants, protocol details, edge cases.”
 
+“At the end of each coding session, update docs/next-session.md with branch, next task, DoD, risks, and validation commands.”
