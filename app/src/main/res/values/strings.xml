@@ -28,6 +28,13 @@
         <string name="menu_ftp_placeholder">e.g. 240</string>
         <string name="menu_ftp_hint">Current FTP: %1$d W</string>
         <string name="menu_ftp_error_invalid">Enter a positive FTP value.</string>
+        <string name="menu_ftms_mac_label">Trainer MAC</string>
+        <string name="menu_hr_mac_label">Heart rate MAC (optional)</string>
+        <string name="menu_mac_placeholder">AA:BB:CC:DD:EE:FF</string>
+        <string name="menu_ftms_mac_hint">Required to start session.</string>
+        <string name="menu_hr_mac_hint">Leave empty to disable external HR strap.</string>
+        <string name="menu_ftms_mac_error_required">Trainer MAC is required.</string>
+        <string name="menu_mac_error_invalid">Use format AA:BB:CC:DD:EE:FF.</string>
         <string name="menu_start_session">Start session</string>
 
         <!-- Session -->

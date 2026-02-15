@@ -8,7 +8,6 @@ import android.provider.OpenableColumns
 import android.util.Log
 import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.AppUiState
-import com.example.ergometerapp.BuildConfig
 import com.example.ergometerapp.StopFlowState
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
@@ -39,11 +38,10 @@ class SessionOrchestrator(
     private val closeHeartRate: () -> Unit,
     private val keepScreenOn: () -> Unit,
     private val allowScreenOff: () -> Unit,
+    private val currentFtmsDeviceMac: () -> String?,
     private val currentFtpWatts: () -> Int,
     private val workoutImportService: WorkoutImportService = WorkoutImportService()
 ) {
-    private val defaultFtmsDeviceMac = BuildConfig.DEFAULT_FTMS_DEVICE_MAC
-
     private var bleClient: FtmsBleClient? = null
     private lateinit var ftmsController: FtmsController
     private var workoutRunner: WorkoutRunner? = null
@@ -73,6 +71,11 @@ class SessionOrchestrator(
             dumpUiState("startSessionConnectionIgnored(noWorkout)")
             return
         }
+        if (currentFtmsDeviceMac() == null) {
+            Log.w("BLE", "Start ignored: FTMS device MAC is missing or invalid")
+            dumpUiState("startSessionConnectionIgnored(noFtmsMac)")
+            return
+        }
 
         cancelStopFlowTimeout()
         uiState.stopFlowState.value = StopFlowState.IDLE
@@ -87,8 +90,11 @@ class SessionOrchestrator(
         val connectInitiated = ensureBluetoothPermission()
         if (connectInitiated) {
             uiState.pendingSessionStartAfterPermission = false
-            uiState.screen.value = AppScreen.CONNECTING
-            connectBleClients()
+            if (connectBleClients()) {
+                uiState.screen.value = AppScreen.CONNECTING
+            } else {
+                uiState.screen.value = AppScreen.MENU
+            }
         }
         dumpUiState("startSessionConnection(connectInitiated=$connectInitiated)")
     }
@@ -101,8 +107,11 @@ class SessionOrchestrator(
             Log.d("BLE", "BLUETOOTH_CONNECT granted")
             if (uiState.pendingSessionStartAfterPermission) {
                 uiState.pendingSessionStartAfterPermission = false
-                uiState.screen.value = AppScreen.CONNECTING
-                connectBleClients()
+                if (connectBleClients()) {
+                    uiState.screen.value = AppScreen.CONNECTING
+                } else {
+                    uiState.screen.value = AppScreen.MENU
+                }
             } else {
                 Log.d("BLE", "Permission granted without pending session start; connect skipped")
             }
@@ -118,10 +127,18 @@ class SessionOrchestrator(
     /**
      * Opens FTMS and HR links for a pending session-start flow.
      */
-    fun connectBleClients() {
-        bleClient?.connect(defaultFtmsDeviceMac)
+    fun connectBleClients(): Boolean {
+        val ftmsDeviceMac = currentFtmsDeviceMac()
+        if (ftmsDeviceMac == null) {
+            Log.w("BLE", "FTMS connect skipped: missing or invalid MAC address")
+            dumpUiState("connectBleClientsSkipped(noFtmsMac)")
+            return false
+        }
+
+        bleClient?.connect(ftmsDeviceMac)
         uiState.reconnectBleOnNextSessionStart = false
         connectHeartRate()
+        return true
     }
 
     /**

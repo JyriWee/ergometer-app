@@ -26,10 +26,14 @@ internal data class MainActivityUiModel(
     val selectedWorkoutFileName: String?,
     val selectedWorkoutStepCount: Int?,
     val selectedWorkoutImportError: String?,
-    val workoutReady: Boolean,
+    val startEnabled: Boolean,
     val ftpWatts: Int,
     val ftpInputText: String,
     val ftpInputError: String?,
+    val ftmsMacInputText: String,
+    val ftmsMacInputError: String?,
+    val hrMacInputText: String,
+    val hrMacInputError: String?,
 )
 
 /**
@@ -40,6 +44,8 @@ internal fun MainActivityContent(
     model: MainActivityUiModel,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
+    onFtmsMacInputChanged: (String) -> Unit,
+    onHrMacInputChanged: (String) -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit,
@@ -49,6 +55,8 @@ internal fun MainActivityContent(
             model = model,
             onSelectWorkoutFile = onSelectWorkoutFile,
             onFtpInputChanged = onFtpInputChanged,
+            onFtmsMacInputChanged = onFtmsMacInputChanged,
+            onHrMacInputChanged = onHrMacInputChanged,
             onStartSession = onStartSession,
             onEndSession = onEndSession,
             onBackToMenu = onBackToMenu
@@ -61,6 +69,8 @@ private fun MainDestinationContent(
     model: MainActivityUiModel,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
+    onFtmsMacInputChanged: (String) -> Unit,
+    onHrMacInputChanged: (String) -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit
@@ -75,9 +85,15 @@ private fun MainDestinationContent(
                 ftpWatts = model.ftpWatts,
                 ftpInputText = model.ftpInputText,
                 ftpInputError = model.ftpInputError,
-                startEnabled = model.workoutReady,
+                ftmsMacInputText = model.ftmsMacInputText,
+                ftmsMacInputError = model.ftmsMacInputError,
+                hrMacInputText = model.hrMacInputText,
+                hrMacInputError = model.hrMacInputError,
+                startEnabled = model.startEnabled,
                 onSelectWorkoutFile = onSelectWorkoutFile,
                 onFtpInputChanged = onFtpInputChanged,
+                onFtmsMacInputChanged = onFtmsMacInputChanged,
+                onHrMacInputChanged = onHrMacInputChanged,
                 onStartSession = onStartSession
             )
         }

@@ -17,7 +17,6 @@ import com.example.ergometerapp.session.SessionOrchestrator
  */
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
-    private val defaultHrDeviceMac = BuildConfig.DEFAULT_HR_DEVICE_MAC
     private val defaultFtpWatts = BuildConfig.DEFAULT_FTP_WATTS.coerceAtLeast(1)
     private val ftpInputMaxLength = 4
 
@@ -25,6 +24,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val ftpWattsState = mutableIntStateOf(defaultFtpWatts)
     val ftpInputTextState = mutableStateOf(defaultFtpWatts.toString())
     val ftpInputErrorState = mutableStateOf<String?>(null)
+    val ftmsMacInputTextState = mutableStateOf("")
+    val ftmsMacInputErrorState = mutableStateOf<String?>(null)
+    val hrMacInputTextState = mutableStateOf("")
+    val hrMacInputErrorState = mutableStateOf<String?>(null)
 
     private var ensureBluetoothPermissionCallback: (() -> Boolean)? = null
     private var keepScreenOnCallback: (() -> Unit)? = null
@@ -45,18 +48,31 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         uiState = uiState,
         sessionManager = sessionManager,
         ensureBluetoothPermission = { ensureBluetoothPermissionCallback?.invoke() == true },
-        connectHeartRate = { hrClient.connect(defaultHrDeviceMac) },
+        connectHeartRate = {
+            val hrMac = currentHrDeviceMac()
+            if (hrMac != null) {
+                hrClient.connect(hrMac)
+            }
+        },
         closeHeartRate = { hrClient.close() },
         keepScreenOn = { keepScreenOnCallback?.invoke() },
         allowScreenOff = { allowScreenOffCallback?.invoke() },
+        currentFtmsDeviceMac = { currentFtmsDeviceMac() },
         currentFtpWatts = { ftpWattsState.intValue },
     )
 
     init {
         val storedFtpWatts = FtpSettingsStorage.loadFtpWatts(appContext, defaultFtpWatts)
+        val storedFtmsMac = DeviceSettingsStorage.loadFtmsDeviceMac(appContext).orEmpty()
+        val storedHrMac = DeviceSettingsStorage.loadHrDeviceMac(appContext).orEmpty()
+
         ftpWattsState.intValue = storedFtpWatts
         ftpInputTextState.value = storedFtpWatts.toString()
         ftpInputErrorState.value = null
+        ftmsMacInputTextState.value = storedFtmsMac
+        hrMacInputTextState.value = storedHrMac
+        ftmsMacInputErrorState.value = validateFtmsMacError(storedFtmsMac)
+        hrMacInputErrorState.value = validateOptionalMacError(storedHrMac)
         sessionOrchestrator.initialize()
     }
 
@@ -108,6 +124,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onStartSession() {
+        val ftmsError = validateFtmsMacError(ftmsMacInputTextState.value)
+        ftmsMacInputErrorState.value = ftmsError
+        if (ftmsError != null) {
+            return
+        }
         sessionOrchestrator.startSessionConnection()
     }
 
@@ -135,6 +156,77 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ftpInputErrorState.value = null
         ftpWattsState.intValue = parsed
         FtpSettingsStorage.saveFtpWatts(appContext, parsed)
+    }
+
+    /**
+     * Accepts and persists FTMS trainer MAC address in canonical format.
+     */
+    fun onFtmsMacInputChanged(rawInput: String) {
+        val sanitized = BluetoothMacAddress.sanitizeUserInput(rawInput)
+        ftmsMacInputTextState.value = sanitized
+
+        val normalized = BluetoothMacAddress.normalizeOrNull(sanitized)
+        val error = validateFtmsMacError(sanitized)
+        ftmsMacInputErrorState.value = error
+
+        if (normalized != null) {
+            ftmsMacInputTextState.value = normalized
+            DeviceSettingsStorage.saveFtmsDeviceMac(appContext, normalized)
+        } else {
+            DeviceSettingsStorage.saveFtmsDeviceMac(appContext, null)
+        }
+    }
+
+    /**
+     * Accepts and persists optional HR strap MAC address in canonical format.
+     */
+    fun onHrMacInputChanged(rawInput: String) {
+        val sanitized = BluetoothMacAddress.sanitizeUserInput(rawInput)
+        hrMacInputTextState.value = sanitized
+
+        val normalized = BluetoothMacAddress.normalizeOrNull(sanitized)
+        val error = validateOptionalMacError(sanitized)
+        hrMacInputErrorState.value = error
+
+        if (normalized != null) {
+            hrMacInputTextState.value = normalized
+            DeviceSettingsStorage.saveHrDeviceMac(appContext, normalized)
+        } else {
+            DeviceSettingsStorage.saveHrDeviceMac(appContext, null)
+        }
+    }
+
+    /**
+     * Start is allowed only when workout import is valid and FTMS device address is valid.
+     */
+    fun canStartSession(): Boolean {
+        return uiState.workoutReady.value && validateFtmsMacError(ftmsMacInputTextState.value) == null
+    }
+
+    private fun validateFtmsMacError(input: String): String? {
+        if (input.isBlank()) {
+            return appContext.getString(R.string.menu_ftms_mac_error_required)
+        }
+        if (BluetoothMacAddress.normalizeOrNull(input) == null) {
+            return appContext.getString(R.string.menu_mac_error_invalid)
+        }
+        return null
+    }
+
+    private fun validateOptionalMacError(input: String): String? {
+        if (input.isBlank()) return null
+        if (BluetoothMacAddress.normalizeOrNull(input) == null) {
+            return appContext.getString(R.string.menu_mac_error_invalid)
+        }
+        return null
+    }
+
+    private fun currentFtmsDeviceMac(): String? {
+        return BluetoothMacAddress.normalizeOrNull(ftmsMacInputTextState.value)
+    }
+
+    private fun currentHrDeviceMac(): String? {
+        return BluetoothMacAddress.normalizeOrNull(hrMacInputTextState.value)
     }
 
     override fun onCleared() {

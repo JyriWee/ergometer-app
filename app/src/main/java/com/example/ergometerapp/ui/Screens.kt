@@ -65,8 +65,8 @@ private data class MetricItem(
 /**
  * Entry screen for starting a session.
  *
- * The start action is gated on successful workout import so runner execution
- * always starts from a validated file-backed workout definition.
+ * The start action is gated on successful workout import and valid FTMS MAC
+ * so runner execution always starts from a validated plan and explicit device.
  */
 @Composable
 internal fun MenuScreen(
@@ -77,9 +77,15 @@ internal fun MenuScreen(
     ftpWatts: Int,
     ftpInputText: String,
     ftpInputError: String?,
+    ftmsMacInputText: String,
+    ftmsMacInputError: String?,
+    hrMacInputText: String,
+    hrMacInputError: String?,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
+    onFtmsMacInputChanged: (String) -> Unit,
+    onHrMacInputChanged: (String) -> Unit,
     onStartSession: () -> Unit
 ) {
     val statusText =
@@ -151,6 +157,48 @@ internal fun MenuScreen(
                     text = ftpInputError ?: stringResource(R.string.menu_ftp_hint, ftpWatts),
                     style = MaterialTheme.typography.bodySmall,
                     color = if (ftpInputError != null) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+
+                OutlinedTextField(
+                    value = ftmsMacInputText,
+                    onValueChange = onFtmsMacInputChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.menu_ftms_mac_label)) },
+                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                    isError = ftmsMacInputError != null,
+                )
+
+                Text(
+                    text = ftmsMacInputError ?: stringResource(R.string.menu_ftms_mac_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (ftmsMacInputError != null) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    }
+                )
+
+                OutlinedTextField(
+                    value = hrMacInputText,
+                    onValueChange = onHrMacInputChanged,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.menu_hr_mac_label)) },
+                    placeholder = { Text(stringResource(R.string.menu_mac_placeholder)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Ascii),
+                    isError = hrMacInputError != null,
+                )
+
+                Text(
+                    text = hrMacInputError ?: stringResource(R.string.menu_hr_mac_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (hrMacInputError != null) {
                         MaterialTheme.colorScheme.error
                     } else {
                         MaterialTheme.colorScheme.onSurfaceVariant
