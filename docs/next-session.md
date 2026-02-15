@@ -3,6 +3,11 @@
 ## Branch
 - current: `main`
 
+## Recently Completed
+- Added CI release verification (`:app:assembleRelease` with minify + `:app:lintRelease`).
+- Added optional secrets-based release signing wiring (no signing data in repository).
+- Added release/signing documentation in `docs/ci-release-signing.md`.
+
 ## Next Task
 - DISCUSS: Define V1 scope for `session -> activity export` (prefer `.fit`, optional `.tcx` fallback).
 
@@ -19,4 +24,6 @@
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
 2. `./gradlew :app:testDebugUnitTest --no-daemon`
-3. Manual check: generate one exported file and import it to at least one target platform.
+3. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
+4. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
+5. Manual check: generate one exported file and import it to at least one target platform.

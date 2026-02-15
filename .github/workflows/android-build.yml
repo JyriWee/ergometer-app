@@ -37,6 +37,19 @@ jobs:
       - name: Ensure Gradle wrapper is executable
         run: chmod +x gradlew
 
+      - name: Guard forbidden debug-signing property
+        run: |
+          if grep -Eq "^[[:space:]]*ergometer\\.release\\.debugSigning[[:space:]]*=[[:space:]]*true[[:space:]]*$" gradle.properties; then
+            echo "Forbidden property detected: ergometer.release.debugSigning=true"
+            exit 1
+          fi
+
+      - name: Decode release keystore (optional)
+        if: ${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 != '' }}
+        run: |
+          echo "${{ secrets.ANDROID_RELEASE_KEYSTORE_B64 }}" | base64 --decode > "$RUNNER_TEMP/release-keystore.jks"
+          echo "ERGOMETER_RELEASE_STORE_FILE=$RUNNER_TEMP/release-keystore.jks" >> "$GITHUB_ENV"
+
       - name: Compile Debug Kotlin
         run: ./gradlew :app:compileDebugKotlin --no-daemon --stacktrace
 
@@ -45,3 +58,17 @@ jobs:
 
       - name: Run Debug Lint
         run: ./gradlew :app:lintDebug --no-daemon --stacktrace
+
+      - name: Assemble Release (minified)
+        env:
+          ERGOMETER_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ERGOMETER_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ERGOMETER_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: ./gradlew :app:assembleRelease --no-daemon --stacktrace -Pergometer.release.minify=true
+
+      - name: Run Release Lint
+        env:
+          ERGOMETER_RELEASE_STORE_PASSWORD: ${{ secrets.ANDROID_RELEASE_STORE_PASSWORD }}
+          ERGOMETER_RELEASE_KEY_ALIAS: ${{ secrets.ANDROID_RELEASE_KEY_ALIAS }}
+          ERGOMETER_RELEASE_KEY_PASSWORD: ${{ secrets.ANDROID_RELEASE_KEY_PASSWORD }}
+        run: ./gradlew :app:lintRelease --no-daemon --stacktrace -Pergometer.release.minify=true

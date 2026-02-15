@@ -9,18 +9,37 @@ val allowLegacyWorkoutFallback = providers.gradleProperty("ergometer.workout.all
     .orElse("true")
 val releaseMinifyEnabled = providers.gradleProperty("ergometer.release.minify")
     .orElse("true")
-val debugSigningRequested = providers.gradleProperty("ergometer.release.debugSigning")
-    .orElse("false")
-    .get()
-    .toBoolean()
-val isCiBuild = providers.environmentVariable("CI")
-    .orElse("false")
-    .get()
-    .toBoolean()
+val releaseSigningStoreFile = providers.environmentVariable("ERGOMETER_RELEASE_STORE_FILE")
+    .orElse(providers.gradleProperty("ergometer.signing.storeFile"))
+    .orNull
+val releaseSigningStorePassword = providers.environmentVariable("ERGOMETER_RELEASE_STORE_PASSWORD")
+    .orElse(providers.gradleProperty("ergometer.signing.storePassword"))
+    .orNull
+val releaseSigningKeyAlias = providers.environmentVariable("ERGOMETER_RELEASE_KEY_ALIAS")
+    .orElse(providers.gradleProperty("ergometer.signing.keyAlias"))
+    .orNull
+val releaseSigningKeyPassword = providers.environmentVariable("ERGOMETER_RELEASE_KEY_PASSWORD")
+    .orElse(providers.gradleProperty("ergometer.signing.keyPassword"))
+    .orNull
 
-if (isCiBuild && debugSigningRequested) {
+val releaseSigningConfigured =
+    !releaseSigningStoreFile.isNullOrBlank() &&
+        !releaseSigningStorePassword.isNullOrBlank() &&
+        !releaseSigningKeyAlias.isNullOrBlank() &&
+        !releaseSigningKeyPassword.isNullOrBlank()
+
+val releaseSigningPartiallyConfigured = listOf(
+    releaseSigningStoreFile,
+    releaseSigningStorePassword,
+    releaseSigningKeyAlias,
+    releaseSigningKeyPassword,
+).any { !it.isNullOrBlank() } && !releaseSigningConfigured
+
+if (releaseSigningPartiallyConfigured) {
     throw GradleException(
-        "Property 'ergometer.release.debugSigning=true' is not allowed in CI.",
+        "Release signing is partially configured. Provide all of: " +
+            "ERGOMETER_RELEASE_STORE_FILE, ERGOMETER_RELEASE_STORE_PASSWORD, " +
+            "ERGOMETER_RELEASE_KEY_ALIAS, ERGOMETER_RELEASE_KEY_PASSWORD.",
     )
 }
 
@@ -46,10 +65,23 @@ android {
         compose = true
     }
 
+    if (releaseSigningConfigured) {
+        signingConfigs {
+            create("release") {
+                storeFile = file(releaseSigningStoreFile!!)
+                storePassword = releaseSigningStorePassword!!
+                keyAlias = releaseSigningKeyAlias!!
+                keyPassword = releaseSigningKeyPassword!!
+            }
+        }
+    }
     buildTypes {
         release {
             isMinifyEnabled = releaseMinifyEnabled.get().toBoolean()
             isShrinkResources = isMinifyEnabled
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
