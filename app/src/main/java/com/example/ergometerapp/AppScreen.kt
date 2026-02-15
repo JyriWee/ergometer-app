@@ -6,7 +6,7 @@ package com.example.ergometerapp
 enum class AppScreen {
     MENU,
     CONNECTING,
+    STOPPING,
     SESSION,
     SUMMARY
 }
-

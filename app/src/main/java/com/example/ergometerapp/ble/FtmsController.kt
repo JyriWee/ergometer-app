@@ -15,7 +15,7 @@ import com.example.ergometerapp.ble.debug.FtmsDebugEvent
  * state on either a response or a timeout to avoid permanent deadlock.
  */
 class FtmsController(
-    private val writeControlPoint: (ByteArray) -> Unit,
+    private val writeControlPoint: (ByteArray) -> Boolean,
     private val onStopAcknowledged: () -> Unit = {}
 ) {
 
@@ -77,12 +77,20 @@ class FtmsController(
             return
         }
 
+        Log.d("FTMS", "Sending: $label payload=${payload.joinToString()}")
+        val writeStarted = writeControlPoint(payload)
+        if (!writeStarted) {
+            Log.w(
+                "FTMS",
+                "Command send failed (write not started): $label payload=${payload.joinToString()}",
+            )
+            dumpControllerState("sendCommandWriteFailed(label=$label)")
+            return
+        }
+
         commandState = FtmsCommandState.BUSY
         startTimeoutTimer()
-
-        Log.d("FTMS", "Sending: $label payload=${payload.joinToString()}")
-        writeControlPoint(payload)
-        dumpControllerState("sendCommandSent(label=$label)")
+        dumpControllerState("sendCommandSent(label=$label,writeStarted=true)")
         // BUSY is released only after a Control Point response or timeout.
     }
 

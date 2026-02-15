@@ -71,7 +71,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ensureBluetoothPermissionCallback = ensureBluetoothPermission
         keepScreenOnCallback = keepScreenOn
         allowScreenOffCallback = allowScreenOff
-        if (uiState.screen.value == AppScreen.SESSION) {
+        if (uiState.screen.value == AppScreen.SESSION || uiState.screen.value == AppScreen.STOPPING) {
             keepScreenOn()
         }
     }

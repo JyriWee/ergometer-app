@@ -9,6 +9,8 @@
         <!-- Connection / status -->
         <string name="status_connected">Connected</string>
         <string name="status_connecting">Connecting…</string>
+        <string name="status_stopping">Stopping…</string>
+        <string name="status_stopping_hint">Finalizing session with trainer</string>
         <string name="status_ready">Ready</string>
         <string name="status_control">Control granted</string>
         <string name="status_unavailable">Unavailable</string>

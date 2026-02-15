@@ -597,14 +597,14 @@ class FtmsBleClient(
      * FTMS devices are allowed to reject commands until they have granted control
      * and Control Point indications are enabled.
      */
-    fun writeControlPoint(payload: ByteArray) {
+    fun writeControlPoint(payload: ByteArray): Boolean {
         if (!hasBluetoothConnectPermission()) {
             Log.w("FTMS", "Missing BLUETOOTH_CONNECT permission; cannot write Control Point")
-            return
+            return false
         }
         if (payload.isEmpty()) {
             Log.w("FTMS", "writeControlPoint ignored (empty payload)")
-            return
+            return false
         }
 
         val opcode = payload[0].toInt() and 0xFF
@@ -614,7 +614,7 @@ class FtmsBleClient(
                 "FTMS",
                 "writeControlPoint ignored (control not granted) opcode=$opcode payload=${payload.joinToString()}",
             )
-            return
+            return false
         }
 
         val currentGatt = gatt
@@ -622,18 +622,21 @@ class FtmsBleClient(
 
         if (currentGatt == null || characteristic == null) {
             Log.w("FTMS", "writeControlPoint called but not ready")
-            return
+            return false
         }
 
         try {
-            val ok = currentGatt.writeCharacteristic(
+            val status = currentGatt.writeCharacteristic(
                 characteristic,
                 payload,
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             )
-            Log.d("FTMS", "writeControlPoint ${payload.joinToString()} -> $ok")
+            val started = status == BluetoothStatusCodes.SUCCESS
+            Log.d("FTMS", "writeControlPoint ${payload.joinToString()} -> status=$status started=$started")
+            return started
         } catch (e: SecurityException) {
             Log.w("FTMS", "writeCharacteristic failed: ${e.message}")
+            return false
         }
     }
 

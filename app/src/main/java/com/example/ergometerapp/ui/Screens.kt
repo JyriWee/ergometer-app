@@ -214,6 +214,34 @@ internal fun ConnectingScreen() {
 }
 
 /**
+ * Transitional screen shown while waiting for STOP acknowledgment before summary.
+ */
+@Composable
+internal fun StoppingScreen() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .windowInsetsPadding(WindowInsets.safeDrawing),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.status_stopping),
+                style = MaterialTheme.typography.headlineSmall
+            )
+            Text(
+                text = stringResource(R.string.status_stopping_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/**
  * Live session UI.
  *
  * This screen surfaces FTMS/HR telemetry and exposes control actions. Buttons

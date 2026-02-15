@@ -86,6 +86,10 @@ private fun MainDestinationContent(
             ConnectingScreen()
         }
 
+        AppScreen.STOPPING -> {
+            StoppingScreen()
+        }
+
         AppScreen.SESSION -> {
             SessionScreen(
                 phase = model.phase,

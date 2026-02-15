@@ -11,8 +11,20 @@ val defaultFtpWatts = providers.gradleProperty("ergometer.ftp.watts")
     .orElse("100")
 val releaseMinifyEnabled = providers.gradleProperty("ergometer.release.minify")
     .orElse("true")
-val allowDebugSigningForRelease = providers.gradleProperty("ergometer.release.debugSigning")
+val debugSigningRequested = providers.gradleProperty("ergometer.release.debugSigning")
     .orElse("false")
+    .get()
+    .toBoolean()
+val isCiBuild = providers.environmentVariable("CI")
+    .orElse("false")
+    .get()
+    .toBoolean()
+
+if (isCiBuild && debugSigningRequested) {
+    throw GradleException(
+        "Property 'ergometer.release.debugSigning=true' is not allowed in CI.",
+    )
+}
 
 android {
     namespace = "com.example.ergometerapp"
@@ -45,10 +57,6 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            if (allowDebugSigningForRelease.get().toBoolean()) {
-                // Internal-only escape hatch. Release builds should normally use real release signing.
-                signingConfig = signingConfigs.getByName("debug")
-            }
         }
     }
     compileOptions {

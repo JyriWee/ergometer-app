@@ -8,6 +8,14 @@ import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.RunnerState
 
 /**
+ * Explicit stop-flow state to avoid ambiguous combinations of stop-related flags.
+ */
+enum class StopFlowState {
+    IDLE,
+    STOPPING_AWAIT_ACK,
+}
+
+/**
  * Centralized holder for UI-observable state and related session flags.
  *
  * Keeping these fields grouped allows orchestration code to update a single
@@ -28,9 +36,9 @@ class AppUiState {
     val selectedWorkoutStepCount: MutableState<Int?> = mutableStateOf(null)
     val selectedWorkoutImportError: MutableState<String?> = mutableStateOf(null)
     val workoutReady: MutableState<Boolean> = mutableStateOf(false)
+    val stopFlowState: MutableState<StopFlowState> = mutableStateOf(StopFlowState.IDLE)
 
     var reconnectBleOnNextSessionStart: Boolean = false
-    var awaitingStopResponseBeforeBleClose: Boolean = false
     var pendingSessionStartAfterPermission: Boolean = false
     var pendingCadenceStartAfterControlGranted: Boolean = false
     var autoPausedByZeroCadence: Boolean = false

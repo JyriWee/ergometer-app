@@ -9,6 +9,7 @@ import android.util.Log
 import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.AppUiState
 import com.example.ergometerapp.BuildConfig
+import com.example.ergometerapp.StopFlowState
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
 import com.example.ergometerapp.ftms.parseIndoorBikeData
@@ -48,6 +49,9 @@ class SessionOrchestrator(
     private var workoutRunner: WorkoutRunner? = null
     private var ftmsClientGeneration: Int = 0
     private var activeFtmsClientGeneration: Int = 0
+    private val mainThreadHandler = Handler(Looper.getMainLooper())
+    private val stopFlowTimeoutMs = 4000L
+    private var stopFlowTimeoutRunnable: Runnable? = null
 
     /**
      * Creates fresh BLE/controller instances for the current activity lifetime.
@@ -70,6 +74,8 @@ class SessionOrchestrator(
             return
         }
 
+        cancelStopFlowTimeout()
+        uiState.stopFlowState.value = StopFlowState.IDLE
         resetFtmsUiState(clearReady = true)
         uiState.pendingSessionStartAfterPermission = true
         uiState.bikeData.value = null
@@ -130,18 +136,25 @@ class SessionOrchestrator(
     }
 
     /**
-     * Stops the active session, releases trainer control and opens summary screen.
+     * Stops the active session and enters explicit stop-flow before summary.
+     *
+     * Summary is shown only after STOP acknowledgement, disconnect, or timeout,
+     * so UI transitions cannot race ahead of trainer teardown.
      */
     fun endSessionAndGoToSummary() {
+        if (uiState.stopFlowState.value == StopFlowState.STOPPING_AWAIT_ACK) {
+            dumpUiState("endSessionAndGoToSummaryIgnoredAlreadyStopping")
+            return
+        }
+
         stopWorkout()
         workoutRunner = null
         sessionManager.stopSession()
-        uiState.awaitingStopResponseBeforeBleClose = true
-        releaseControl(resetDevice = true)
-
         uiState.summary.value = sessionManager.lastSummary
-        allowScreenOff()
-        uiState.screen.value = AppScreen.SUMMARY
+        uiState.stopFlowState.value = StopFlowState.STOPPING_AWAIT_ACK
+        uiState.screen.value = AppScreen.STOPPING
+        startStopFlowTimeout()
+        releaseControl(resetDevice = true)
         dumpUiState("endSessionAndGoToSummary")
     }
 
@@ -149,6 +162,8 @@ class SessionOrchestrator(
      * Releases owned resources during activity teardown.
      */
     fun stopAndClose() {
+        cancelStopFlowTimeout()
+        uiState.stopFlowState.value = StopFlowState.IDLE
         dumpUiState("onDestroy")
         workoutRunner?.stop()
         bleClient?.close()
@@ -328,16 +343,19 @@ class SessionOrchestrator(
                     Log.d("FTMS", "Ignoring stale onDisconnected callback (generation=$generation)")
                     return@FtmsBleClient
                 }
+                val stopFlowInProgress = uiState.stopFlowState.value == StopFlowState.STOPPING_AWAIT_ACK
                 val wasSessionFlowActive =
                     uiState.screen.value == AppScreen.CONNECTING || uiState.screen.value == AppScreen.SESSION
                 ftmsController.setTransportReady(false)
                 ftmsController.onDisconnected()
-                uiState.awaitingStopResponseBeforeBleClose = false
                 resetFtmsUiState(clearReady = true)
                 stopWorkout()
                 workoutRunner = null
                 sessionManager.stopSession()
-                if (wasSessionFlowActive) {
+                if (stopFlowInProgress) {
+                    completeStopFlowToSummary(reason = "bleOnDisconnectedDuringStopFlow")
+                } else if (wasSessionFlowActive) {
+                    uiState.stopFlowState.value = StopFlowState.IDLE
                     allowScreenOff()
                     uiState.screen.value = AppScreen.MENU
                 }
@@ -372,6 +390,41 @@ class SessionOrchestrator(
         }
         resetFtmsUiState(clearReady = false)
         dumpUiState("releaseControl(resetDevice=$resetDevice)")
+    }
+
+    /**
+     * Finalizes stop-flow navigation exactly once for all ack/disconnect/timeout paths.
+     */
+    private fun completeStopFlowToSummary(reason: String): Boolean {
+        if (uiState.stopFlowState.value != StopFlowState.STOPPING_AWAIT_ACK) {
+            return false
+        }
+
+        cancelStopFlowTimeout()
+        uiState.summary.value = sessionManager.lastSummary
+        uiState.stopFlowState.value = StopFlowState.IDLE
+        allowScreenOff()
+        uiState.screen.value = AppScreen.SUMMARY
+        dumpUiState("completeStopFlowToSummary(reason=$reason)")
+        return true
+    }
+
+    private fun startStopFlowTimeout() {
+        cancelStopFlowTimeout()
+        stopFlowTimeoutRunnable = Runnable {
+            stopFlowTimeoutRunnable = null
+            if (uiState.stopFlowState.value != StopFlowState.STOPPING_AWAIT_ACK) return@Runnable
+            Log.w("FTMS", "Stop-flow timeout reached; finalizing summary without STOP acknowledgement")
+            if (completeStopFlowToSummary(reason = "stopFlowTimeout")) {
+                bleClient?.close()
+            }
+        }
+        mainThreadHandler.postDelayed(stopFlowTimeoutRunnable!!, stopFlowTimeoutMs)
+    }
+
+    private fun cancelStopFlowTimeout() {
+        stopFlowTimeoutRunnable?.let { mainThreadHandler.removeCallbacks(it) }
+        stopFlowTimeoutRunnable = null
     }
 
     /**
@@ -500,12 +553,14 @@ class SessionOrchestrator(
     private fun createFtmsController(): FtmsController {
         return FtmsController(
             writeControlPoint = { payload ->
-                bleClient?.writeControlPoint(payload)
+                bleClient?.writeControlPoint(payload) == true
             },
             onStopAcknowledged = {
-                Handler(Looper.getMainLooper()).post {
+                mainThreadHandler.post {
+                    if (completeStopFlowToSummary(reason = "onStopAcknowledged")) {
+                        bleClient?.close()
+                    }
                     dumpUiState("onStopAcknowledged")
-                    bleClient?.close()
                 }
             }
         )
@@ -518,7 +573,7 @@ class SessionOrchestrator(
                 "ready=${uiState.ftmsReady.value} controlGranted=${uiState.ftmsControlGranted.value} " +
                 "lastTarget=${uiState.lastTargetPower.value} runnerState=${uiState.runner.value} " +
                 "reconnectPending=${uiState.reconnectBleOnNextSessionStart} " +
-                "awaitingStopClose=${uiState.awaitingStopResponseBeforeBleClose} " +
+                "stopFlowState=${uiState.stopFlowState.value} " +
                 "pendingSessionStart=${uiState.pendingSessionStartAfterPermission} " +
                 "pendingCadenceStart=${uiState.pendingCadenceStartAfterControlGranted} " +
                 "autoPausedByZeroCadence=${uiState.autoPausedByZeroCadence}"
