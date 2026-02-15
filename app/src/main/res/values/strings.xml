@@ -17,12 +17,14 @@
 
         <!-- Menu -->
         <string name="menu_title">Ergometer</string>
-        <string name="menu_subtitle">FTMS based trainig session</string>
+        <string name="menu_subtitle">FTMS based training session</string>
         <string name="menu_connection_title">Connection</string>
         <string name="menu_connection_hint">Waiting for trainer connection</string>
         <string name="menu_select_workout_file">Select workout file</string>
         <string name="menu_select_workout_file_short">Select workout</string>
         <string name="menu_workout_file_none">No file selected</string>
+        <string name="menu_workout_file_dialog_title">Workout file</string>
+        <string name="menu_dialog_ok">OK</string>
         <string name="menu_device_not_selected">Not selected</string>
         <string name="menu_trainer_device_label">Trainer device (required)</string>
         <string name="menu_hr_device_label">HR device (optional)</string>
@@ -42,7 +44,7 @@
         <string name="menu_trainer_picker_title">Trainer devices</string>
         <string name="menu_hr_picker_title">Heart rate devices</string>
         <string name="menu_close_device_picker">Close picker</string>
-        <string name="menu_cancel_device_scan">Cancel scan</string>
+        <string name="menu_cancel_device_scan">Stop scan</string>
         <string name="menu_device_unknown_name">Unnamed device</string>
         <string name="menu_device_scan_permission_required">Scan permission is required to search devices.</string>
         <string name="menu_device_scan_status_scanning">Scanning nearby BLE devices…</string>

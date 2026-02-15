@@ -1,6 +1,9 @@
 package com.example.ergometerapp.ui
 
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -14,23 +17,31 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -67,6 +78,14 @@ private val SessionWorkoutChartHeight = 220.dp
 private val MenuNormalTextColor = Color.Black
 private val MenuErrorTextColor = Color(0xFFD50000)
 private val MenuPickerStatusColor = Color(0xFFFFC107)
+private val MenuPickerWarningColor = Color(0xFFFFC107)
+private val MenuPickerNeutralOnDark = Color.White
+private val MenuStartCtaColor = Color(0xFF0F8FA8)
+private val MenuStartCtaContentColor = Color.White
+private val MenuSecondaryButtonColor = Color(0xFFD8ECF2)
+private val MenuSecondaryButtonContentColor = Color(0xFF1F4C59)
+private val MenuDeviceSelectedColor = Color(0xFF2E7D32)
+private val MenuDeviceUnselectedColor = Color(0xFF9E9E9E)
 
 private data class MetricItem(
     val label: String,
@@ -87,6 +106,14 @@ private fun menuTextFieldColors() = OutlinedTextFieldDefaults.colors(
     errorBorderColor = MenuErrorTextColor,
     errorLabelColor = MenuErrorTextColor,
     errorCursorColor = MenuErrorTextColor,
+)
+
+@Composable
+private fun menuSecondaryButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = MenuSecondaryButtonColor,
+    contentColor = MenuSecondaryButtonContentColor,
+    disabledContainerColor = MenuSecondaryButtonColor.copy(alpha = 0.6f),
+    disabledContentColor = MenuSecondaryButtonContentColor.copy(alpha = 0.75f),
 )
 
 /**
@@ -125,17 +152,25 @@ internal fun MenuScreen(
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit
 ) {
+    val showWorkoutFileDialog = remember { mutableStateOf(false) }
+    val showWorkoutNameDialog = remember { mutableStateOf(false) }
+    val showWorkoutDescriptionDialog = remember { mutableStateOf(false) }
     val unknown = stringResource(R.string.value_unknown)
+    val stepCountText =
+        if (selectedWorkout != null && selectedWorkoutStepCount != null && selectedWorkoutImportError == null) {
+            stringResource(R.string.menu_workout_step_count, selectedWorkoutStepCount)
+        } else {
+            null
+        }
     val statusText =
         when {
             selectedWorkoutImportError != null -> {
                 stringResource(R.string.menu_workout_import_failed, selectedWorkoutImportError)
             }
-            selectedWorkoutFileName != null && selectedWorkoutStepCount != null -> {
-                stringResource(R.string.menu_workout_step_count, selectedWorkoutStepCount)
-            }
-            else -> stringResource(R.string.menu_workout_not_selected)
+            selectedWorkout == null -> stringResource(R.string.menu_workout_not_selected)
+            else -> null
         }
+    val statusTextColor = if (selectedWorkoutImportError != null) MenuErrorTextColor else MenuNormalTextColor
     val workoutFileDisplayName = selectedWorkoutFileName
         ?.substringAfterLast('/')
         ?.trim()
@@ -149,6 +184,8 @@ internal fun MenuScreen(
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
         ?: unknown
+    val trainerSelected = ftmsDeviceName.isNotBlank()
+    val hrSelected = hrDeviceName.isNotBlank()
     val trainerDisplayName = ftmsDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
     val hrDisplayName = hrDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
 
@@ -229,11 +266,13 @@ internal fun MenuScreen(
                     DeviceSelectionInfoCard(
                         label = stringResource(R.string.menu_trainer_device_label),
                         value = trainerDisplayName,
+                        isSelected = trainerSelected,
                         modifier = Modifier.weight(1f),
                     )
                     DeviceSelectionInfoCard(
                         label = stringResource(R.string.menu_hr_device_label),
                         value = hrDisplayName,
+                        isSelected = hrSelected,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -251,7 +290,7 @@ internal fun MenuScreen(
                             modifier = Modifier
                                 .width(halfWidth)
                                 .height(40.dp),
-                            colors = disabledVisibleButtonColors()
+                            colors = menuSecondaryButtonColors()
                         ) {
                             Text(stringResource(R.string.menu_search_trainer_devices_short))
                         }
@@ -261,7 +300,7 @@ internal fun MenuScreen(
                             modifier = Modifier
                                 .width(halfWidth)
                                 .height(40.dp),
-                            colors = disabledVisibleButtonColors()
+                            colors = menuSecondaryButtonColors()
                         ) {
                             Text(stringResource(R.string.menu_search_hr_devices_short))
                         }
@@ -307,10 +346,16 @@ internal fun MenuScreen(
                             Spacer(modifier = Modifier.height(4.dp))
                         }
 
-                        Button(
+                        val dismissContentColor =
+                            if (deviceScanInProgress) MenuPickerWarningColor else MenuPickerNeutralOnDark
+                        val dismissBorderColor =
+                            if (deviceScanInProgress) MenuPickerWarningColor else MenuPickerNeutralOnDark.copy(alpha = 0.75f)
+
+                        OutlinedButton(
                             onClick = onDismissDeviceSelection,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = disabledVisibleButtonColors()
+                            border = BorderStroke(1.dp, dismissBorderColor),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = dismissContentColor)
                         ) {
                             Text(
                                 stringResource(
@@ -335,7 +380,7 @@ internal fun MenuScreen(
                         modifier = Modifier
                             .weight(0.3f)
                             .height(40.dp),
-                        colors = disabledVisibleButtonColors(),
+                        colors = menuSecondaryButtonColors(),
                     ) {
                         Text(
                             text = stringResource(R.string.menu_select_workout_file_short),
@@ -346,6 +391,11 @@ internal fun MenuScreen(
                     MenuInlineValueCard(
                         value = workoutFileDisplayName,
                         modifier = Modifier.weight(0.7f),
+                        onClick = if (selectedWorkoutFileName != null) {
+                            { showWorkoutFileDialog.value = true }
+                        } else {
+                            null
+                        },
                     )
                 }
 
@@ -358,21 +408,25 @@ internal fun MenuScreen(
                         WorkoutMetaListBox(
                             label = stringResource(R.string.menu_workout_name_tag),
                             value = workoutNameTagValue,
+                            onClick = { showWorkoutNameDialog.value = true },
                             modifier = Modifier.weight(1f),
                         )
                         WorkoutMetaListBox(
                             label = stringResource(R.string.menu_workout_description_tag),
                             value = workoutDescriptionTagValue,
+                            onClick = { showWorkoutDescriptionDialog.value = true },
                             modifier = Modifier.weight(1f),
                         )
                     }
                 }
 
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MenuNormalTextColor
-                )
+                if (statusText != null) {
+                    Text(
+                        text = statusText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = statusTextColor
+                    )
+                }
 
                 if (workoutExecutionModeMessage != null) {
                     Text(
@@ -387,7 +441,26 @@ internal fun MenuScreen(
                 }
 
                 if (selectedWorkout != null) {
-                    SectionCard(title = stringResource(R.string.session_workout_title)) {
+                    SectionCard(title = null) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(R.string.session_workout_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color.White,
+                            )
+                            if (stepCountText != null) {
+                                Text(
+                                    text = stepCountText,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Color.White,
+                                )
+                            }
+                        }
                         WorkoutProfileChart(
                             workout = selectedWorkout,
                             ftpWatts = ftpWatts,
@@ -398,13 +471,67 @@ internal fun MenuScreen(
                 Button(
                     onClick = onStartSession,
                     enabled = startEnabled,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = disabledVisibleButtonColors()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MenuStartCtaColor,
+                        contentColor = MenuStartCtaContentColor,
+                        disabledContainerColor = MenuStartCtaColor.copy(alpha = 0.45f),
+                        disabledContentColor = MenuStartCtaContentColor.copy(alpha = 0.75f),
+                    )
                 ) {
-                    Text(stringResource(R.string.menu_start_session))
+                    Icon(
+                        imageVector = Icons.Filled.PlayArrow,
+                        contentDescription = null
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = stringResource(R.string.menu_start_session),
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
         }
+    }
+
+    if (showWorkoutFileDialog.value && selectedWorkoutFileName != null) {
+        AlertDialog(
+            onDismissRequest = { showWorkoutFileDialog.value = false },
+            title = { Text(stringResource(R.string.menu_workout_file_dialog_title)) },
+            text = { Text(workoutFileDisplayName) },
+            confirmButton = {
+                TextButton(onClick = { showWorkoutFileDialog.value = false }) {
+                    Text(stringResource(R.string.menu_dialog_ok))
+                }
+            },
+        )
+    }
+
+    if (showWorkoutNameDialog.value && selectedWorkout != null) {
+        AlertDialog(
+            onDismissRequest = { showWorkoutNameDialog.value = false },
+            title = { Text(stringResource(R.string.menu_workout_name_tag)) },
+            text = { Text(workoutNameTagValue) },
+            confirmButton = {
+                TextButton(onClick = { showWorkoutNameDialog.value = false }) {
+                    Text(stringResource(R.string.menu_dialog_ok))
+                }
+            },
+        )
+    }
+
+    if (showWorkoutDescriptionDialog.value && selectedWorkout != null) {
+        AlertDialog(
+            onDismissRequest = { showWorkoutDescriptionDialog.value = false },
+            title = { Text(stringResource(R.string.menu_workout_description_tag)) },
+            text = { Text(workoutDescriptionTagValue) },
+            confirmButton = {
+                TextButton(onClick = { showWorkoutDescriptionDialog.value = false }) {
+                    Text(stringResource(R.string.menu_dialog_ok))
+                }
+            },
+        )
     }
 
     if (suggestTrainerSearchAfterConnectionIssue && connectionIssueMessage != null) {
@@ -458,6 +585,7 @@ internal fun ConnectingScreen() {
 private fun DeviceSelectionInfoCard(
     label: String,
     value: String,
+    isSelected: Boolean,
     modifier: Modifier = Modifier,
 ) {
     ElevatedCard(
@@ -473,13 +601,29 @@ private fun DeviceSelectionInfoCard(
                 .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MenuNormalTextColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Box(
+                    modifier = Modifier
+                        .size(10.dp)
+                        .background(
+                            color = if (isSelected) MenuDeviceSelectedColor else MenuDeviceUnselectedColor,
+                            shape = CircleShape,
+                        )
+                )
+            }
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
@@ -494,10 +638,18 @@ private fun DeviceSelectionInfoCard(
 @Composable
 private fun MenuInlineValueCard(
     value: String,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val cardModifier = if (onClick != null) {
+        modifier
+            .height(40.dp)
+            .clickable(onClick = onClick)
+    } else {
+        modifier.height(40.dp)
+    }
     ElevatedCard(
-        modifier = modifier.height(40.dp),
+        modifier = cardModifier,
         colors = CardDefaults.elevatedCardColors(
             containerColor = Color.White,
             contentColor = MenuNormalTextColor,
@@ -524,10 +676,18 @@ private fun MenuInlineValueCard(
 private fun WorkoutMetaListBox(
     label: String,
     value: String,
+    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val cardModifier = if (onClick != null) {
+        modifier
+            .height(92.dp)
+            .clickable(onClick = onClick)
+    } else {
+        modifier.height(92.dp)
+    }
     ElevatedCard(
-        modifier = modifier.height(92.dp),
+        modifier = cardModifier,
         colors = CardDefaults.elevatedCardColors(
             containerColor = Color.White,
             contentColor = MenuNormalTextColor,
@@ -542,7 +702,7 @@ private fun WorkoutMetaListBox(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = MenuNormalTextColor,
             )
             Box(
                 modifier = Modifier

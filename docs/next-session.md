@@ -25,21 +25,42 @@
   - Refactored ViewModel to keep only selected device MACs from scanner/persistence.
   - Removed obsolete MAC-related string resources.
 - Adjusted Menu top row:
-  - Added one-line row with `FTMS based trainig session` (left), narrow FTP input (~1/6), and `Current FTP` hint (right).
+  - Added one-line row with `FTMS based training session` (left), narrow FTP input (~1/6), and `Current FTP` hint (right).
   - FTP validation errors are shown below that row in red.
 - Enabled project-wide Gradle configuration cache in `gradle.properties` and verified cache store/reuse in CLI builds.
 - Enabled additional Gradle performance settings in `gradle.properties`:
   - `org.gradle.caching=true`
   - `org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8`
+- Improved portrait Menu readability:
+  - Fixed subtitle typo (`training`).
+  - Increased device/metadata card label contrast to black.
+- Updated device picker dismiss control:
+  - Replaced filled cancel button with state-aware outlined button.
+  - While scanning: shows `Stop scan` with amber warning styling.
+  - When idle: shows `Close picker` with high-contrast neutral styling on dark background.
+- Emphasized Menu primary action:
+  - `Start session` now uses dedicated CTA styling (darker teal, white text, 56dp height).
+  - Added leading play icon and semibold label weight.
+  - Disabled CTA state remains clearly visible while preserving contrast.
+- Tuned Menu visual hierarchy and selection clarity:
+  - Secondary Menu actions (`Search trainer`, `Search HR`, `Select workout`) now use a lighter secondary button style to keep focus on `Start session`.
+  - Added trainer/HR selection status dots (green when selected, gray when not selected) in device cards.
+  - Moved workout step count into the workout card header row next to `Workout`.
+  - Added tap-to-open full workout filename dialog from the filename card to handle long names.
+- Extended Menu tap-to-view details:
+  - Added the same dialog presentation for `Workout name` and `Workout description` cards.
+  - Workout chart header row text (`Workout` + step count subtitle) is now white for consistent contrast on the dark chart card.
 
 ## Next Task
-- Validate updated Menu and Summary layouts on device (portrait + landscape), then decide if any spacing/font-size tuning is needed.
+- Validate portrait + landscape Menu behavior after latest hierarchy changes (button emphasis, status dots, and all three detail dialogs).
 
 ## Definition of Done
 - Menu layout matches requested component order and proportions.
 - Summary page remains readable with two columns.
 - No regressions in compile/test.
 - No user-visible MAC mentions remain in Menu flow.
+- Picker dismiss action is clearly differentiated for scanning vs idle states.
+- Long workout filenames are accessible in full via explicit tap action.
 
 ## Risks / Open Questions
 - Confirm whether summary should stay two columns even on narrow portrait screens.
