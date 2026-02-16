@@ -70,6 +70,7 @@ See `docs/ci-release-signing.md` for details.
 - Architecture overview: `docs/architecture.md`
 - Onboarding guide: `docs/onboarding.md`
 - BLE status and recovery behavior: `docs/ble-status-and-recovery.md`
+- AI-assisted development note (FI/EN): `docs/ai-assisted-development-note.md`
 - Next-session handoff notes: `docs/next-session.md`
 - CI signing/release notes: `docs/ci-release-signing.md`
 - Adaptive UI checklist (Android 17): `docs/android-17-adaptive-checklist.md`

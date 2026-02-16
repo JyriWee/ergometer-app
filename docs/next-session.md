@@ -1,9 +1,12 @@
 # Next Session
 
 ## Branch
-- current: `docs/readme-refresh`
+- current: `docs/ai-origin-note`
 
 ## Recently Completed
+- Added bilingual project-origin note in `docs/ai-assisted-development-note.md` (Finnish + English).
+- Linked AI-assisted development note from `README.md`.
+- Received latest external GitHub-Codex audit with prioritized findings (HR ready-state sequencing, FTMS main-thread/log pressure, SessionManager stop-time persistence threading, probe scan cost).
 - Refreshed root `README.md` to reflect current project scope, setup, validation commands, configuration flags, and documentation index.
 - Added contributor-facing architecture overview in `docs/architecture.md`.
 - Added setup and development onboarding guide in `docs/onboarding.md`.
@@ -140,22 +143,26 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Review latest GitHub-Codex audit output and select one implementation item for a small, testable first increment (recommended: P1-2 strict-by-default release execution policy).
+- Implement audit P0-1 as the first bounded increment:
+  - HR ready-state sequencing (emit connected only after notification path is fully ready).
+  - Deterministic disconnect/error path when HR service/characteristic/descriptor setup fails.
+  - Keep behavior backward-compatible for normal success flow.
 
 ## Definition of Done
-- Selected next implementation scope is explicit and bounded.
-- First increment is implemented on a feature branch (not `main`).
-- Compile/test/lint checks pass for the changed scope.
-- Session handoff notes are updated with concrete next step and validation commands.
+- Implementation is done on a dedicated feature branch (not `main`).
+- HR `connected` UI state is emitted only after CCCD enable/setup success.
+- Missing HR service/characteristic/descriptor follows deterministic disconnect path with clear failure reason.
+- No regressions in compile/test/lint for touched scope.
+- Session handoff notes are updated for the next increment.
 
 ## Risks / Open Questions
-- Keep commit size controlled; propose commit earlier once each tested increment is complete.
-- Confirm product expectation for unsupported workout steps in release (`strict block` vs `degraded fallback`).
-- Confirm desired user-visible wording if strict mode blocks a workout.
-- Confirm whether additional UI instrumentation coverage is needed before next release-targeted changes.
+- Keep commit size controlled; propose commit as soon as each tested increment is complete.
+- Confirm exact UX wording for HR setup failures on the menu/session boundary.
+- Confirm whether follow-up P0-2 (FTMS logging/main-thread throttling) should be merged immediately after P0-1 or validated in a separate sprint step.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --no-daemon`
-3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-4. `./gradlew :app:lintDebug --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrReconnectCoordinatorTest" --no-daemon`
+3. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+4. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+5. `./gradlew :app:lintDebug --no-daemon`
