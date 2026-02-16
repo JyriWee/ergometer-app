@@ -1,74 +1,30 @@
 # Next Session
 
 ## Branch
-- current: `feature/menu-summary-white-boxes-and-conditional-meta`
+- current: `work`
 
 ## Recently Completed
-- Added CI release verification (`:app:assembleRelease` with minify + `:app:lintRelease`).
-- Added optional secrets-based release signing wiring (no signing data in repository).
-- Added release/signing documentation in `docs/ci-release-signing.md`.
-- Fixed GitHub Actions expression error by removing direct `secrets` usage from step-level `if` condition.
-- Updated UI layout:
-  - Summary metrics now use two columns.
-  - Menu: moved workout selection under device search buttons, added inline filename display.
-  - Menu: added two scrollable metadata boxes for workout name/description tags.
-- Updated Menu behavior/style:
-  - Name/description metadata boxes are shown only when a workout is selected.
-  - Filename box + metadata boxes use white card backgrounds.
-- Removed user-visible MAC address exposure from Menu UI:
-  - Manual MAC input fields removed from Menu.
-  - Trainer/HR are shown as compact side-by-side device cards.
-  - Device picker list now shows name + RSSI only (no MAC text).
-- Adjusted workout row proportions to 30/70 (`Select workout` / filename display).
-- Removed unused manual-MAC plumbing from app state/UI wiring:
-  - Deleted Menu callback/model fields related to manual FTMS/HR MAC text input.
-  - Refactored ViewModel to keep only selected device MACs from scanner/persistence.
-  - Removed obsolete MAC-related string resources.
-- Adjusted Menu top row:
-  - Added one-line row with `FTMS based training session` (left), narrow FTP input (~1/6), and `Current FTP` hint (right).
-  - FTP validation errors are shown below that row in red.
-- Enabled project-wide Gradle configuration cache in `gradle.properties` and verified cache store/reuse in CLI builds.
-- Enabled additional Gradle performance settings in `gradle.properties`:
-  - `org.gradle.caching=true`
-  - `org.gradle.jvmargs=-Xmx4096m -Dfile.encoding=UTF-8`
-- Improved portrait Menu readability:
-  - Fixed subtitle typo (`training`).
-  - Increased device/metadata card label contrast to black.
-- Updated device picker dismiss control:
-  - Replaced filled cancel button with state-aware outlined button.
-  - While scanning: shows `Stop scan` with amber warning styling.
-  - When idle: shows `Close picker` with high-contrast neutral styling on dark background.
-- Emphasized Menu primary action:
-  - `Start session` now uses dedicated CTA styling (darker teal, white text, 56dp height).
-  - Added leading play icon and semibold label weight.
-  - Disabled CTA state remains clearly visible while preserving contrast.
-- Tuned Menu visual hierarchy and selection clarity:
-  - Secondary Menu actions (`Search trainer`, `Search HR`, `Select workout`) now use a lighter secondary button style to keep focus on `Start session`.
-  - Added trainer/HR selection status dots (green when selected, gray when not selected) in device cards.
-  - Moved workout step count into the workout card header row next to `Workout`.
-  - Added tap-to-open full workout filename dialog from the filename card to handle long names.
-- Extended Menu tap-to-view details:
-  - Added the same dialog presentation for `Workout name` and `Workout description` cards.
-  - Workout chart header row text (`Workout` + step count subtitle) is now white for consistent contrast on the dark chart card.
+- Completed a full technical audit of the current main-latest snapshot, focused on FTMS/BLE reconnect behavior, command ownership/race risks, workout pipeline resilience, UI state transitions, and CI/release guardrails.
+- Produced prioritized remediation roadmap (P0/P1/P2), quick wins (<1 day), and targeted validation matrix for reconnect + portrait/landscape behavior.
+- Documented concrete regression risks and proposed fixes in `docs/technical-audit-main-latest.md`.
 
 ## Next Task
-- Validate portrait + landscape Menu behavior after latest hierarchy changes (button emphasis, status dots, and all three detail dialogs).
+- Implement P0 hardening for FTMS request-control failure/timeout handling and command-response correlation invariants.
 
 ## Definition of Done
-- Menu layout matches requested component order and proportions.
-- Summary page remains readable with two columns.
-- No regressions in compile/test.
-- No user-visible MAC mentions remain in Menu flow.
-- Picker dismiss action is clearly differentiated for scanning vs idle states.
-- Long workout filenames are accessible in full via explicit tap action.
+- Request-control non-success and timeout paths always resolve to deterministic UI state with actionable recovery.
+- FTMS command pipeline validates response opcode against expected in-flight command.
+- Unit tests cover denied-control, timeout, and mismatched-response scenarios.
+- No regressions in existing workout start/stop flow.
 
 ## Risks / Open Questions
-- Confirm whether summary should stay two columns even on narrow portrait screens.
-- Confirm desired truncation/scroll behavior for long filename and long description values.
+- Product decision needed: strict vs degraded execution mode default for unsupported workout steps.
+- Product decision needed: reconnect retry budget and user messaging policy.
+- Potential scope creep if HR reconnect hardening is bundled into same sprint.
 
 ## Validation
-1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --no-daemon`
+1. `./gradlew :app:testDebugUnitTest --no-daemon`
+2. `./gradlew :app:lintDebug --no-daemon`
 3. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
-4. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
-5. Manual check: generate one exported file and import it to at least one target platform.
+4. Manual: trainer power-cycle reconnect test (during session and during stopping flow).
+5. Manual: rotate portrait/landscape in MENU, CONNECTING, SESSION, STOPPING, SUMMARY.
