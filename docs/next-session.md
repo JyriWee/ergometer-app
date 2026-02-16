@@ -44,12 +44,35 @@
   - Disabled CTA state remains clearly visible while preserving contrast.
 - Tuned Menu visual hierarchy and selection clarity:
   - Secondary Menu actions (`Search trainer`, `Search HR`, `Select workout`) now use a lighter secondary button style to keep focus on `Start session`.
-  - Added trainer/HR selection status dots (green when selected, gray when not selected) in device cards.
+  - Added trainer/HR live connection status dots in device cards:
+    - connected: pulsing green
+    - disconnected: amber
   - Moved workout step count into the workout card header row next to `Workout`.
   - Added tap-to-open full workout filename dialog from the filename card to handle long names.
 - Extended Menu tap-to-view details:
   - Added the same dialog presentation for `Workout name` and `Workout description` cards.
   - Workout chart header row text (`Workout` + step count subtitle) is now white for consistent contrast on the dark chart card.
+- Refined MENU device status indicators with tri-state semantics:
+  - `Connected`: pulsing green.
+  - `Idle` (normal not-connected state before/after session): neutral gray.
+  - `Issue` (trainer auto-connect failure prompt active): amber.
+  - HR indicator uses connected/idle (green/gray) to avoid false warning color in normal idle state.
+- Added automatic trainer availability probing on MENU:
+  - Passive FTMS scan probe runs every 10 seconds for the selected trainer MAC.
+  - Probe duration is 1.5 seconds for faster status refresh with controlled scan load.
+  - Probe result feeds trainer indicator without opening a GATT/control-point session.
+  - Picker scans and session start temporarily suspend probe scanning to avoid scan contention.
+  - Trainer indicator stays gray until first probe result is known, then shows green/amber based on availability.
+- Added automatic HR availability probing on MENU (longer interval than trainer):
+  - Passive HR scan probe runs every 30 seconds for the selected HR MAC.
+  - HR indicator now mirrors trainer semantics (green when reachable/connected, amber when known unreachable, gray before first known state).
+- Stabilized HR status indicator against transient BLE advertisement misses:
+  - Added HR hysteresis (`hrStatusMissThreshold = 2`, `hrStatusStaleTimeoutMs = 75s`).
+  - Single missed probe no longer flips HR to amber.
+  - Reachable state is refreshed immediately on confirmed HR connection callbacks.
+- Improved picker scan feedback on MENU:
+  - While scanning, picker status text now shows animated trailing dots (`.`, `..`, `...`) in a calm loop.
+  - Keeps scan feedback visible without introducing spinner/noisy motion.
 - Added planned workout TSS calculation (FTP-aware) from execution segments:
   - New `WorkoutPlannedTssCalculator` with one-decimal output.
   - Uses strict execution mapping to avoid showing misleading values for unsupported/invalid workouts.

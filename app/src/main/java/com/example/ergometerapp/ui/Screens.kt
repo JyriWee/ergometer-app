@@ -43,6 +43,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -84,13 +90,20 @@ private val MenuStartCtaColor = Color(0xFF0F8FA8)
 private val MenuStartCtaContentColor = Color.White
 private val MenuSecondaryButtonColor = Color(0xFFD8ECF2)
 private val MenuSecondaryButtonContentColor = Color(0xFF1F4C59)
-private val MenuDeviceSelectedColor = Color(0xFF2E7D32)
-private val MenuDeviceUnselectedColor = Color(0xFF9E9E9E)
+private val MenuDeviceConnectedColor = Color(0xFF2E7D32)
+private val MenuDeviceIdleColor = Color(0xFF9E9E9E)
+private val MenuDeviceIssueColor = Color(0xFFFFC107)
 
 private data class MetricItem(
     val label: String,
     val value: String
 )
+
+private enum class DeviceConnectionIndicatorState {
+    CONNECTED,
+    IDLE,
+    ISSUE,
+}
 
 @Composable
 private fun menuTextFieldColors() = OutlinedTextFieldDefaults.colors(
@@ -133,7 +146,13 @@ internal fun MenuScreen(
     ftpInputText: String,
     ftpInputError: String?,
     ftmsDeviceName: String,
+    ftmsSelected: Boolean,
+    ftmsConnected: Boolean,
+    ftmsConnectionKnown: Boolean,
     hrDeviceName: String,
+    hrSelected: Boolean,
+    hrConnected: Boolean,
+    hrConnectionKnown: Boolean,
     workoutExecutionModeMessage: String?,
     workoutExecutionModeIsError: Boolean,
     connectionIssueMessage: String?,
@@ -191,10 +210,23 @@ internal fun MenuScreen(
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
         ?: unknown
-    val trainerSelected = ftmsDeviceName.isNotBlank()
-    val hrSelected = hrDeviceName.isNotBlank()
     val trainerDisplayName = ftmsDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
     val hrDisplayName = hrDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
+    val trainerIndicatorState = when {
+        ftmsConnected -> DeviceConnectionIndicatorState.CONNECTED
+        ftmsSelected && ftmsConnectionKnown -> DeviceConnectionIndicatorState.ISSUE
+        suggestTrainerSearchAfterConnectionIssue && !connectionIssueMessage.isNullOrBlank() -> {
+            DeviceConnectionIndicatorState.ISSUE
+        }
+        else -> DeviceConnectionIndicatorState.IDLE
+    }
+    val hrIndicatorState = if (hrConnected) {
+        DeviceConnectionIndicatorState.CONNECTED
+    } else if (hrSelected && hrConnectionKnown) {
+        DeviceConnectionIndicatorState.ISSUE
+    } else {
+        DeviceConnectionIndicatorState.IDLE
+    }
 
     Box(
         modifier = Modifier
@@ -273,13 +305,13 @@ internal fun MenuScreen(
                     DeviceSelectionInfoCard(
                         label = stringResource(R.string.menu_trainer_device_label),
                         value = trainerDisplayName,
-                        isSelected = trainerSelected,
+                        indicatorState = trainerIndicatorState,
                         modifier = Modifier.weight(1f),
                     )
                     DeviceSelectionInfoCard(
                         label = stringResource(R.string.menu_hr_device_label),
                         value = hrDisplayName,
-                        isSelected = hrSelected,
+                        indicatorState = hrIndicatorState,
                         modifier = Modifier.weight(1f),
                     )
                 }
@@ -322,8 +354,28 @@ internal fun MenuScreen(
                     }
                     SectionCard(title = title) {
                         if (deviceScanStatus != null) {
+                            val scanStatusText = if (deviceScanInProgress) {
+                                val dotsTransition = rememberInfiniteTransition(label = "deviceScanDots")
+                                val dotsProgress = dotsTransition.animateFloat(
+                                    initialValue = 0f,
+                                    targetValue = 3f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(
+                                            durationMillis = 1400,
+                                            easing = LinearEasing,
+                                        ),
+                                        repeatMode = RepeatMode.Restart,
+                                    ),
+                                    label = "deviceScanDotsProgress",
+                                ).value
+                                val dotsCount = dotsProgress.toInt().coerceIn(0, 2) + 1
+                                val baseText = deviceScanStatus.trimEnd().trimEnd('.', '…')
+                                "$baseText${".".repeat(dotsCount)}"
+                            } else {
+                                deviceScanStatus
+                            }
                             Text(
-                                text = deviceScanStatus,
+                                text = scanStatusText,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MenuPickerStatusColor
                             )
@@ -606,9 +658,30 @@ internal fun ConnectingScreen() {
 private fun DeviceSelectionInfoCard(
     label: String,
     value: String,
-    isSelected: Boolean,
+    indicatorState: DeviceConnectionIndicatorState,
     modifier: Modifier = Modifier,
 ) {
+    val connectionPulseTransition = rememberInfiniteTransition(label = "deviceConnectionPulse")
+    val pulseAlpha = connectionPulseTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1.0f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(durationMillis = 800),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "deviceConnectionPulseAlpha",
+    ).value
+    val indicatorColor = when (indicatorState) {
+        DeviceConnectionIndicatorState.CONNECTED -> MenuDeviceConnectedColor
+        DeviceConnectionIndicatorState.IDLE -> MenuDeviceIdleColor
+        DeviceConnectionIndicatorState.ISSUE -> MenuDeviceIssueColor
+    }
+    val indicatorAlpha = if (indicatorState == DeviceConnectionIndicatorState.CONNECTED) {
+        pulseAlpha
+    } else {
+        1.0f
+    }
+
     ElevatedCard(
         modifier = modifier.height(78.dp),
         colors = CardDefaults.elevatedCardColors(
@@ -640,7 +713,7 @@ private fun DeviceSelectionInfoCard(
                     modifier = Modifier
                         .size(10.dp)
                         .background(
-                            color = if (isSelected) MenuDeviceSelectedColor else MenuDeviceUnselectedColor,
+                            color = indicatorColor.copy(alpha = indicatorAlpha),
                             shape = CircleShape,
                         )
                 )

@@ -23,6 +23,7 @@ import java.util.UUID
 class HrBleClient(
     private val context: Context,
     private val onHeartRate: (Int) -> Unit,
+    private val onConnected: () -> Unit = {},
     private val onDisconnected: () -> Unit = {},
 ) {
     private var gatt: BluetoothGatt? = null
@@ -53,6 +54,7 @@ class HrBleClient(
             }
             if (newState == BluetoothProfile.STATE_CONNECTED) {
                 reconnectCoordinator.onConnected()
+                mainThreadHandler.post { onConnected() }
                 if (!hasBluetoothConnectPermission()) {
                     Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
                     reconnectCoordinator.onConnectAttemptFailed()

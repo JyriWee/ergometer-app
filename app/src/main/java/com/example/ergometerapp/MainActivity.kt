@@ -65,7 +65,17 @@ class MainActivity : ComponentActivity() {
                     ftpInputText = viewModel.ftpInputTextState.value,
                     ftpInputError = viewModel.ftpInputErrorState.value,
                     ftmsDeviceName = viewModel.ftmsDeviceNameState.value,
+                    ftmsSelected = viewModel.hasSelectedFtmsDevice(),
+                    ftmsConnected = viewModel.uiState.ftmsReady.value ||
+                        viewModel.ftmsReachableState.value == true,
+                    ftmsConnectionKnown = viewModel.uiState.ftmsReady.value ||
+                        viewModel.ftmsReachableState.value != null,
                     hrDeviceName = viewModel.hrDeviceNameState.value,
+                    hrSelected = viewModel.hasSelectedHrDevice(),
+                    hrConnected = viewModel.hrConnectedState.value ||
+                        viewModel.hrReachableState.value == true,
+                    hrConnectionKnown = viewModel.hrConnectedState.value ||
+                        viewModel.hrReachableState.value != null,
                     workoutExecutionModeMessage = viewModel.uiState.workoutExecutionModeMessage.value,
                     workoutExecutionModeIsError = viewModel.uiState.workoutExecutionModeIsError.value,
                     connectionIssueMessage = viewModel.uiState.connectionIssueMessage.value,
