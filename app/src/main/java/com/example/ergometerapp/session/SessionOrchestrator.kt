@@ -46,6 +46,8 @@ class SessionOrchestrator(
     private val currentFtpWatts: () -> Int,
     private val workoutImportService: WorkoutImportService = WorkoutImportService()
 ) {
+    private val requestControlOpcode = 0x00
+    private val controlResponseSuccessCode = 0x01
     private val allowLegacyWorkoutFallback = BuildConfig.ALLOW_LEGACY_WORKOUT_FALLBACK
     private var bleClient: FtmsBleClient? = null
     private lateinit var ftmsController: FtmsController
@@ -394,14 +396,24 @@ class SessionOrchestrator(
                 Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
 
                 // Session enters active mode only after Request Control is acknowledged.
-                if (requestOpcode == 0x00 && resultCode == 0x01) {
-                    if (uiState.screen.value == AppScreen.CONNECTING) {
-                        sessionManager.startSession()
-                        uiState.pendingCadenceStartAfterControlGranted = true
-                        uiState.autoPausedByZeroCadence = false
-                        keepScreenOn()
-                        uiState.screen.value = AppScreen.SESSION
-                        applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
+                if (requestOpcode == requestControlOpcode) {
+                    if (resultCode == controlResponseSuccessCode) {
+                        if (uiState.screen.value == AppScreen.CONNECTING) {
+                            sessionManager.startSession()
+                            uiState.pendingCadenceStartAfterControlGranted = true
+                            uiState.autoPausedByZeroCadence = false
+                            keepScreenOn()
+                            uiState.screen.value = AppScreen.SESSION
+                            applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
+                        }
+                    } else {
+                        handleRequestControlFailure(
+                            message = context.getString(
+                                R.string.menu_request_control_rejected,
+                                resultCode
+                            ),
+                            reason = "requestControlRejected(code=$resultCode)"
+                        )
                     }
                 }
 
@@ -737,8 +749,47 @@ class SessionOrchestrator(
                     }
                     dumpUiState("onStopAcknowledged")
                 }
+            },
+            onCommandTimeout = { requestOpcode ->
+                mainThreadHandler.post {
+                    if (requestOpcode == requestControlOpcode) {
+                        handleRequestControlFailure(
+                            message = context.getString(R.string.menu_request_control_timeout),
+                            reason = "requestControlTimeout"
+                        )
+                    }
+                    dumpUiState("onCommandTimeout(op=$requestOpcode)")
+                }
             }
         )
+    }
+
+    /**
+     * Returns to menu with a deterministic recovery prompt when control cannot be acquired.
+     */
+    private fun handleRequestControlFailure(message: String, reason: String) {
+        val inSessionStartFlow =
+            uiState.screen.value == AppScreen.CONNECTING || uiState.screen.value == AppScreen.SESSION
+        if (!inSessionStartFlow) {
+            Log.d("FTMS", "Ignoring request-control failure outside active flow: $reason")
+            return
+        }
+
+        stopWorkout()
+        workoutRunner = null
+        sessionManager.stopSession()
+        uiState.stopFlowState.value = StopFlowState.IDLE
+        resetFtmsUiState(clearReady = true)
+        uiState.pendingSessionStartAfterPermission = false
+        uiState.pendingCadenceStartAfterControlGranted = false
+        uiState.autoPausedByZeroCadence = false
+        uiState.connectionIssueMessage.value = message
+        uiState.suggestTrainerSearchAfterConnectionIssue.value = true
+        uiState.screen.value = AppScreen.MENU
+        allowScreenOff()
+        bleClient?.close()
+        Log.w("FTMS", "Request-control failure handled: $reason")
+        dumpUiState("handleRequestControlFailure(reason=$reason)")
     }
 
     private fun dumpUiState(event: String) {

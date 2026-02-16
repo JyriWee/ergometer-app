@@ -196,7 +196,7 @@ internal fun MenuScreen(
     val trainerDisplayName = ftmsDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
     val hrDisplayName = hrDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
 
-    BoxWithConstraints(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)

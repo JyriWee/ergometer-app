@@ -63,9 +63,19 @@
   - Replaced unnecessary `BoxWithConstraints` with `Box` in summary root.
   - Kept `BoxWithConstraints` in `SessionScreen` where `maxWidth` is required.
   - Verified with `:app:lintDebug`.
+- Hardened request-control failure handling for session start:
+  - Added deterministic rollback path from `CONNECTING/SESSION` to `MENU` when request-control is rejected.
+  - Added deterministic rollback path when request-control times out.
+  - Shows actionable connection issue prompt with `Search again` CTA for both reject and timeout cases.
+- Added command-timeout callback in `FtmsController`:
+  - Timeout now reports the in-flight request opcode to orchestrator.
+  - Tracks in-flight opcode for diagnostics and timeout routing.
+- Added unit test coverage for controller timeout callback behavior:
+  - `FtmsControllerTimeoutTest` verifies request-control timeout opcode reporting and no timeout signal when write-start fails.
+- Added local unit-test `android.util.Log` stub to avoid JVM test crashes from Android Log mocking gaps.
 
 ## Next Task
-- Validate planned TSS values against a few known workouts and confirm desired fallback behavior when strict mapping fails (`TSS unavailable` vs hidden).
+- Implement P0-2: correlate FTMS control-point responses to expected in-flight command and ignore/quarantine mismatched responses with diagnostics.
 
 ## Definition of Done
 - Menu layout matches requested component order and proportions.
@@ -80,10 +90,11 @@
 - Confirm whether summary should stay two columns even on narrow portrait screens.
 - Confirm desired truncation/scroll behavior for long filename and long description values.
 - Confirm product expectation for unsupported steps (show no TSS vs approximate legacy TSS).
+- Confirm UX copy for request-control rejection/timeout prompts.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.workout.WorkoutPlannedTssCalculatorTest" --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.workout.WorkoutPlannedTssCalculatorTest" --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
 3. `./gradlew :app:lintDebug --no-daemon`
 4. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
 5. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`

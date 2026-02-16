@@ -54,6 +54,8 @@
         <string name="menu_device_scan_status_failed">Device scan could not be started.</string>
         <string name="menu_connection_issue_title">Trainer connection issue</string>
         <string name="menu_saved_trainer_connect_failed">Could not connect to the saved trainer. Confirm the trainer is powered on. Do you want to search for devices again?</string>
+        <string name="menu_request_control_rejected">Trainer rejected control request (code %1$d). Confirm trainer is powered on and not controlled by another app. Search for devices again?</string>
+        <string name="menu_request_control_timeout">Trainer did not confirm control request in time. Confirm trainer is powered on and try searching devices again.</string>
         <string name="menu_connection_issue_search_again">Search again</string>
         <string name="menu_connection_issue_dismiss">Not now</string>
         <string name="menu_workout_execution_degraded">Degraded execution mode active (legacy fallback): %1$s</string>
