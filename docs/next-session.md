@@ -1,9 +1,12 @@
 # Next Session
 
 ## Branch
-- current: `feature/ftms-response-correlation`
+- current: `docs/contributor-onboarding`
 
 ## Recently Completed
+- Added contributor-facing architecture overview in `docs/architecture.md`.
+- Added setup and development onboarding guide in `docs/onboarding.md`.
+- Added BLE status and recovery behavior guide in `docs/ble-status-and-recovery.md`.
 - Added CI release verification (`:app:assembleRelease` with minify + `:app:lintRelease`).
 - Added optional secrets-based release signing wiring (no signing data in repository).
 - Added release/signing documentation in `docs/ci-release-signing.md`.
@@ -136,28 +139,22 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Implement P1-2: make workout execution strict-by-default in release builds (fallback opt-in/dev-only), including explicit user messaging.
+- Review latest GitHub-Codex audit output and select one implementation item for a small, testable first increment (recommended: P1-2 strict-by-default release execution policy).
 
 ## Definition of Done
-- Actual TSS is computed from live power samples without storing unbounded arrays.
-- Summary shows Actual TSS and session export includes the same value.
-- No regressions in compile/test/lint.
-- FTMS start/stop regressions are covered by JVM tests without BLE hardware.
-- HR reconnect/disconnect behavior is covered by deterministic unit tests.
-- Critical top-level UI flow has baseline instrumentation coverage.
+- Selected next implementation scope is explicit and bounded.
+- First increment is implemented on a feature branch (not `main`).
+- Compile/test/lint checks pass for the changed scope.
+- Session handoff notes are updated with concrete next step and validation commands.
 
 ## Risks / Open Questions
-- Actual TSS currently assumes piecewise-constant power between FTMS packets; confirm if this is acceptable for sparse/irregular telemetry gaps.
-- Confirm whether the default conservative hold (`maxHoldSeconds = 3`) is the preferred product value.
-- Confirm product expectation for unsupported steps (show no TSS vs approximate legacy TSS).
-- Confirm UX copy for request-control rejection/timeout prompts.
-- Confirm whether unexpected FTMS response diagnostics should be user-visible or debug-only.
-- Confirm desired reconnect retry limits for HR devices in real-world environments.
+- Keep commit size controlled; propose commit earlier once each tested increment is complete.
+- Confirm product expectation for unsupported workout steps in release (`strict block` vs `degraded fallback`).
+- Confirm desired user-visible wording if strict mode blocks a workout.
+- Confirm whether additional UI instrumentation coverage is needed before next release-targeted changes.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrReconnectCoordinatorTest" --no-daemon`
-3. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest" --no-daemon`
-4. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
-5. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-6. `./gradlew :app:lintDebug --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --no-daemon`
+3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+4. `./gradlew :app:lintDebug --no-daemon`
