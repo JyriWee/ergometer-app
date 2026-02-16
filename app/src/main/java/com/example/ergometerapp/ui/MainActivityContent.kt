@@ -27,6 +27,7 @@ internal data class MainActivityUiModel(
     val selectedWorkout: WorkoutFile?,
     val selectedWorkoutFileName: String?,
     val selectedWorkoutStepCount: Int?,
+    val selectedWorkoutPlannedTss: Double?,
     val selectedWorkoutImportError: String?,
     val startEnabled: Boolean,
     val ftpWatts: Int,
@@ -100,6 +101,7 @@ private fun MainDestinationContent(
             MenuScreen(
                 selectedWorkoutFileName = model.selectedWorkoutFileName,
                 selectedWorkoutStepCount = model.selectedWorkoutStepCount,
+                selectedWorkoutPlannedTss = model.selectedWorkoutPlannedTss,
                 selectedWorkoutImportError = model.selectedWorkoutImportError,
                 selectedWorkout = model.selectedWorkout,
                 ftpWatts = model.ftpWatts,

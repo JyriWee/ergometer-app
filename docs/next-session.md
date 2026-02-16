@@ -1,7 +1,7 @@
 # Next Session
 
 ## Branch
-- current: `feature/menu-summary-white-boxes-and-conditional-meta`
+- current: `feature/planned-tss-from-workout`
 
 ## Recently Completed
 - Added CI release verification (`:app:assembleRelease` with minify + `:app:lintRelease`).
@@ -50,9 +50,22 @@
 - Extended Menu tap-to-view details:
   - Added the same dialog presentation for `Workout name` and `Workout description` cards.
   - Workout chart header row text (`Workout` + step count subtitle) is now white for consistent contrast on the dark chart card.
+- Added planned workout TSS calculation (FTP-aware) from execution segments:
+  - New `WorkoutPlannedTssCalculator` with one-decimal output.
+  - Uses strict execution mapping to avoid showing misleading values for unsupported/invalid workouts.
+  - Supports steady, ramp (integrated IF²), and expanded interval segments.
+- Wired planned TSS into state orchestration and Menu UI:
+  - Recomputed on workout import and on FTP changes.
+  - Shown in the Menu workout header row next to step count.
+- Added unit tests for planned TSS calculation:
+  - steady 1h @ FTP, ramp integration, interval expansion, and mapping-failure null case.
+- Fixed Compose lint error (`UnusedBoxWithConstraintsScope`) in `SummaryScreen`:
+  - Replaced unnecessary `BoxWithConstraints` with `Box` in summary root.
+  - Kept `BoxWithConstraints` in `SessionScreen` where `maxWidth` is required.
+  - Verified with `:app:lintDebug`.
 
 ## Next Task
-- Validate portrait + landscape Menu behavior after latest hierarchy changes (button emphasis, status dots, and all three detail dialogs).
+- Validate planned TSS values against a few known workouts and confirm desired fallback behavior when strict mapping fails (`TSS unavailable` vs hidden).
 
 ## Definition of Done
 - Menu layout matches requested component order and proportions.
@@ -61,14 +74,17 @@
 - No user-visible MAC mentions remain in Menu flow.
 - Picker dismiss action is clearly differentiated for scanning vs idle states.
 - Long workout filenames are accessible in full via explicit tap action.
+- Planned TSS updates correctly when FTP changes and when a new workout is imported.
 
 ## Risks / Open Questions
 - Confirm whether summary should stay two columns even on narrow portrait screens.
 - Confirm desired truncation/scroll behavior for long filename and long description values.
+- Confirm product expectation for unsupported steps (show no TSS vs approximate legacy TSS).
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --no-daemon`
-3. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
-4. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
-5. Manual check: generate one exported file and import it to at least one target platform.
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.workout.WorkoutPlannedTssCalculatorTest" --no-daemon`
+3. `./gradlew :app:lintDebug --no-daemon`
+4. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
+5. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
+6. Manual check: generate one exported file and import it to at least one target platform.

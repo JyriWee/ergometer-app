@@ -34,6 +34,7 @@ class AppUiState {
     val selectedWorkout: MutableState<WorkoutFile?> = mutableStateOf(null)
     val selectedWorkoutFileName: MutableState<String?> = mutableStateOf(null)
     val selectedWorkoutStepCount: MutableState<Int?> = mutableStateOf(null)
+    val selectedWorkoutPlannedTss: MutableState<Double?> = mutableStateOf(null)
     val selectedWorkoutImportError: MutableState<String?> = mutableStateOf(null)
     val workoutExecutionModeMessage: MutableState<String?> = mutableStateOf(null)
     val workoutExecutionModeIsError: MutableState<Boolean> = mutableStateOf(false)

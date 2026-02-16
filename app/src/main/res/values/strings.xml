@@ -30,6 +30,7 @@
         <string name="menu_hr_device_label">HR device (optional)</string>
         <string name="menu_workout_not_selected">No workout file selected</string>
         <string name="menu_workout_step_count">Selected workout steps: %1$d</string>
+        <string name="menu_workout_planned_tss">Planned TSS: %1$.1f</string>
         <string name="menu_workout_import_failed">Import failed: %1$s</string>
         <string name="menu_workout_name_tag">Workout name</string>
         <string name="menu_workout_description_tag">Workout description</string>

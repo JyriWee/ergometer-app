@@ -22,6 +22,7 @@ import com.example.ergometerapp.workout.WorkoutImportFormat
 import com.example.ergometerapp.workout.WorkoutImportResult
 import com.example.ergometerapp.workout.WorkoutImportService
 import com.example.ergometerapp.workout.WorkoutExecutionStepCounter
+import com.example.ergometerapp.workout.WorkoutPlannedTssCalculator
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
 
@@ -181,16 +182,13 @@ class SessionOrchestrator(
     fun onFtpWattsChanged() {
         val selectedWorkout = uiState.selectedWorkout.value
         if (selectedWorkout == null) {
+            uiState.selectedWorkoutPlannedTss.value = null
             uiState.workoutExecutionModeMessage.value = null
             uiState.workoutExecutionModeIsError.value = false
             return
         }
 
-        uiState.selectedWorkoutStepCount.value = WorkoutExecutionStepCounter.count(
-            workout = selectedWorkout,
-            ftpWatts = currentFtpWatts(),
-        )
-        uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(selectedWorkout)
+        recalculateSelectedWorkoutDerivedMetrics(selectedWorkout)
         dumpUiState("onFtpWattsChanged")
     }
 
@@ -248,6 +246,7 @@ class SessionOrchestrator(
             workoutRunner = null
             uiState.selectedWorkoutFileName.value = sourceName
             uiState.selectedWorkoutStepCount.value = null
+            uiState.selectedWorkoutPlannedTss.value = null
             uiState.selectedWorkoutImportError.value =
                 formatReadFailureMessage(readFailureDetails = readFailureDetails)
             uiState.workoutExecutionModeMessage.value = null
@@ -260,19 +259,14 @@ class SessionOrchestrator(
 
         when (val result = workoutImportService.importFromText(sourceName = sourceName, content = content)) {
             is WorkoutImportResult.Success -> {
-                val executionStepCount = WorkoutExecutionStepCounter.count(
-                    workout = result.workoutFile,
-                    ftpWatts = currentFtpWatts(),
-                )
                 uiState.selectedWorkout.value = result.workoutFile
                 workoutRunner = null
                 uiState.selectedWorkoutFileName.value = sourceName
-                uiState.selectedWorkoutStepCount.value = executionStepCount
                 uiState.selectedWorkoutImportError.value = null
-                uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(result.workoutFile)
+                recalculateSelectedWorkoutDerivedMetrics(result.workoutFile)
                 Log.d(
                     "WORKOUT",
-                    "Selected workout imported name=$sourceName executionSteps=$executionStepCount rawSteps=${result.workoutFile.steps.size}"
+                    "Selected workout imported name=$sourceName executionSteps=${uiState.selectedWorkoutStepCount.value} rawSteps=${result.workoutFile.steps.size} plannedTss=${uiState.selectedWorkoutPlannedTss.value}"
                 )
                 dumpUiState("workoutImportSuccess(name=$sourceName)")
             }
@@ -282,6 +276,7 @@ class SessionOrchestrator(
                 workoutRunner = null
                 uiState.selectedWorkoutFileName.value = sourceName
                 uiState.selectedWorkoutStepCount.value = null
+                uiState.selectedWorkoutPlannedTss.value = null
                 uiState.selectedWorkoutImportError.value = formatImportFailureMessage(result.error)
                 uiState.workoutExecutionModeMessage.value = null
                 uiState.workoutExecutionModeIsError.value = false
@@ -294,6 +289,19 @@ class SessionOrchestrator(
                 dumpUiState("workoutImportFailure(name=$sourceName,code=${result.error.code})")
             }
         }
+    }
+
+    private fun recalculateSelectedWorkoutDerivedMetrics(workout: WorkoutFile) {
+        val ftpWatts = currentFtpWatts()
+        uiState.selectedWorkoutStepCount.value = WorkoutExecutionStepCounter.count(
+            workout = workout,
+            ftpWatts = ftpWatts,
+        )
+        uiState.selectedWorkoutPlannedTss.value = WorkoutPlannedTssCalculator.calculate(
+            workout = workout,
+            ftpWatts = ftpWatts,
+        )
+        uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(workout)
     }
 
     private fun resolveDisplayName(uri: Uri): String? {

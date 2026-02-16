@@ -58,6 +58,7 @@ class MainActivity : ComponentActivity() {
                     selectedWorkout = viewModel.uiState.selectedWorkout.value,
                     selectedWorkoutFileName = viewModel.uiState.selectedWorkoutFileName.value,
                     selectedWorkoutStepCount = viewModel.uiState.selectedWorkoutStepCount.value,
+                    selectedWorkoutPlannedTss = viewModel.uiState.selectedWorkoutPlannedTss.value,
                     selectedWorkoutImportError = viewModel.uiState.selectedWorkoutImportError.value,
                     startEnabled = viewModel.canStartSession(),
                     ftpWatts = viewModel.ftpWattsState.intValue,
