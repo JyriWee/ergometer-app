@@ -1,9 +1,10 @@
 # Next Session
 
 ## Branch
-- current: `docs/contributor-onboarding`
+- current: `docs/readme-refresh`
 
 ## Recently Completed
+- Refreshed root `README.md` to reflect current project scope, setup, validation commands, configuration flags, and documentation index.
 - Added contributor-facing architecture overview in `docs/architecture.md`.
 - Added setup and development onboarding guide in `docs/onboarding.md`.
 - Added BLE status and recovery behavior guide in `docs/ble-status-and-recovery.md`.
