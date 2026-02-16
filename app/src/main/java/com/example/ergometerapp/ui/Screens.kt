@@ -126,6 +126,7 @@ private fun menuSecondaryButtonColors() = ButtonDefaults.buttonColors(
 internal fun MenuScreen(
     selectedWorkoutFileName: String?,
     selectedWorkoutStepCount: Int?,
+    selectedWorkoutPlannedTss: Double?,
     selectedWorkoutImportError: String?,
     selectedWorkout: WorkoutFile?,
     ftpWatts: Int,
@@ -159,6 +160,12 @@ internal fun MenuScreen(
     val stepCountText =
         if (selectedWorkout != null && selectedWorkoutStepCount != null && selectedWorkoutImportError == null) {
             stringResource(R.string.menu_workout_step_count, selectedWorkoutStepCount)
+        } else {
+            null
+        }
+    val plannedTssText =
+        if (selectedWorkout != null && selectedWorkoutPlannedTss != null && selectedWorkoutImportError == null) {
+            stringResource(R.string.menu_workout_planned_tss, selectedWorkoutPlannedTss)
         } else {
             null
         }
@@ -453,12 +460,26 @@ internal fun MenuScreen(
                                 fontWeight = FontWeight.SemiBold,
                                 color = Color.White,
                             )
-                            if (stepCountText != null) {
-                                Text(
-                                    text = stepCountText,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = Color.White,
-                                )
+                            if (stepCountText != null || plannedTssText != null) {
+                                Column(
+                                    horizontalAlignment = Alignment.End,
+                                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                                ) {
+                                    if (stepCountText != null) {
+                                        Text(
+                                            text = stepCountText,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Color.White,
+                                        )
+                                    }
+                                    if (plannedTssText != null) {
+                                        Text(
+                                            text = plannedTssText,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = Color.White,
+                                        )
+                                    }
+                                }
                             }
                         }
                         WorkoutProfileChart(
@@ -1302,7 +1323,7 @@ internal fun SummaryScreen(
 ) {
     val unknown = stringResource(R.string.value_unknown)
 
-    BoxWithConstraints(
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)

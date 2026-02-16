@@ -22,6 +22,7 @@ import com.example.ergometerapp.workout.WorkoutImportFormat
 import com.example.ergometerapp.workout.WorkoutImportResult
 import com.example.ergometerapp.workout.WorkoutImportService
 import com.example.ergometerapp.workout.WorkoutExecutionStepCounter
+import com.example.ergometerapp.workout.WorkoutPlannedTssCalculator
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
 
@@ -45,6 +46,8 @@ class SessionOrchestrator(
     private val currentFtpWatts: () -> Int,
     private val workoutImportService: WorkoutImportService = WorkoutImportService()
 ) {
+    private val requestControlOpcode = 0x00
+    private val controlResponseSuccessCode = 0x01
     private val allowLegacyWorkoutFallback = BuildConfig.ALLOW_LEGACY_WORKOUT_FALLBACK
     private var bleClient: FtmsBleClient? = null
     private lateinit var ftmsController: FtmsController
@@ -181,16 +184,13 @@ class SessionOrchestrator(
     fun onFtpWattsChanged() {
         val selectedWorkout = uiState.selectedWorkout.value
         if (selectedWorkout == null) {
+            uiState.selectedWorkoutPlannedTss.value = null
             uiState.workoutExecutionModeMessage.value = null
             uiState.workoutExecutionModeIsError.value = false
             return
         }
 
-        uiState.selectedWorkoutStepCount.value = WorkoutExecutionStepCounter.count(
-            workout = selectedWorkout,
-            ftpWatts = currentFtpWatts(),
-        )
-        uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(selectedWorkout)
+        recalculateSelectedWorkoutDerivedMetrics(selectedWorkout)
         dumpUiState("onFtpWattsChanged")
     }
 
@@ -248,6 +248,7 @@ class SessionOrchestrator(
             workoutRunner = null
             uiState.selectedWorkoutFileName.value = sourceName
             uiState.selectedWorkoutStepCount.value = null
+            uiState.selectedWorkoutPlannedTss.value = null
             uiState.selectedWorkoutImportError.value =
                 formatReadFailureMessage(readFailureDetails = readFailureDetails)
             uiState.workoutExecutionModeMessage.value = null
@@ -260,19 +261,14 @@ class SessionOrchestrator(
 
         when (val result = workoutImportService.importFromText(sourceName = sourceName, content = content)) {
             is WorkoutImportResult.Success -> {
-                val executionStepCount = WorkoutExecutionStepCounter.count(
-                    workout = result.workoutFile,
-                    ftpWatts = currentFtpWatts(),
-                )
                 uiState.selectedWorkout.value = result.workoutFile
                 workoutRunner = null
                 uiState.selectedWorkoutFileName.value = sourceName
-                uiState.selectedWorkoutStepCount.value = executionStepCount
                 uiState.selectedWorkoutImportError.value = null
-                uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(result.workoutFile)
+                recalculateSelectedWorkoutDerivedMetrics(result.workoutFile)
                 Log.d(
                     "WORKOUT",
-                    "Selected workout imported name=$sourceName executionSteps=$executionStepCount rawSteps=${result.workoutFile.steps.size}"
+                    "Selected workout imported name=$sourceName executionSteps=${uiState.selectedWorkoutStepCount.value} rawSteps=${result.workoutFile.steps.size} plannedTss=${uiState.selectedWorkoutPlannedTss.value}"
                 )
                 dumpUiState("workoutImportSuccess(name=$sourceName)")
             }
@@ -282,6 +278,7 @@ class SessionOrchestrator(
                 workoutRunner = null
                 uiState.selectedWorkoutFileName.value = sourceName
                 uiState.selectedWorkoutStepCount.value = null
+                uiState.selectedWorkoutPlannedTss.value = null
                 uiState.selectedWorkoutImportError.value = formatImportFailureMessage(result.error)
                 uiState.workoutExecutionModeMessage.value = null
                 uiState.workoutExecutionModeIsError.value = false
@@ -294,6 +291,19 @@ class SessionOrchestrator(
                 dumpUiState("workoutImportFailure(name=$sourceName,code=${result.error.code})")
             }
         }
+    }
+
+    private fun recalculateSelectedWorkoutDerivedMetrics(workout: WorkoutFile) {
+        val ftpWatts = currentFtpWatts()
+        uiState.selectedWorkoutStepCount.value = WorkoutExecutionStepCounter.count(
+            workout = workout,
+            ftpWatts = ftpWatts,
+        )
+        uiState.selectedWorkoutPlannedTss.value = WorkoutPlannedTssCalculator.calculate(
+            workout = workout,
+            ftpWatts = ftpWatts,
+        )
+        uiState.workoutReady.value = evaluateWorkoutExecutionEligibility(workout)
     }
 
     private fun resolveDisplayName(uri: Uri): String? {
@@ -386,14 +396,24 @@ class SessionOrchestrator(
                 Log.d("FTMS", "UI state: cp response opcode=$requestOpcode result=$resultCode")
 
                 // Session enters active mode only after Request Control is acknowledged.
-                if (requestOpcode == 0x00 && resultCode == 0x01) {
-                    if (uiState.screen.value == AppScreen.CONNECTING) {
-                        sessionManager.startSession()
-                        uiState.pendingCadenceStartAfterControlGranted = true
-                        uiState.autoPausedByZeroCadence = false
-                        keepScreenOn()
-                        uiState.screen.value = AppScreen.SESSION
-                        applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
+                if (requestOpcode == requestControlOpcode) {
+                    if (resultCode == controlResponseSuccessCode) {
+                        if (uiState.screen.value == AppScreen.CONNECTING) {
+                            sessionManager.startSession()
+                            uiState.pendingCadenceStartAfterControlGranted = true
+                            uiState.autoPausedByZeroCadence = false
+                            keepScreenOn()
+                            uiState.screen.value = AppScreen.SESSION
+                            applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
+                        }
+                    } else {
+                        handleRequestControlFailure(
+                            message = context.getString(
+                                R.string.menu_request_control_rejected,
+                                resultCode
+                            ),
+                            reason = "requestControlRejected(code=$resultCode)"
+                        )
                     }
                 }
 
@@ -729,8 +749,47 @@ class SessionOrchestrator(
                     }
                     dumpUiState("onStopAcknowledged")
                 }
+            },
+            onCommandTimeout = { requestOpcode ->
+                mainThreadHandler.post {
+                    if (requestOpcode == requestControlOpcode) {
+                        handleRequestControlFailure(
+                            message = context.getString(R.string.menu_request_control_timeout),
+                            reason = "requestControlTimeout"
+                        )
+                    }
+                    dumpUiState("onCommandTimeout(op=$requestOpcode)")
+                }
             }
         )
+    }
+
+    /**
+     * Returns to menu with a deterministic recovery prompt when control cannot be acquired.
+     */
+    private fun handleRequestControlFailure(message: String, reason: String) {
+        val inSessionStartFlow =
+            uiState.screen.value == AppScreen.CONNECTING || uiState.screen.value == AppScreen.SESSION
+        if (!inSessionStartFlow) {
+            Log.d("FTMS", "Ignoring request-control failure outside active flow: $reason")
+            return
+        }
+
+        stopWorkout()
+        workoutRunner = null
+        sessionManager.stopSession()
+        uiState.stopFlowState.value = StopFlowState.IDLE
+        resetFtmsUiState(clearReady = true)
+        uiState.pendingSessionStartAfterPermission = false
+        uiState.pendingCadenceStartAfterControlGranted = false
+        uiState.autoPausedByZeroCadence = false
+        uiState.connectionIssueMessage.value = message
+        uiState.suggestTrainerSearchAfterConnectionIssue.value = true
+        uiState.screen.value = AppScreen.MENU
+        allowScreenOff()
+        bleClient?.close()
+        Log.w("FTMS", "Request-control failure handled: $reason")
+        dumpUiState("handleRequestControlFailure(reason=$reason)")
     }
 
     private fun dumpUiState(event: String) {

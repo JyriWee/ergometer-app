@@ -16,7 +16,8 @@ import com.example.ergometerapp.ble.debug.FtmsDebugEvent
  */
 class FtmsController(
     private val writeControlPoint: (ByteArray) -> Boolean,
-    private val onStopAcknowledged: () -> Unit = {}
+    private val onStopAcknowledged: () -> Unit = {},
+    private val onCommandTimeout: (requestOpcode: Int?) -> Unit = {}
 ) {
 
     private var transportReady = false
@@ -36,6 +37,7 @@ class FtmsController(
     private val commandTimeoutMs = 2500L
 
     private var timeoutRunnable: Runnable? = null
+    private var inFlightRequestOpcode: Int? = null
 
     private fun dumpControllerState(event: String) {
         Log.d(
@@ -44,6 +46,7 @@ class FtmsController(
                 "hasStopped=$hasStopped " +
                 "pendingTarget=$pendingTargetPowerWatts pendingReset=$pendingReset " +
                 "pendingStop=$pendingStopWorkout lastSentTarget=$lastSentTargetPower " +
+                "inFlightOpcode=$inFlightRequestOpcode " +
                 "timeoutArmed=${timeoutRunnable != null}"
         )
     }
@@ -89,6 +92,7 @@ class FtmsController(
         }
 
         commandState = FtmsCommandState.BUSY
+        inFlightRequestOpcode = payload.firstOrNull()?.toInt()?.and(0xFF)
         startTimeoutTimer()
         dumpControllerState("sendCommandSent(label=$label,writeStarted=true)")
         // BUSY is released only after a Control Point response or timeout.
@@ -274,6 +278,7 @@ class FtmsController(
      */
     fun onControlPointResponse(requestOpcode: Int, resultCode: Int) {
         cancelTimeoutTimer()
+        inFlightRequestOpcode = null
 
         val ok = (resultCode == 0x01)
         commandState = if (ok) FtmsCommandState.SUCCESS else FtmsCommandState.ERROR
@@ -329,6 +334,7 @@ class FtmsController(
         pendingTargetPowerWatts = null
         pendingReset = false
         pendingStopWorkout = false
+        inFlightRequestOpcode = null
 
         if (stopWasPendingOrInFlight) {
             Log.d("FTMS", "Disconnected during STOP; cleared BUSY without timeout recovery")
@@ -345,8 +351,11 @@ class FtmsController(
             // If the device never responds, release BUSY to avoid a permanent lock.
             if (commandState == FtmsCommandState.BUSY) {
                 Log.w("FTMS", "Control Point command timeout -> forcing IDLE")
+                val timedOutOpcode = inFlightRequestOpcode
                 commandState = FtmsCommandState.IDLE
+                inFlightRequestOpcode = null
                 dumpControllerState("commandTimeoutForcedIdle")
+                onCommandTimeout(timedOutOpcode)
 
                 if (pendingStopWorkout) {
                     Log.d("FTMS", "Sending queued stopWorkout after timeout")
