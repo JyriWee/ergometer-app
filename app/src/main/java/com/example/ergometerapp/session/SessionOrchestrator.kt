@@ -13,6 +13,7 @@ import com.example.ergometerapp.R
 import com.example.ergometerapp.StopFlowState
 import com.example.ergometerapp.ble.FtmsBleClient
 import com.example.ergometerapp.ble.FtmsController
+import com.example.ergometerapp.ble.FtmsUnexpectedControlPointResponseReason
 import com.example.ergometerapp.ftms.parseIndoorBikeData
 import com.example.ergometerapp.workout.ExecutionWorkoutMapper
 import com.example.ergometerapp.workout.MappingResult
@@ -759,6 +760,23 @@ class SessionOrchestrator(
                         )
                     }
                     dumpUiState("onCommandTimeout(op=$requestOpcode)")
+                }
+            },
+            onUnexpectedControlPointResponse = { expectedOpcode, receivedOpcode, resultCode, reason ->
+                mainThreadHandler.post {
+                    Log.w(
+                        "FTMS",
+                        "Unexpected control-point response reason=$reason expected=$expectedOpcode received=$receivedOpcode result=$resultCode",
+                    )
+                    if (reason == FtmsUnexpectedControlPointResponseReason.OPCODE_MISMATCH) {
+                        dumpUiState(
+                            "onUnexpectedControlPointResponseMismatch(expected=$expectedOpcode,received=$receivedOpcode,result=$resultCode)",
+                        )
+                    } else {
+                        dumpUiState(
+                            "onUnexpectedControlPointResponseNoInFlight(received=$receivedOpcode,result=$resultCode)",
+                        )
+                    }
                 }
             }
         )

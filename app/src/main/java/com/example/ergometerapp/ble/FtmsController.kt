@@ -6,6 +6,11 @@ import android.util.Log
 import com.example.ergometerapp.ble.debug.FtmsDebugBuffer
 import com.example.ergometerapp.ble.debug.FtmsDebugEvent
 
+enum class FtmsUnexpectedControlPointResponseReason {
+    NO_COMMAND_IN_FLIGHT,
+    OPCODE_MISMATCH,
+}
+
 /**
  * Serializes FTMS Control Point commands and matches them to response opcodes.
  *
@@ -17,7 +22,14 @@ import com.example.ergometerapp.ble.debug.FtmsDebugEvent
 class FtmsController(
     private val writeControlPoint: (ByteArray) -> Boolean,
     private val onStopAcknowledged: () -> Unit = {},
-    private val onCommandTimeout: (requestOpcode: Int?) -> Unit = {}
+    private val onCommandTimeout: (requestOpcode: Int?) -> Unit = {},
+    private val onUnexpectedControlPointResponse: (
+        expectedOpcode: Int?,
+        receivedOpcode: Int,
+        resultCode: Int,
+        reason: FtmsUnexpectedControlPointResponseReason,
+    ) -> Unit = { _, _, _, _ -> },
+    private val handler: Handler = Handler(Looper.getMainLooper()),
 ) {
 
     private var transportReady = false
@@ -29,8 +41,6 @@ class FtmsController(
     private var commandState = FtmsCommandState.IDLE
     private var pendingTargetPowerWatts: Int? = null
     private var pendingStopWorkout = false
-
-    private val handler = Handler(Looper.getMainLooper())
 
     private var lastSentTargetPower: Int? = null
 
@@ -274,9 +284,43 @@ class FtmsController(
 
     /**
      * Call this from FtmsBleClient when you receive a Control Point response packet (0x80 ...).
-     * This releases the BUSY state deterministically.
+     * Only matching responses release BUSY deterministically.
      */
     fun onControlPointResponse(requestOpcode: Int, resultCode: Int) {
+        if (commandState != FtmsCommandState.BUSY) {
+            Log.w(
+                "FTMS",
+                "Unexpected CP response without in-flight command: opcode=$requestOpcode result=$resultCode",
+            )
+            dumpControllerState("onControlPointResponseUnexpectedNoInFlight(op=$requestOpcode,result=$resultCode)")
+            onUnexpectedControlPointResponse(
+                inFlightRequestOpcode,
+                requestOpcode,
+                resultCode,
+                FtmsUnexpectedControlPointResponseReason.NO_COMMAND_IN_FLIGHT,
+            )
+            return
+        }
+
+        val expectedOpcode = inFlightRequestOpcode
+        if (expectedOpcode != null && expectedOpcode != requestOpcode) {
+            Log.w(
+                "FTMS",
+                "Ignoring mismatched CP response expected=$expectedOpcode got=$requestOpcode result=$resultCode",
+            )
+            dumpControllerState(
+                "onControlPointResponseUnexpectedMismatch(expected=$expectedOpcode,got=$requestOpcode,result=$resultCode)",
+            )
+            onUnexpectedControlPointResponse(
+                expectedOpcode,
+                requestOpcode,
+                resultCode,
+                FtmsUnexpectedControlPointResponseReason.OPCODE_MISMATCH,
+            )
+            // Keep BUSY so the expected command can still resolve by matching response or timeout.
+            return
+        }
+
         cancelTimeoutTimer()
         inFlightRequestOpcode = null
 

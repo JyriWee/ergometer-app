@@ -1,7 +1,7 @@
 # Next Session
 
 ## Branch
-- current: `feature/planned-tss-from-workout`
+- current: `feature/ftms-response-correlation`
 
 ## Recently Completed
 - Added CI release verification (`:app:assembleRelease` with minify + `:app:lintRelease`).
@@ -73,9 +73,18 @@
 - Added unit test coverage for controller timeout callback behavior:
   - `FtmsControllerTimeoutTest` verifies request-control timeout opcode reporting and no timeout signal when write-start fails.
 - Added local unit-test `android.util.Log` stub to avoid JVM test crashes from Android Log mocking gaps.
+- Implemented P0-2 FTMS response-correlation hardening:
+  - `FtmsController` now validates Control Point responses against the expected in-flight opcode.
+  - Mismatched responses are ignored (BUSY remains active) until matching response or timeout.
+  - Responses received with no in-flight command are classified separately.
+  - Added `onUnexpectedControlPointResponse` diagnostics callback for orchestration/debug flow.
+- Added/extended FTMS controller tests:
+  - Timeout callback still reports request opcode.
+  - Mismatched response does not release BUSY and eventually times out the expected command.
+  - No-in-flight response is reported as unexpected with explicit reason.
 
 ## Next Task
-- Implement P0-2: correlate FTMS control-point responses to expected in-flight command and ignore/quarantine mismatched responses with diagnostics.
+- Implement P0-3: replace long-session in-memory sample arrays with streaming aggregates in `SessionManager` to remove unbounded memory growth.
 
 ## Definition of Done
 - Menu layout matches requested component order and proportions.
@@ -91,10 +100,11 @@
 - Confirm desired truncation/scroll behavior for long filename and long description values.
 - Confirm product expectation for unsupported steps (show no TSS vs approximate legacy TSS).
 - Confirm UX copy for request-control rejection/timeout prompts.
+- Confirm whether unexpected FTMS response diagnostics should be user-visible or debug-only.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.workout.WorkoutPlannedTssCalculatorTest" --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
 3. `./gradlew :app:lintDebug --no-daemon`
 4. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
 5. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
