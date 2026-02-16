@@ -96,15 +96,21 @@
   - Added `maxHoldSeconds` to `ActualTssAccumulator` (default: 3 s).
   - Gaps beyond hold limit are counted as zero power to avoid optimistic TSS inflation.
   - Added regression test that verifies conservative behavior under sparse telemetry.
+- Completed P0-4 FTMS flow regression coverage with deterministic JVM tests:
+  - Added `SessionOrchestratorFlowTest` for request-control reject rollback, timeout rollback, request-control success start transition, and stop-flow to summary transition.
+  - Added test hooks in `SessionOrchestrator` for deterministic FTMS-event simulation without BLE hardware.
+  - Injected `mainThreadHandler` into `SessionOrchestrator` constructor to avoid implicit timing races in tests.
+  - Hardened test Android Looper stub with `myLooper()` and `getThread()` for Compose runtime compatibility.
 
 ## Next Task
-- Implement P0-4: add regression tests for FTMS start/stop edge paths (request-control reject/timeout, start transition, stop transition).
+- Implement P1-1: harden `HrBleClient` lifecycle with deterministic disconnect callback and bounded reconnect policy.
 
 ## Definition of Done
 - Actual TSS is computed from live power samples without storing unbounded arrays.
 - Summary shows Actual TSS and session export includes the same value.
 - No regressions in compile/test/lint.
-- Next FTMS regression tests cover request-control reject/timeout and stop-flow transitions.
+- FTMS start/stop regressions are covered by JVM tests without BLE hardware.
+- Next focus is HR lifecycle parity with FTMS robustness (disconnect visibility + reconnect behavior).
 
 ## Risks / Open Questions
 - Actual TSS currently assumes piecewise-constant power between FTMS packets; confirm if this is acceptable for sparse/irregular telemetry gaps.

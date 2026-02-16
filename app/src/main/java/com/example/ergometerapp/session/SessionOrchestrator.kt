@@ -45,7 +45,8 @@ class SessionOrchestrator(
     private val onExecutionMappingFailure: () -> Unit = {},
     private val currentFtmsDeviceMac: () -> String?,
     private val currentFtpWatts: () -> Int,
-    private val workoutImportService: WorkoutImportService = WorkoutImportService()
+    private val workoutImportService: WorkoutImportService = WorkoutImportService(),
+    private val mainThreadHandler: Handler = Handler(Looper.getMainLooper()),
 ) {
     private val requestControlOpcode = 0x00
     private val controlResponseSuccessCode = 0x01
@@ -56,7 +57,6 @@ class SessionOrchestrator(
     private var ftmsClientGeneration: Int = 0
     private var activeFtmsClientGeneration: Int = 0
     private var lastExecutionFailureSignalKey: String? = null
-    private val mainThreadHandler = Handler(Looper.getMainLooper())
     private val stopFlowTimeoutMs = 4000L
     private var stopFlowTimeoutRunnable: Runnable? = null
 
@@ -808,6 +808,57 @@ class SessionOrchestrator(
         bleClient?.close()
         Log.w("FTMS", "Request-control failure handled: $reason")
         dumpUiState("handleRequestControlFailure(reason=$reason)")
+    }
+
+    /**
+     * Test hook for deterministic start-flow verification without BLE runtime dependencies.
+     */
+    internal fun simulateRequestControlGrantedForTest() {
+        ftmsController.onControlPointResponse(
+            requestOpcode = requestControlOpcode,
+            resultCode = controlResponseSuccessCode,
+        )
+        if (uiState.screen.value == AppScreen.CONNECTING) {
+            sessionManager.startSession(ftpWatts = currentFtpWatts())
+            uiState.pendingCadenceStartAfterControlGranted = true
+            uiState.autoPausedByZeroCadence = false
+            keepScreenOn()
+            uiState.screen.value = AppScreen.SESSION
+            applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
+        }
+    }
+
+    /**
+     * Test hook for request-control rejection rollback behavior.
+     */
+    internal fun simulateRequestControlRejectedForTest(resultCode: Int) {
+        ftmsController.onControlPointResponse(
+            requestOpcode = requestControlOpcode,
+            resultCode = resultCode,
+        )
+        handleRequestControlFailure(
+            message = "Request control rejected (code $resultCode).",
+            reason = "requestControlRejected(code=$resultCode)",
+        )
+    }
+
+    /**
+     * Test hook for request-control timeout rollback behavior.
+     */
+    internal fun simulateRequestControlTimeoutForTest() {
+        handleRequestControlFailure(
+            message = "Request control timeout.",
+            reason = "requestControlTimeout",
+        )
+    }
+
+    /**
+     * Test hook for deterministic stop-flow completion without waiting for BLE callbacks.
+     */
+    internal fun simulateStopAcknowledgedForTest() {
+        if (completeStopFlowToSummary(reason = "onStopAcknowledgedForTest")) {
+            bleClient?.close()
+        }
     }
 
     private fun dumpUiState(event: String) {
