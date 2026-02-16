@@ -50,14 +50,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val bleDeviceScanner = BleDeviceScanner(appContext)
     private var errorToneGenerator: ToneGenerator? = null
 
-    private val sessionManager = SessionManager(appContext) { state ->
-        uiState.session.value = state
-    }
+    private val sessionManager = SessionManager(
+        context = appContext,
+        onStateUpdated = { state ->
+            uiState.session.value = state
+        },
+    )
 
-    private val hrClient = HrBleClient(appContext) { bpm ->
-        uiState.heartRate.value = bpm
-        sessionManager.updateHeartRate(bpm)
-    }
+    private val hrClient = HrBleClient(
+        context = appContext,
+        onHeartRate = { bpm ->
+            uiState.heartRate.value = bpm
+            sessionManager.updateHeartRate(bpm)
+        },
+        onDisconnected = {
+            uiState.heartRate.value = null
+            sessionManager.updateHeartRate(null)
+        },
+    )
 
     private val sessionOrchestrator = SessionOrchestrator(
         context = appContext,

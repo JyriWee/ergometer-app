@@ -17,7 +17,11 @@ enum class SessionPhase {
  */
 class SessionManager(
     private val context: android.content.Context,
-    private val onStateUpdated: (SessionState) -> Unit
+    private val onStateUpdated: (SessionState) -> Unit,
+    private val nowMillis: () -> Long = { System.currentTimeMillis() },
+    private val persistSummary: (android.content.Context, SessionSummary) -> Unit = { ctx, summary ->
+        SessionStorage.save(ctx, summary)
+    },
 ) {
     var lastSummary: SessionSummary? = null
         private set
@@ -93,7 +97,7 @@ class SessionManager(
                         powerStats.add(powerWatts)
                         actualTssAccumulator?.recordPower(
                             powerWatts = powerWatts,
-                            timestampMillis = System.currentTimeMillis(),
+                            timestampMillis = nowMillis(),
                         )
                     }
 
@@ -141,7 +145,7 @@ class SessionManager(
                 SessionPhase.RUNNING -> {
                     val start = sessionStartMillis
                     if (start != null)
-                        ((System.currentTimeMillis() - start) / 1000).toInt()
+                        ((nowMillis() - start) / 1000).toInt()
                     else 0
                 }
                 SessionPhase.STOPPED -> durationAtStopSec ?: 0
@@ -158,7 +162,7 @@ class SessionManager(
             bike = latestBikeData,
             heartRateBpm = latestHeartRate,
             effectiveHeartRateBpm = effectiveHr,
-            timestampMillis = System.currentTimeMillis(),
+            timestampMillis = nowMillis(),
             durationSeconds = durationSec
         )
 
@@ -171,7 +175,7 @@ class SessionManager(
     fun startSession(ftpWatts: Int) {
         runOnMainThread {
             sessionPhase = SessionPhase.RUNNING
-            sessionStartMillis = System.currentTimeMillis()
+            sessionStartMillis = nowMillis()
 
             powerStats.reset()
             cadenceStats.reset()
@@ -198,7 +202,7 @@ class SessionManager(
             if (sessionPhase != SessionPhase.RUNNING) return@runOnMainThread
 
             val start = sessionStartMillis ?: return@runOnMainThread
-            val stopTimestampMillis = System.currentTimeMillis()
+            val stopTimestampMillis = nowMillis()
             val durationSec = ((stopTimestampMillis - start) / 1000).toInt()
 
             durationAtStopSec = durationSec
@@ -232,7 +236,7 @@ class SessionManager(
             emitState()
 
             lastSummary?.let {
-                SessionStorage.save(context, it)
+                persistSummary(context, it)
             }
         }
     }
