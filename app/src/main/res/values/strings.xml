@@ -155,6 +155,7 @@
         <string name="no_summary">No summary available</string>
 
         <string name="summary_duration">Duration</string>
+        <string name="summary_actual_tss">Actual TSS</string>
 
         <string name="summary_distance">Distance</string>
         <string name="summary_distance_value">%1$s m</string>

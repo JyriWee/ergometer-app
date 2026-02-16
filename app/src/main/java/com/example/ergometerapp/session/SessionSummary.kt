@@ -8,6 +8,7 @@ package com.example.ergometerapp.session
  */
 data class SessionSummary(
     val durationSeconds: Int,
+    val actualTss: Double?,
     val avgPower: Int?,
     val maxPower: Int?,
     val avgCadence: Int?,

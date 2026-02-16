@@ -27,6 +27,7 @@ object SessionStorage {
 
         val content = buildString {
             appendLine("Duration: ${formatTime(summary.durationSeconds)}")
+            appendLine("Actual TSS: ${formatOneDecimal(summary.actualTss)}")
             appendLine("Avg power: ${summary.avgPower ?: "--"} W")
             appendLine("Max HR: ${summary.maxHeartRate ?: "--"} bpm")
             appendLine("Distance: ${summary.distanceMeters ?: "--"} m")
@@ -44,5 +45,9 @@ object SessionStorage {
         val m = seconds / 60
         val s = seconds % 60
         return "%d:%02d".format(m, s)
+    }
+
+    private fun formatOneDecimal(value: Double?): String {
+        return if (value == null) "--" else String.format(Locale.US, "%.1f", value)
     }
 }

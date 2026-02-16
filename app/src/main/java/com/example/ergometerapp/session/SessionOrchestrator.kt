@@ -400,7 +400,7 @@ class SessionOrchestrator(
                 if (requestOpcode == requestControlOpcode) {
                     if (resultCode == controlResponseSuccessCode) {
                         if (uiState.screen.value == AppScreen.CONNECTING) {
-                            sessionManager.startSession()
+                            sessionManager.startSession(ftpWatts = currentFtpWatts())
                             uiState.pendingCadenceStartAfterControlGranted = true
                             uiState.autoPausedByZeroCadence = false
                             keepScreenOn()

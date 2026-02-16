@@ -82,30 +82,41 @@
   - Timeout callback still reports request opcode.
   - Mismatched response does not release BUSY and eventually times out the expected command.
   - No-in-flight response is reported as unexpected with explicit reason.
+- Implemented P0-3 long-session memory hardening in `SessionManager`:
+  - Replaced unbounded per-sample arrays with memory-stable streaming aggregates (`count/sum/max`).
+  - Preserved summary output semantics (`avg` as integer truncation, `max` nullable when no samples).
+  - Kept HR source preference invariant (external strap preferred; bike HR only when strap data is absent).
+  - Validated with `:app:compileDebugKotlin` and `:app:lintDebug`.
+- Added streaming "actual TSS" calculation for completed sessions:
+  - Introduced `ActualTssAccumulator` (rolling-window NP-style smoothing + one-decimal TSS output).
+  - Wired session-start FTP into `SessionManager.startSession(ftpWatts)`.
+  - Added `actualTss` to `SessionSummary`, Summary UI, and text export (`SessionStorage`).
+  - Added unit tests in `ActualTssAccumulatorTest`.
+- Hardened actual TSS gap handling with conservative hold limits:
+  - Added `maxHoldSeconds` to `ActualTssAccumulator` (default: 3 s).
+  - Gaps beyond hold limit are counted as zero power to avoid optimistic TSS inflation.
+  - Added regression test that verifies conservative behavior under sparse telemetry.
 
 ## Next Task
-- Implement P0-3: replace long-session in-memory sample arrays with streaming aggregates in `SessionManager` to remove unbounded memory growth.
+- Implement P0-4: add regression tests for FTMS start/stop edge paths (request-control reject/timeout, start transition, stop transition).
 
 ## Definition of Done
-- Menu layout matches requested component order and proportions.
-- Summary page remains readable with two columns.
-- No regressions in compile/test.
-- No user-visible MAC mentions remain in Menu flow.
-- Picker dismiss action is clearly differentiated for scanning vs idle states.
-- Long workout filenames are accessible in full via explicit tap action.
-- Planned TSS updates correctly when FTP changes and when a new workout is imported.
+- Actual TSS is computed from live power samples without storing unbounded arrays.
+- Summary shows Actual TSS and session export includes the same value.
+- No regressions in compile/test/lint.
+- Next FTMS regression tests cover request-control reject/timeout and stop-flow transitions.
 
 ## Risks / Open Questions
-- Confirm whether summary should stay two columns even on narrow portrait screens.
-- Confirm desired truncation/scroll behavior for long filename and long description values.
+- Actual TSS currently assumes piecewise-constant power between FTMS packets; confirm if this is acceptable for sparse/irregular telemetry gaps.
+- Confirm whether the default conservative hold (`maxHoldSeconds = 3`) is the preferred product value.
 - Confirm product expectation for unsupported steps (show no TSS vs approximate legacy TSS).
 - Confirm UX copy for request-control rejection/timeout prompts.
 - Confirm whether unexpected FTMS response diagnostics should be user-visible or debug-only.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.ActualTssAccumulatorTest" --no-daemon`
 3. `./gradlew :app:lintDebug --no-daemon`
-4. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
-5. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
-6. Manual check: generate one exported file and import it to at least one target platform.
+4. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
+5. `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
+6. `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`

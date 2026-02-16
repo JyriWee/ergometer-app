@@ -21,9 +21,10 @@ class SessionManager(
 ) {
     var lastSummary: SessionSummary? = null
         private set
-    private val powerSamples = mutableListOf<Int>()
-    private val cadenceSamples = mutableListOf<Int>()
-    private val heartRateSamples = mutableListOf<Int>()
+    private val powerStats = IntSampleAccumulator()
+    private val cadenceStats = IntSampleAccumulator()
+    private val heartRateStats = IntSampleAccumulator()
+    private var actualTssAccumulator: ActualTssAccumulator? = null
     private var latestBikeData: IndoorBikeData? = null
     private var latestHeartRate: Int? = null
     private var sessionStartMillis: Long? = null
@@ -35,6 +36,37 @@ class SessionManager(
 
     private var sessionPhase: SessionPhase = SessionPhase.IDLE
     private val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+
+    /**
+     * Memory-stable running aggregate for integer telemetry samples.
+     *
+     * Averages use integer division to preserve existing summary behavior.
+     */
+    private class IntSampleAccumulator {
+        private var count: Long = 0
+        private var sum: Long = 0
+        private var max: Int? = null
+
+        fun add(sample: Int) {
+            count += 1
+            sum += sample.toLong()
+            val currentMax = max
+            max = if (currentMax == null) sample else maxOf(currentMax, sample)
+        }
+
+        fun reset() {
+            count = 0
+            sum = 0
+            max = null
+        }
+
+        fun averageOrNull(): Int? {
+            if (count == 0L) return null
+            return (sum / count).toInt()
+        }
+
+        fun maxOrNull(): Int? = max
+    }
 
     private fun runOnMainThread(block: () -> Unit) {
         if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
@@ -53,12 +85,17 @@ class SessionManager(
         runOnMainThread {
             latestBikeData = bikeData
             if (sessionPhase == SessionPhase.RUNNING) {
-                // Power values at or below zero are treated as invalid samples.
+                // Only valid FTMS frames with power values contribute to summary stats.
                 latestBikeData
                     ?.takeIf { it.valid && it.instantaneousPowerW != null }
                     ?.instantaneousPowerW
-                    ?.let { powerSamples.add(it) }
-
+                    ?.let { powerWatts ->
+                        powerStats.add(powerWatts)
+                        actualTssAccumulator?.recordPower(
+                            powerWatts = powerWatts,
+                            timestampMillis = System.currentTimeMillis(),
+                        )
+                    }
 
                 // Distance is cumulative; store the latest for the summary.
                 latestBikeData?.totalDistanceMeters
@@ -71,9 +108,9 @@ class SessionManager(
                 if (latestHeartRate == null) {
                     latestBikeData?.heartRateBpm
                         ?.takeIf { it in 30..220 }
-                        ?.let { heartRateSamples.add(it) }
+                        ?.let { heartRateStats.add(it) }
                 }
-                latestBikeData?.instantaneousCadenceRpm?.let { cadenceSamples.add(it.toInt()) }
+                latestBikeData?.instantaneousCadenceRpm?.let { cadenceStats.add(it.toInt()) }
             }
             emitState()
         }
@@ -89,7 +126,7 @@ class SessionManager(
         runOnMainThread {
             latestHeartRate = hr
             if (sessionPhase == SessionPhase.RUNNING) {
-                hr?.takeIf { it in 30..220 }?.let { heartRateSamples.add(it) }
+                hr?.takeIf { it in 30..220 }?.let { heartRateStats.add(it) }
             }
 
             emitState()
@@ -131,21 +168,20 @@ class SessionManager(
     /**
      * Starts a new session and clears any prior aggregates.
      */
-    fun startSession() {
+    fun startSession(ftpWatts: Int) {
         runOnMainThread {
             sessionPhase = SessionPhase.RUNNING
             sessionStartMillis = System.currentTimeMillis()
 
-            powerSamples.clear()
-            cadenceSamples.clear()
-            heartRateSamples.clear()
+            powerStats.reset()
+            cadenceStats.reset()
+            heartRateStats.reset()
+            actualTssAccumulator = ActualTssAccumulator(ftpWatts = ftpWatts)
             lastDistanceMeters = null
             lastTotalEnergyKcal = null
             lastSummary = null
             latestBikeData = null
             latestHeartRate = null
-            lastDistanceMeters = null
-            lastTotalEnergyKcal = null
             durationAtStopSec = null
             emitState()
         }
@@ -162,31 +198,25 @@ class SessionManager(
             if (sessionPhase != SessionPhase.RUNNING) return@runOnMainThread
 
             val start = sessionStartMillis ?: return@runOnMainThread
-
-            val durationSec = ((System.currentTimeMillis() - start) / 1000).toInt()
+            val stopTimestampMillis = System.currentTimeMillis()
+            val durationSec = ((stopTimestampMillis - start) / 1000).toInt()
 
             durationAtStopSec = durationSec
 
-            val avgPower =
-                powerSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
-
-            val maxPower =
-                powerSamples.maxOrNull()
-
-            val avgCadence =
-                cadenceSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
-
-            val maxCadence =
-                cadenceSamples.maxOrNull()
-
-            val avgHeartRate =
-                heartRateSamples.takeIf { it.isNotEmpty() }?.average()?.toInt()
-
-            val maxHeartRate =
-                heartRateSamples.maxOrNull()
+            val avgPower = powerStats.averageOrNull()
+            val maxPower = powerStats.maxOrNull()
+            val avgCadence = cadenceStats.averageOrNull()
+            val maxCadence = cadenceStats.maxOrNull()
+            val avgHeartRate = heartRateStats.averageOrNull()
+            val maxHeartRate = heartRateStats.maxOrNull()
+            val actualTss = actualTssAccumulator?.calculateTss(
+                durationSeconds = durationSec,
+                stopTimestampMillis = stopTimestampMillis,
+            )
 
             val summary = SessionSummary(
                 durationSeconds = durationSec,
+                actualTss = actualTss,
                 avgPower = avgPower,
                 maxPower = maxPower,
                 avgCadence = avgCadence,

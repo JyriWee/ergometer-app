@@ -1361,6 +1361,10 @@ internal fun SummaryScreen(
                             formatTime(summary.durationSeconds, unknown)
                         ),
                         MetricItem(
+                            stringResource(R.string.summary_actual_tss),
+                            format1(summary.actualTss, unknown)
+                        ),
+                        MetricItem(
                             stringResource(R.string.summary_distance),
                             stringResource(
                                 R.string.summary_distance_value,
