@@ -1,9 +1,18 @@
 # Next Session
 
 ## Branch
-- current: `feature/hr-ready-sequencing`
+- current: `feature/ftms-telemetry-throttle`
 
 ## Recently Completed
+- Implemented audit P0-2 FTMS telemetry/log pressure reduction:
+  - Added Indoor Bike telemetry coalescing in `FtmsBleClient` with a 200 ms main-thread update cadence (latest sample wins).
+  - Replaced per-notification debug spam with debug-only sampled rate logging.
+  - Added debug-gated FTMS verbose logging helpers in `FtmsBleClient` and `FtmsController` to avoid release log noise and string-build overhead.
+  - Kept protocol-critical callbacks (`onReady`, control-point response, ownership, disconnect) unthrottled.
+- Validated P0-2 locally:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest"`
+  - `:app:lintDebug`
 - Implemented audit P0-1 HR readiness hardening:
   - `HrBleClient` now emits `onConnected` only after HR CCCD write succeeds.
   - Added deterministic setup-abort path for missing service/characteristic/descriptor and notification setup failures.
@@ -151,25 +160,25 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Implement audit P0-2 as the next bounded increment:
-  - Reduce FTMS telemetry/log pressure on the main thread.
-  - Gate high-frequency runtime logs for production safety.
-  - Keep protocol-critical FTMS state transitions unchanged.
+- Implement audit P0-3 as the next bounded increment:
+  - Move Session summary persistence off the main thread in stop flow.
+  - Keep UI-state emission and stop-flow routing deterministic.
+  - Ensure no summary-data loss when stop/teardown races occur.
 
 ## Definition of Done
 - Implementation is done on a dedicated feature branch (not `main`).
-- High-frequency FTMS logs are throttled or debug-gated without losing critical diagnostics.
-- Main-thread FTMS UI updates remain smooth under sustained notification flow.
+- Session summary file write is executed on background dispatcher/thread.
+- Stop-flow transition to Summary remains deterministic under normal stop, disconnect, and timeout paths.
+- No data regressions in summary content (existing fields + `actualTss`).
 - No regressions in compile/test/lint for touched scope.
 - Session handoff notes are updated for the next increment.
 
 ## Risks / Open Questions
 - Keep commit size controlled; propose commit as soon as each tested increment is complete.
-- Decide whether FTMS update throttling should be fixed-interval (for example 250 ms) or adaptive.
-- Ensure reduced logging does not hide rare protocol-ordering faults during field debugging.
+- Confirm where background persistence completion should be observed (blocking summary navigation vs fire-and-forget with best-effort logging).
+- Ensure background I/O cannot outlive/retain stale Activity references.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrReconnectCoordinatorTest" --no-daemon`
-3. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
 4. `./gradlew :app:lintDebug --no-daemon`
