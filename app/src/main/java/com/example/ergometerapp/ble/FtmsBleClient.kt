@@ -12,7 +12,9 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.util.Log
+import com.example.ergometerapp.BuildConfig
 import java.util.UUID
 
 /**
@@ -40,6 +42,8 @@ class FtmsBleClient(
         private const val MAX_RECONNECT_ATTEMPTS = 4
         private const val RECONNECT_BASE_DELAY_MS = 1000L
         private const val RECONNECT_MAX_DELAY_MS = 8000L
+        private const val INDOOR_BIKE_MAIN_THREAD_UPDATE_INTERVAL_MS = 200L
+        private const val INDOOR_BIKE_DEBUG_LOG_WINDOW_MS = 5000L
     }
 
     private var gatt: BluetoothGatt? = null
@@ -60,6 +64,13 @@ class FtmsBleClient(
     private var reconnectAttempt = 0
     private var reconnectRunnable: Runnable? = null
     private var disconnectHandlingInProgress = false
+    private val indoorBikeDispatchLock = Any()
+    private var pendingIndoorBikeData: ByteArray? = null
+    private var indoorBikeDispatchScheduled = false
+    private var lastIndoorBikeDispatchElapsedMs = 0L
+    private var indoorBikeNotificationCount = 0
+    private var indoorBikeNotificationLogWindowStartElapsedMs = 0L
+    private val indoorBikeDispatchRunnable = Runnable { dispatchLatestIndoorBikeData() }
 
     private val FTMS_SERVICE_UUID =
         UUID.fromString("00001826-0000-1000-8000-00805f9b34fb")
@@ -84,7 +95,7 @@ class FtmsBleClient(
                     )
                 }
                 else -> {
-                    Log.d("FTMS", "Ignoring unsupported connection state=$newState status=$status")
+                    debugLog("Ignoring unsupported connection state=$newState status=$status")
                 }
             }
         }
@@ -95,10 +106,10 @@ class FtmsBleClient(
             status: Int
         ) {
             if (!isActiveGatt(gatt)) {
-                Log.d("FTMS", "Ignoring descriptor write callback from stale GATT")
+                debugLog("Ignoring descriptor write callback from stale GATT")
                 return
             }
-            Log.d("FTMS", "onDescriptorWrite step=$setupStep status=$status")
+            debugLog("onDescriptorWrite step=$setupStep status=$status")
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 abortSetup(
                     gatt = gatt,
@@ -116,10 +127,7 @@ class FtmsBleClient(
                     setupStep = SetupStep.NONE
                     val controlPointReady =
                         controlPointCharacteristic != null && controlPointIndicationEnabled
-                    Log.d(
-                        "FTMS",
-                        "FTMS notifications/indications setup done (controlPointReady=$controlPointReady)"
-                    )
+                    debugLog("FTMS notifications/indications setup done (controlPointReady=$controlPointReady)")
                     mainThreadHandler.post { onReady(controlPointReady) }
                 }
                 else -> {
@@ -130,7 +138,7 @@ class FtmsBleClient(
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             if (!isActiveGatt(gatt)) {
-                Log.d("FTMS", "Ignoring services discovered callback from stale GATT")
+                debugLog("Ignoring services discovered callback from stale GATT")
                 return
             }
             if (status != BluetoothGatt.GATT_SUCCESS) {
@@ -162,7 +170,7 @@ class FtmsBleClient(
                 abortSetup(gatt = gatt, reason = "Control Point characteristic not found")
                 return
             }
-            Log.d("FTMS", "Control Point ready")
+            debugLog("Control Point ready")
             val controlPoint = controlPointCharacteristic ?: run {
                 abortSetup(gatt = gatt, reason = "Control Point characteristic missing during setup")
                 return
@@ -203,15 +211,13 @@ class FtmsBleClient(
             value: ByteArray
         ) {
             if (this@FtmsBleClient.gatt == null) {
-                Log.d("FTMS", "Notification ignored (GATT closed)")
+                debugLog("Notification ignored (GATT closed)")
                 return
             }
             when (characteristic.uuid) {
-                INDOOR_BIKE_DATA_UUID -> mainThreadHandler.post {
-                    Log.d("FTMS", "IndoorBikeData notification received")
-                    onIndoorBikeData(value) }
+                INDOOR_BIKE_DATA_UUID -> queueIndoorBikeDataForMainThread(value)
                 FTMS_CONTROL_POINT_UUID -> {
-                    Log.d("FTMS", "Control Point response: ${value.joinToString()}")
+                    debugLog("Control Point response: ${value.joinToString()}")
 
                     // FTMS: Response Code (0x80), then request opcode and result code.
                     if (value.size >= 3 && (value[0].toInt() and 0xFF) == CONTROL_POINT_RESPONSE_OPCODE) {
@@ -231,7 +237,7 @@ class FtmsBleClient(
             value: ByteArray
         ) {
             if (!isActiveGatt(gatt)) {
-                Log.d("FTMS", "Ignoring characteristic callback from stale GATT")
+                debugLog("Ignoring characteristic callback from stale GATT")
                 return
             }
             handleCharacteristicChanged(characteristic, value)
@@ -257,7 +263,7 @@ class FtmsBleClient(
         cancelPendingReconnect()
 
         if (gatt != null) {
-            Log.d("FTMS", "connect ignored (already connected or connecting)")
+            debugLog("connect ignored (already connected or connecting)")
             return
         }
         if (!startGattConnection(mac = mac, isReconnect = false)) {
@@ -280,6 +286,7 @@ class FtmsBleClient(
         reconnectAttempt = 0
         disconnectHandlingInProgress = false
         cancelPendingReconnect()
+        clearPendingIndoorBikeDispatch()
         setControlOwnership(granted = false, reason = "closeRequested")
 
         val currentGatt = gatt ?: return
@@ -314,7 +321,7 @@ class FtmsBleClient(
     private fun handleGattConnected(gatt: BluetoothGatt) {
         val activeGatt = this.gatt
         if (activeGatt != null && activeGatt !== gatt) {
-            Log.d("FTMS", "Ignoring connected callback from stale GATT")
+            debugLog("Ignoring connected callback from stale GATT")
             safeCloseGatt(gatt, "staleConnected")
             return
         }
@@ -347,14 +354,14 @@ class FtmsBleClient(
     private fun handleLinkLoss(disconnectedGatt: BluetoothGatt?, reason: String) {
         val activeGatt = gatt
         if (disconnectedGatt != null && activeGatt != null && disconnectedGatt !== activeGatt) {
-            Log.d("FTMS", "Ignoring disconnect path for stale GATT")
+            debugLog("Ignoring disconnect path for stale GATT")
             safeCloseGatt(disconnectedGatt, "staleDisconnect")
             return
         }
 
         synchronized(this) {
             if (disconnectHandlingInProgress) {
-                Log.d("FTMS", "Duplicate disconnect handling ignored")
+                debugLog("Duplicate disconnect handling ignored")
                 return
             }
             disconnectHandlingInProgress = true
@@ -388,7 +395,7 @@ class FtmsBleClient(
             return false
         }
         if (gatt != null) {
-            Log.d("FTMS", "startGattConnection ignored (already connected or connecting)")
+            debugLog("startGattConnection ignored (already connected or connecting)")
             return false
         }
 
@@ -417,7 +424,7 @@ class FtmsBleClient(
 
     private fun scheduleReconnectIfNeeded(triggerReason: String): Boolean {
         if (explicitCloseRequested) {
-            Log.d("FTMS", "Reconnect disabled due to explicit close")
+            debugLog("Reconnect disabled due to explicit close")
             return false
         }
         val mac = requestedMac ?: return false
@@ -441,11 +448,11 @@ class FtmsBleClient(
         val runnable = Runnable {
             reconnectRunnable = null
             if (explicitCloseRequested) {
-                Log.d("FTMS", "Reconnect cancelled by explicit close")
+                debugLog("Reconnect cancelled by explicit close")
                 return@Runnable
             }
             if (requestedMac != mac) {
-                Log.d("FTMS", "Reconnect cancelled due to target MAC change")
+                debugLog("Reconnect cancelled due to target MAC change")
                 return@Runnable
             }
             disconnectHandlingInProgress = false
@@ -478,6 +485,7 @@ class FtmsBleClient(
         controlPointIndicationEnabled = false
         indoorBikeDataCharacteristic = null
         controlPointCharacteristic = null
+        clearPendingIndoorBikeDispatch()
     }
 
     private fun safeCloseGatt(gatt: BluetoothGatt?, reason: String) {
@@ -492,7 +500,7 @@ class FtmsBleClient(
     private fun setControlOwnership(granted: Boolean, reason: String) {
         if (controlOwnershipGranted == granted) return
         controlOwnershipGranted = granted
-        Log.d("FTMS", "Control ownership changed granted=$granted reason=$reason")
+        debugLog("Control ownership changed granted=$granted reason=$reason")
         mainThreadHandler.post { onControlOwnershipChanged(granted) }
     }
 
@@ -532,7 +540,7 @@ class FtmsBleClient(
         setupStep = SetupStep.CP_CCCD
         try {
             val status = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_INDICATION_VALUE)
-            Log.d("FTMS", "Writing CP CCCD (indication) -> status=$status")
+            debugLog("Writing CP CCCD (indication) -> status=$status")
             if (status != BluetoothStatusCodes.SUCCESS) {
                 abortSetup(gatt = gatt, reason = "Writing CP CCCD failed to start")
                 return
@@ -564,7 +572,7 @@ class FtmsBleClient(
         setupStep = SetupStep.BIKE_CCCD
         try {
             val status = gatt.writeDescriptor(cccd, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
-            Log.d("FTMS", "Writing BIKE CCCD (notification) -> status=$status")
+            debugLog("Writing BIKE CCCD (notification) -> status=$status")
             if (status != BluetoothStatusCodes.SUCCESS) {
                 abortSetup(gatt = gatt, reason = "Writing Bike CCCD failed to start")
                 return
@@ -632,7 +640,7 @@ class FtmsBleClient(
                 BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
             )
             val started = status == BluetoothStatusCodes.SUCCESS
-            Log.d("FTMS", "writeControlPoint ${payload.joinToString()} -> status=$status started=$started")
+            debugLog("writeControlPoint ${payload.joinToString()} -> status=$status started=$started")
             return started
         } catch (e: SecurityException) {
             Log.w("FTMS", "writeCharacteristic failed: ${e.message}")
@@ -643,6 +651,88 @@ class FtmsBleClient(
     private fun hasBluetoothConnectPermission(): Boolean {
         return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
             PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Coalesces high-frequency bike telemetry so UI/session observers are updated
+     * at a stable main-thread cadence without dropping the latest sample.
+     */
+    private fun queueIndoorBikeDataForMainThread(value: ByteArray) {
+        val snapshot = value.copyOf()
+        val delayMs = synchronized(indoorBikeDispatchLock) {
+            pendingIndoorBikeData = snapshot
+            maybeLogIndoorBikeNotificationRateLocked()
+
+            if (indoorBikeDispatchScheduled) {
+                return@synchronized -1L
+            }
+            indoorBikeDispatchScheduled = true
+
+            val nowMs = SystemClock.elapsedRealtime()
+            val earliestDispatchAtMs =
+                lastIndoorBikeDispatchElapsedMs + INDOOR_BIKE_MAIN_THREAD_UPDATE_INTERVAL_MS
+            (earliestDispatchAtMs - nowMs).coerceAtLeast(0L)
+        }
+
+        if (delayMs < 0L) return
+        if (delayMs == 0L) {
+            mainThreadHandler.post(indoorBikeDispatchRunnable)
+        } else {
+            mainThreadHandler.postDelayed(indoorBikeDispatchRunnable, delayMs)
+        }
+    }
+
+    private fun dispatchLatestIndoorBikeData() {
+        val payload = synchronized(indoorBikeDispatchLock) {
+            indoorBikeDispatchScheduled = false
+            val latest = pendingIndoorBikeData
+            pendingIndoorBikeData = null
+            if (latest != null) {
+                lastIndoorBikeDispatchElapsedMs = SystemClock.elapsedRealtime()
+            }
+            latest
+        } ?: return
+
+        if (gatt == null) {
+            return
+        }
+        onIndoorBikeData(payload)
+    }
+
+    private fun maybeLogIndoorBikeNotificationRateLocked() {
+        if (!BuildConfig.DEBUG) return
+
+        val nowMs = SystemClock.elapsedRealtime()
+        if (indoorBikeNotificationLogWindowStartElapsedMs == 0L) {
+            indoorBikeNotificationLogWindowStartElapsedMs = nowMs
+        }
+        indoorBikeNotificationCount += 1
+
+        val elapsedMs = nowMs - indoorBikeNotificationLogWindowStartElapsedMs
+        if (elapsedMs < INDOOR_BIKE_DEBUG_LOG_WINDOW_MS) return
+
+        debugLog(
+            "IndoorBikeData callbacks: $indoorBikeNotificationCount in ${elapsedMs}ms " +
+                "(coalesced to <=${1000 / INDOOR_BIKE_MAIN_THREAD_UPDATE_INTERVAL_MS}Hz main-thread updates)"
+        )
+        indoorBikeNotificationCount = 0
+        indoorBikeNotificationLogWindowStartElapsedMs = nowMs
+    }
+
+    private fun clearPendingIndoorBikeDispatch() {
+        synchronized(indoorBikeDispatchLock) {
+            pendingIndoorBikeData = null
+            indoorBikeDispatchScheduled = false
+            indoorBikeNotificationCount = 0
+            indoorBikeNotificationLogWindowStartElapsedMs = 0L
+            lastIndoorBikeDispatchElapsedMs = 0L
+        }
+        mainThreadHandler.removeCallbacks(indoorBikeDispatchRunnable)
+    }
+
+    private fun debugLog(message: String) {
+        if (!BuildConfig.DEBUG) return
+        Log.d("FTMS", message)
     }
 
 }
