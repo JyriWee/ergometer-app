@@ -1,9 +1,17 @@
 # Next Session
 
 ## Branch
-- current: `docs/ai-origin-note`
+- current: `feature/hr-ready-sequencing`
 
 ## Recently Completed
+- Implemented audit P0-1 HR readiness hardening:
+  - `HrBleClient` now emits `onConnected` only after HR CCCD write succeeds.
+  - Added deterministic setup-abort path for missing service/characteristic/descriptor and notification setup failures.
+  - Setup failures are no longer silent; failures now route through reconnect/disconnect handling with explicit reasons.
+- Validated P0-1 locally:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrReconnectCoordinatorTest"`
+  - `:app:lintDebug`
 - Added bilingual project-origin note in `docs/ai-assisted-development-note.md` (Finnish + English).
 - Linked AI-assisted development note from `README.md`.
 - Received latest external GitHub-Codex audit with prioritized findings (HR ready-state sequencing, FTMS main-thread/log pressure, SessionManager stop-time persistence threading, probe scan cost).
@@ -143,26 +151,25 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Implement audit P0-1 as the first bounded increment:
-  - HR ready-state sequencing (emit connected only after notification path is fully ready).
-  - Deterministic disconnect/error path when HR service/characteristic/descriptor setup fails.
-  - Keep behavior backward-compatible for normal success flow.
+- Implement audit P0-2 as the next bounded increment:
+  - Reduce FTMS telemetry/log pressure on the main thread.
+  - Gate high-frequency runtime logs for production safety.
+  - Keep protocol-critical FTMS state transitions unchanged.
 
 ## Definition of Done
 - Implementation is done on a dedicated feature branch (not `main`).
-- HR `connected` UI state is emitted only after CCCD enable/setup success.
-- Missing HR service/characteristic/descriptor follows deterministic disconnect path with clear failure reason.
+- High-frequency FTMS logs are throttled or debug-gated without losing critical diagnostics.
+- Main-thread FTMS UI updates remain smooth under sustained notification flow.
 - No regressions in compile/test/lint for touched scope.
 - Session handoff notes are updated for the next increment.
 
 ## Risks / Open Questions
 - Keep commit size controlled; propose commit as soon as each tested increment is complete.
-- Confirm exact UX wording for HR setup failures on the menu/session boundary.
-- Confirm whether follow-up P0-2 (FTMS logging/main-thread throttling) should be merged immediately after P0-1 or validated in a separate sprint step.
+- Decide whether FTMS update throttling should be fixed-interval (for example 250 ms) or adaptive.
+- Ensure reduced logging does not hide rare protocol-ordering faults during field debugging.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
 2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrReconnectCoordinatorTest" --no-daemon`
 3. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
-4. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-5. `./gradlew :app:lintDebug --no-daemon`
+4. `./gradlew :app:lintDebug --no-daemon`
