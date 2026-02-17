@@ -7,6 +7,7 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
@@ -27,6 +28,7 @@ class HrBleClient(
     private val onDisconnected: () -> Unit = {},
 ) {
     private var gatt: BluetoothGatt? = null
+    private var notificationsReady = false
     private val mainThreadHandler = Handler(Looper.getMainLooper())
     private val reconnectCoordinator = HrReconnectCoordinator(
         handler = mainThreadHandler,
@@ -53,27 +55,33 @@ class HrBleClient(
                 return
             }
             if (newState == BluetoothProfile.STATE_CONNECTED) {
-                reconnectCoordinator.onConnected()
-                mainThreadHandler.post { onConnected() }
+                notificationsReady = false
                 if (!hasBluetoothConnectPermission()) {
-                    Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot discover services")
-                    reconnectCoordinator.onConnectAttemptFailed()
+                    abortSetup(
+                        gatt = gatt,
+                        reason = "Missing BLUETOOTH_CONNECT permission; cannot discover HR services",
+                    )
                     return
                 }
                 try {
-                    gatt.discoverServices()
+                    val discoveryStarted = gatt.discoverServices()
+                    if (!discoveryStarted) {
+                        abortSetup(
+                            gatt = gatt,
+                            reason = "HR service discovery failed to start",
+                        )
+                    }
                 } catch (e: SecurityException) {
-                    Log.w("HR", "discoverServices failed: ${e.message}")
-                    reconnectCoordinator.onConnectAttemptFailed()
+                    abortSetup(
+                        gatt = gatt,
+                        reason = "discoverServices failed: ${e.message}",
+                    )
                 }
                 return
             }
             if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-                try {
-                    gatt.close()
-                } catch (e: SecurityException) {
-                    Log.w("HR", "close after disconnect failed: ${e.message}")
-                }
+                notificationsReady = false
+                safeCloseGatt(gatt, source = "onConnectionStateChange")
                 if (this@HrBleClient.gatt === gatt) {
                     this@HrBleClient.gatt = null
                 }
@@ -82,29 +90,81 @@ class HrBleClient(
         }
 
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            if (gatt != this@HrBleClient.gatt) {
+                Log.d("HR", "Ignoring stale services-discovered callback status=$status")
+                return
+            }
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                Log.w("HR", "Service discovery failed (status=$status)")
-                try {
-                    gatt.disconnect()
-                } catch (e: SecurityException) {
-                    Log.w("HR", "disconnect failed after discovery error: ${e.message}")
-                }
+                abortSetup(gatt = gatt, reason = "HR service discovery failed (status=$status)")
                 return
             }
             if (!hasBluetoothConnectPermission()) {
-                Log.w("HR", "Missing BLUETOOTH_CONNECT permission; cannot configure HR notifications")
+                abortSetup(
+                    gatt = gatt,
+                    reason = "Missing BLUETOOTH_CONNECT permission; cannot configure HR notifications",
+                )
                 return
             }
-            val service = gatt.getService(HR_SERVICE_UUID) ?: return
-            val ch = service.getCharacteristic(HR_MEASUREMENT_UUID) ?: return
+            val service = gatt.getService(HR_SERVICE_UUID)
+            if (service == null) {
+                abortSetup(gatt = gatt, reason = "Heart Rate service not found")
+                return
+            }
+            val ch = service.getCharacteristic(HR_MEASUREMENT_UUID)
+            if (ch == null) {
+                abortSetup(gatt = gatt, reason = "Heart Rate Measurement characteristic not found")
+                return
+            }
+            val ccc = ch.getDescriptor(CCC_UUID)
+            if (ccc == null) {
+                abortSetup(gatt = gatt, reason = "Heart Rate CCCD descriptor not found")
+                return
+            }
 
             try {
-                gatt.setCharacteristicNotification(ch, true)
-                val ccc = ch.getDescriptor(CCC_UUID) ?: return
-                gatt.writeDescriptor(ccc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                val localNotifyEnabled = gatt.setCharacteristicNotification(ch, true)
+                if (!localNotifyEnabled) {
+                    abortSetup(
+                        gatt = gatt,
+                        reason = "setCharacteristicNotification failed for Heart Rate Measurement",
+                    )
+                    return
+                }
+
+                val writeStatus =
+                    gatt.writeDescriptor(ccc, BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                if (writeStatus != BluetoothStatusCodes.SUCCESS) {
+                    abortSetup(
+                        gatt = gatt,
+                        reason = "Writing Heart Rate CCCD failed to start (status=$writeStatus)",
+                    )
+                }
             } catch (e: SecurityException) {
-                Log.w("HR", "Configuring notifications failed: ${e.message}")
+                abortSetup(gatt = gatt, reason = "Configuring HR notifications failed: ${e.message}")
             }
+        }
+
+        override fun onDescriptorWrite(
+            gatt: BluetoothGatt,
+            descriptor: BluetoothGattDescriptor,
+            status: Int
+        ) {
+            if (gatt != this@HrBleClient.gatt) {
+                Log.d("HR", "Ignoring stale descriptor callback status=$status")
+                return
+            }
+            if (descriptor.uuid != CCC_UUID) return
+            if (descriptor.characteristic.uuid != HR_MEASUREMENT_UUID) return
+
+            if (status != BluetoothGatt.GATT_SUCCESS) {
+                abortSetup(gatt = gatt, reason = "Heart Rate CCCD write failed (status=$status)")
+                return
+            }
+
+            if (notificationsReady) return
+            notificationsReady = true
+            reconnectCoordinator.onConnected()
+            mainThreadHandler.post { onConnected() }
         }
 
         override fun onCharacteristicChanged(
@@ -141,6 +201,7 @@ class HrBleClient(
      */
     fun close() {
         reconnectCoordinator.onCloseRequested()
+        notificationsReady = false
         try {
             gatt?.close()
         } catch (e: SecurityException) {
@@ -164,6 +225,7 @@ class HrBleClient(
             Log.w("HR", "close before connect failed: ${e.message}")
         }
         gatt = null
+        notificationsReady = false
 
         try {
             val bluetoothManager = context.getSystemService(android.bluetooth.BluetoothManager::class.java)
@@ -185,5 +247,38 @@ class HrBleClient(
     private fun hasBluetoothConnectPermission(): Boolean {
         return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
             PackageManager.PERMISSION_GRANTED
+    }
+
+    /**
+     * Aborts notification setup via one deterministic reconnect/disconnect path.
+     *
+     * Invariant: setup failures are never silent. Every failure attempts to tear
+     * down the link and schedules reconnect policy through the coordinator.
+     */
+    private fun abortSetup(gatt: BluetoothGatt, reason: String) {
+        if (gatt != this.gatt) {
+            Log.d("HR", "Ignoring setup-abort for stale GATT: $reason")
+            return
+        }
+        Log.w("HR", reason)
+        notificationsReady = false
+        reconnectCoordinator.onConnectAttemptFailed()
+        try {
+            gatt.disconnect()
+        } catch (e: SecurityException) {
+            Log.w("HR", "disconnect failed during setup abort: ${e.message}")
+            safeCloseGatt(gatt, source = "abortSetup")
+            if (this.gatt === gatt) {
+                this.gatt = null
+            }
+        }
+    }
+
+    private fun safeCloseGatt(gatt: BluetoothGatt, source: String) {
+        try {
+            gatt.close()
+        } catch (e: SecurityException) {
+            Log.w("HR", "gatt.close failed from $source: ${e.message}")
+        }
     }
 }
