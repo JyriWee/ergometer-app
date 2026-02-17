@@ -1,9 +1,19 @@
 # Next Session
 
 ## Branch
-- current: `feature/ftms-telemetry-throttle`
+- current: `feature/session-summary-io-background`
 
 ## Recently Completed
+- Implemented audit P0-3 stop-flow persistence hardening:
+  - `SessionManager` now queues session summary persistence to a background single-thread executor.
+  - Summary publication (`lastSummary`, phase transition, emitted UI state) remains synchronous on main thread.
+  - Added guarded persistence error logging to avoid crash on storage failures.
+- Added P0-3 regression test coverage:
+  - `SessionManagerEdgeCaseTest.stopSessionQueuesPersistenceWithoutBlockingSummaryPublication`.
+- Validated P0-3 locally:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest"`
+  - `:app:lintDebug`
 - Implemented audit P0-2 FTMS telemetry/log pressure reduction:
   - Added Indoor Bike telemetry coalescing in `FtmsBleClient` with a 200 ms main-thread update cadence (latest sample wins).
   - Replaced per-notification debug spam with debug-only sampled rate logging.
@@ -160,25 +170,25 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Implement audit P0-3 as the next bounded increment:
-  - Move Session summary persistence off the main thread in stop flow.
-  - Keep UI-state emission and stop-flow routing deterministic.
-  - Ensure no summary-data loss when stop/teardown races occur.
+- Implement audit P1-1 as the next bounded increment:
+  - Tune menu availability probing to lower scan cost (`SCAN_MODE_BALANCED` / adjusted probe cadence).
+  - Keep trainer/HR status indicators behaviorally unchanged for end users.
+  - Verify probing pauses remain compatible with picker scans and session start.
 
 ## Definition of Done
 - Implementation is done on a dedicated feature branch (not `main`).
-- Session summary file write is executed on background dispatcher/thread.
-- Stop-flow transition to Summary remains deterministic under normal stop, disconnect, and timeout paths.
-- No data regressions in summary content (existing fields + `actualTss`).
+- Trainer and HR probe scans no longer use low-latency mode for periodic background checks.
+- Status-indicator semantics (green/gray/amber) stay unchanged in practical use.
+- No scan contention regressions with picker and active-session flow.
 - No regressions in compile/test/lint for touched scope.
 - Session handoff notes are updated for the next increment.
 
 ## Risks / Open Questions
 - Keep commit size controlled; propose commit as soon as each tested increment is complete.
-- Confirm where background persistence completion should be observed (blocking summary navigation vs fire-and-forget with best-effort logging).
-- Ensure background I/O cannot outlive/retain stale Activity references.
+- Determine final probe intervals for trainer vs HR after balancing responsiveness and battery.
+- Confirm whether scan mode tuning should be split into two commits (trainer first, HR second).
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
-4. `./gradlew :app:lintDebug --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+3. `./gradlew :app:lintDebug --no-daemon`

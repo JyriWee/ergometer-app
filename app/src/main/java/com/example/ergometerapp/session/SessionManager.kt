@@ -1,7 +1,10 @@
 package com.example.ergometerapp.session
 
+import android.util.Log
 import com.example.ergometerapp.SessionState
 import com.example.ergometerapp.ftms.IndoorBikeData
+import java.util.concurrent.Executor
+import java.util.concurrent.Executors
 
 enum class SessionPhase {
     IDLE,
@@ -22,7 +25,16 @@ class SessionManager(
     private val persistSummary: (android.content.Context, SessionSummary) -> Unit = { ctx, summary ->
         SessionStorage.save(ctx, summary)
     },
+    private val summaryPersistenceExecutor: Executor = SUMMARY_PERSISTENCE_EXECUTOR,
 ) {
+    companion object {
+        private val SUMMARY_PERSISTENCE_EXECUTOR: Executor by lazy {
+            Executors.newSingleThreadExecutor { runnable ->
+                Thread(runnable, "SessionSummaryPersist").apply { isDaemon = true }
+            }
+        }
+    }
+
     var lastSummary: SessionSummary? = null
         private set
     private val powerStats = IntSampleAccumulator()
@@ -235,8 +247,22 @@ class SessionManager(
             sessionPhase = SessionPhase.STOPPED
             emitState()
 
-            lastSummary?.let {
-                persistSummary(context, it)
+            queueSummaryPersistence(summary)
+        }
+    }
+
+    /**
+     * Persists summary off the main thread so stop-flow UI transitions remain smooth.
+     *
+     * Invariant: summary publication to UI ([lastSummary], phase, emitted state) is
+     * completed before persistence is queued.
+     */
+    private fun queueSummaryPersistence(summary: SessionSummary) {
+        summaryPersistenceExecutor.execute {
+            try {
+                persistSummary(context, summary)
+            } catch (t: Throwable) {
+                Log.w("SESSION", "Summary persistence failed: ${t.message}")
             }
         }
     }
