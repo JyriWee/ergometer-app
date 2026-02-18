@@ -63,11 +63,11 @@ class AdaptiveLayoutTest {
     @Test
     fun returnsExpectedPaneWeights() {
         assertEquals(
-            AdaptivePaneWeights(left = 0.45f, right = 0.55f),
+            AdaptivePaneWeights(left = 0.46f, right = 0.54f),
             AdaptiveLayoutMode.TWO_PANE_MEDIUM.paneWeights(),
         )
         assertEquals(
-            AdaptivePaneWeights(left = 0.35f, right = 0.65f),
+            AdaptivePaneWeights(left = 0.38f, right = 0.62f),
             AdaptiveLayoutMode.TWO_PANE_EXPANDED.paneWeights(),
         )
     }

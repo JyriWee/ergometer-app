@@ -4,16 +4,17 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Run on-device adaptive UI validation for `MENU`, `SESSION`, `SUMMARY`, and `WORKOUT_EDITOR` in compact vs large-window modes; then merge after CI green.
+- next task: Continue landscape/tablet tuning with `WORKOUT_EDITOR` first, then `SESSION`; keep `MENU` as accepted baseline.
 - DoD:
   - Shared `AdaptiveLayoutMode` resolver is used by all primary screens.
-  - `MENU` uses two-pane structure on medium/expanded windows and keeps compact flow unchanged.
+  - `MENU` two-pane behavior is validated on-device and accepted (tablet landscape).
   - `SESSION` uses two-pane structure on medium/expanded windows and keeps compact flow unchanged.
   - `SUMMARY` uses one-column metrics on compact and two-column metrics on medium/expanded.
   - `WORKOUT_EDITOR` uses two-pane structure on medium/expanded windows (left: edit flow, right: validation/preview).
   - CI smoke command fix remains active and `Android Build` checks pass for PR `#30`.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
+  - `WORKOUT_EDITOR` top action row can still wrap/clamp on some landscape sizes and needs dedicated tuning.
   - Two-pane content density may require spacing tweaks after real-device landscape checks.
   - Editor right pane can look sparse when no validation or preview content is present.
   - CI emulator startup remains environment dependent.
@@ -40,6 +41,15 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Menu two-pane landscape tuning pass (tablet):
+  - Increased left pane weight to improve readability of setup controls.
+  - Refined two-pane subtitle/FTP row into a clearer stacked layout.
+  - Added compact label mode for trainer/HR cards to reduce aggressive truncation.
+  - Updated pane-weight expectations in `app/src/test/java/com/example/ergometerapp/ui/AdaptiveLayoutTest.kt`.
+  - On-device result: accepted by user (`MENU` landscape now balanced).
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
 - Adaptive layout foundation and screen integration:
   - Added `app/src/main/java/com/example/ergometerapp/ui/AdaptiveLayout.kt`:
     - width classes: `<600dp`, `600..839dp`, `>=840dp`

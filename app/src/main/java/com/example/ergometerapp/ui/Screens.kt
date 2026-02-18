@@ -293,39 +293,73 @@ internal fun MenuScreen(
                 color = normalTextColor
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
+            if (showTwoPane) {
                 Text(
                     text = stringResource(R.string.menu_subtitle),
                     style = MaterialTheme.typography.bodyMedium,
                     color = normalTextColor,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(0.5f),
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = ftpInputText,
+                        onValueChange = onFtpInputChanged,
+                        modifier = Modifier.widthIn(min = 72.dp, max = 96.dp),
+                        placeholder = { Text("FTP") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = ftpInputError != null,
+                        colors = menuTextFieldColors(),
+                    )
+                    Text(
+                        text = stringResource(R.string.menu_ftp_hint, ftpWatts),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = normalTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        text = stringResource(R.string.menu_subtitle),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = normalTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(0.5f),
+                    )
 
-                OutlinedTextField(
-                    value = ftpInputText,
-                    onValueChange = onFtpInputChanged,
-                    modifier = Modifier.weight(0.16666667f),
-                    placeholder = { Text("FTP") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    isError = ftpInputError != null,
-                    colors = menuTextFieldColors(),
-                )
+                    OutlinedTextField(
+                        value = ftpInputText,
+                        onValueChange = onFtpInputChanged,
+                        modifier = Modifier.weight(0.16666667f),
+                        placeholder = { Text("FTP") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = ftpInputError != null,
+                        colors = menuTextFieldColors(),
+                    )
 
-                Text(
-                    text = stringResource(R.string.menu_ftp_hint, ftpWatts),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = normalTextColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(0.33333334f),
-                )
+                    Text(
+                        text = stringResource(R.string.menu_ftp_hint, ftpWatts),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = normalTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(0.33333334f),
+                    )
+                }
             }
 
             if (ftpInputError != null) {
@@ -345,12 +379,14 @@ internal fun MenuScreen(
                     label = stringResource(R.string.menu_trainer_device_label),
                     value = trainerDisplayName,
                     indicatorState = trainerIndicatorState,
+                    compactLabel = showTwoPane,
                     modifier = Modifier.weight(1f),
                 )
                 DeviceSelectionInfoCard(
                     label = stringResource(R.string.menu_hr_device_label),
                     value = hrDisplayName,
                     indicatorState = hrIndicatorState,
+                    compactLabel = showTwoPane,
                     modifier = Modifier.weight(1f),
                 )
             }
@@ -743,6 +779,7 @@ private fun DeviceSelectionInfoCard(
     label: String,
     value: String,
     indicatorState: DeviceConnectionIndicatorState,
+    compactLabel: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val normalTextColor = menuNormalTextColor()
@@ -768,7 +805,7 @@ private fun DeviceSelectionInfoCard(
     }
 
     ElevatedCard(
-        modifier = modifier.height(78.dp),
+        modifier = modifier.height(if (compactLabel) 88.dp else 78.dp),
         colors = menuInfoCardColors(),
     ) {
         Column(
@@ -784,9 +821,13 @@ private fun DeviceSelectionInfoCard(
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = if (compactLabel) {
+                        MaterialTheme.typography.labelMedium
+                    } else {
+                        MaterialTheme.typography.labelLarge
+                    },
                     color = normalTextColor,
-                    maxLines = 1,
+                    maxLines = if (compactLabel) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
@@ -802,7 +843,11 @@ private fun DeviceSelectionInfoCard(
             }
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyMedium,
+                style = if (compactLabel) {
+                    MaterialTheme.typography.bodySmall
+                } else {
+                    MaterialTheme.typography.bodyMedium
+                },
                 color = normalTextColor,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,

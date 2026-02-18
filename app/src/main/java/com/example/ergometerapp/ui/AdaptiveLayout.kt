@@ -82,8 +82,8 @@ internal fun AdaptiveLayoutMode.isTwoPane(): Boolean {
 
 internal fun AdaptiveLayoutMode.paneWeights(): AdaptivePaneWeights {
     return when (this) {
-        AdaptiveLayoutMode.TWO_PANE_MEDIUM -> AdaptivePaneWeights(left = 0.45f, right = 0.55f)
-        AdaptiveLayoutMode.TWO_PANE_EXPANDED -> AdaptivePaneWeights(left = 0.35f, right = 0.65f)
+        AdaptiveLayoutMode.TWO_PANE_MEDIUM -> AdaptivePaneWeights(left = 0.46f, right = 0.54f)
+        AdaptiveLayoutMode.TWO_PANE_EXPANDED -> AdaptivePaneWeights(left = 0.38f, right = 0.62f)
         AdaptiveLayoutMode.SINGLE_PANE,
         AdaptiveLayoutMode.SINGLE_PANE_DENSE,
         -> AdaptivePaneWeights(left = 1f, right = 1f)
