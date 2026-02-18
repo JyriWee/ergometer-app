@@ -6,11 +6,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -43,6 +48,15 @@ import com.example.ergometerapp.workout.editor.WorkoutEditorStepDraft
 import com.example.ergometerapp.workout.editor.WorkoutEditorStepField
 import com.example.ergometerapp.workout.editor.WorkoutEditorStepType
 
+@Composable
+private fun workoutEditorCardBorder(): BorderStroke {
+    val alpha = if (isSystemInDarkTheme()) 0.24f else 0.42f
+    return BorderStroke(
+        width = 1.dp,
+        color = MaterialTheme.colorScheme.outline.copy(alpha = alpha),
+    )
+}
+
 /**
  * In-app editor for creating and adjusting structured workouts.
  */
@@ -72,6 +86,8 @@ internal fun WorkoutEditorScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .windowInsetsPadding(WindowInsets.safeDrawing)
             .padding(horizontal = 16.dp, vertical = 16.dp)
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -212,6 +228,7 @@ internal fun WorkoutEditorScreen(
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer,
                 ),
+                border = workoutEditorCardBorder(),
             ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
@@ -233,7 +250,13 @@ internal fun WorkoutEditorScreen(
         }
 
         if (previewWorkout != null) {
-            Card {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                ),
+                border = workoutEditorCardBorder(),
+            ) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -305,7 +328,7 @@ private fun WorkoutEditorStepCard(
             containerColor = colorScheme.surface,
             contentColor = colorScheme.onSurface,
         ),
-        border = BorderStroke(width = 1.dp, color = colorScheme.outline),
+        border = workoutEditorCardBorder(),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
