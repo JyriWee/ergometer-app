@@ -1,22 +1,27 @@
 # Next Session
 
 ## Branch
-- current: `feature/open-source-readiness-mit`
+- current: `feature/v0-1-0-release-prep`
 
 ## Session Handoff
-- next task: Final pre-public release checks (repo visibility settings, branch protection, first tagged release notes).
+- next task: Complete `v0.1.0` release execution from checklist (artifact mode decision + version bump + tag/release).
 - DoD:
-  - Community and governance files are present and linked.
-  - MIT license is present at repo root.
-  - Public-release checklist is documented and actionable.
+  - `docs/release-checklist.md` items are completed for selected artifact mode.
+  - `CHANGELOG.md` and `docs/release-notes-v0.1.0.md` match final release content.
+  - `v0.1.0` tag and GitHub Release are published.
 - risks:
-  - GitHub repository settings (visibility/protection/secrets) still require manual maintainer action in UI.
-  - Release artifact signing policy should be validated once before first public tag.
+  - Signed release mode requires secrets to be configured correctly before release run.
+  - Branch protection is strict; release changes must pass required checks before merge.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`
 
 ## Recently Completed
+- Release preparation docs baseline:
+  - Added `docs/release-checklist.md` with DoD-driven release flow and artifact mode split (unsigned/signed).
+  - Added `CHANGELOG.md` with initial `v0.1.0` entry.
+  - Added `docs/release-notes-v0.1.0.md` as GitHub Release draft content.
+  - Updated `README.md` documentation index with release docs links.
 - Open-source readiness baseline (MIT):
   - Added `LICENSE` (MIT).
   - Added community docs: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`.
