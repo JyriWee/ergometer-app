@@ -1,24 +1,23 @@
 # Next Session
 
 ## Branch
-- current: `feature/ci-androidtest-smoke`
+- current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Merge CI emulator smoke job, then monitor first GitHub run and tune emulator job timeout/retries only if flakiness appears.
+- next task: Merge CI concurrency guard, then confirm duplicated push+PR workflow runs are cancelled automatically on next feature branch push.
 - DoD:
-  - Workflow runs existing `build-test-lint` job and new instrumentation smoke job on PR/push.
-  - Instrumentation smoke job executes `MainActivityContentFlowTest` on emulator.
-  - Existing workflow checks remain unchanged in behavior.
-  - `build-test-lint` remains green after merge.
+  - `Android Build` workflow uses concurrency per branch (`github.head_ref || github.ref_name`).
+  - Older in-progress run for same branch is auto-cancelled when newer run starts.
+  - Existing `build-test-lint` and `android-instrumentation-smoke` jobs remain unchanged.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
-  - Emulator boot/install can be slow or flaky on shared runners.
-  - Instrumentation smoke should stay intentionally narrow to avoid long queue times.
+  - Concurrency key must not accidentally cancel unrelated runs (e.g., different branches).
+  - Emulator smoke step may still be slow; this change only removes redundant parallel runs.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
+  - `gh run list --workflow "Android Build" --limit 5`
+  - `gh run view <run-id> --json jobs,status,conclusion`
   - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-  - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:lintDebug --no-daemon`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -34,6 +33,12 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- CI workflow deduplication guard:
+  - Added top-level workflow `concurrency` to `.github/workflows/android-build.yml`:
+    - `group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}`
+    - `cancel-in-progress: true`
+  - Purpose: prevent duplicate heavy runs for the same feature branch when both `push` and `pull_request` events trigger.
+  - Scope: does not change test steps or release checks; only run scheduling behavior.
 - CI Android instrumentation smoke baseline:
   - Added new workflow job `android-instrumentation-smoke` in `.github/workflows/android-build.yml`.
   - Job runs after `build-test-lint` and executes emulator-based instrumentation smoke using `reactivecircus/android-emulator-runner@v2`.
