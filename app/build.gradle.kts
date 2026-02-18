@@ -53,8 +53,8 @@ android {
         applicationId = "com.example.ergometerapp"
         minSdk = 33
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "0.1.0"
         buildConfigField("int", "DEFAULT_FTP_WATTS", defaultFtpWatts.get())
         buildConfigField("boolean", "ALLOW_LEGACY_WORKOUT_FALLBACK", allowLegacyWorkoutFallback.get())
 

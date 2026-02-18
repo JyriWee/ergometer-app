@@ -19,6 +19,12 @@
   - `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
 
 ## Recently Completed
+- `v0.1.0` version decision and baseline update:
+  - Updated `app/build.gradle.kts`:
+    - `versionName = "0.1.0"`
+    - `versionCode = 2`
+  - Verified local validation after version bump:
+    - `./gradlew clean :app:compileDebugKotlin :app:lintDebug --no-daemon`
 - Signed release pipeline setup and verification:
   - Generated local release keystore at `.local/release-signing/ergometer-release.jks` (gitignored).
   - Generated local signing env file at `.local/release-signing/release-signing.env` (gitignored).
