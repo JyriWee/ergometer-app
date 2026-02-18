@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -30,6 +31,7 @@ import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ElevatedCard
 import androidx.compose.material3.Icon
@@ -91,6 +93,15 @@ private enum class DeviceConnectionIndicatorState {
     CONNECTED,
     IDLE,
     ISSUE,
+}
+
+@Composable
+private fun sessionCardBorder(): BorderStroke {
+    val alpha = if (isSystemInDarkTheme()) 0.22f else 0.45f
+    return BorderStroke(
+        width = 1.dp,
+        color = MaterialTheme.colorScheme.outline.copy(alpha = alpha),
+    )
 }
 
 @Composable
@@ -1052,7 +1063,8 @@ private fun TopTelemetrySection(
     distanceValue: String,
     kcalValue: String,
 ) {
-    SectionCard(title = null) {
+    val cardBorder = sessionCardBorder()
+    SectionCard(title = null, border = cardBorder) {
         if (compactLayout) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -1062,16 +1074,19 @@ private fun TopTelemetrySection(
                     label = stringResource(R.string.session_hr_short_label),
                     value = heartRateValue,
                     modifier = Modifier.weight(1f),
+                    border = cardBorder,
                 )
                 TopMetricCard(
                     label = stringResource(R.string.session_instant_power_label),
                     value = powerValue,
                     modifier = Modifier.weight(1f),
+                    border = cardBorder,
                 )
                 TopMetricCard(
                     label = stringResource(R.string.summary_distance),
                     value = distanceValue,
                     modifier = Modifier.weight(1f),
+                    border = cardBorder,
                 )
             }
             Row(
@@ -1082,16 +1097,19 @@ private fun TopTelemetrySection(
                     label = stringResource(R.string.session_speed_label),
                     value = speedValue,
                     modifier = Modifier.weight(1f),
+                    border = cardBorder,
                 )
                 TopMetricCard(
                     label = stringResource(R.string.session_cadence_target_label),
                     value = cadenceTargetValue,
                     modifier = Modifier.weight(1f),
+                    border = cardBorder,
                 )
                 TopMetricCard(
                     label = stringResource(R.string.session_kcal_label),
                     value = kcalValue,
                     modifier = Modifier.weight(1f),
+                    border = cardBorder,
                 )
             }
             return@SectionCard
@@ -1110,11 +1128,13 @@ private fun TopTelemetrySection(
                     label = stringResource(R.string.session_hr_short_label),
                     value = heartRateValue,
                     modifier = Modifier.fillMaxWidth(),
+                    border = cardBorder,
                 )
                 TopMetricCard(
                     label = stringResource(R.string.session_speed_label),
                     value = speedValue,
                     modifier = Modifier.fillMaxWidth(),
+                    border = cardBorder,
                 )
             }
             Column(
@@ -1125,11 +1145,13 @@ private fun TopTelemetrySection(
                     label = stringResource(R.string.session_instant_power_label),
                     value = powerValue,
                     modifier = Modifier.fillMaxWidth(),
+                    border = cardBorder,
                 )
                 TopMetricCard(
                     label = stringResource(R.string.session_cadence_target_label),
                     value = cadenceTargetValue,
                     modifier = Modifier.fillMaxWidth(),
+                    border = cardBorder,
                 )
             }
             Column(
@@ -1140,11 +1162,13 @@ private fun TopTelemetrySection(
                     label = stringResource(R.string.summary_distance),
                     value = distanceValue,
                     modifier = Modifier.fillMaxWidth(),
+                    border = cardBorder,
                 )
                 TopMetricCard(
                     label = stringResource(R.string.session_kcal_label),
                     value = kcalValue,
                     modifier = Modifier.fillMaxWidth(),
+                    border = cardBorder,
                 )
             }
         }
@@ -1156,8 +1180,14 @@ private fun TopMetricCard(
     label: String,
     value: String,
     modifier: Modifier = Modifier,
+    border: BorderStroke? = null,
 ) {
-    ElevatedCard(modifier = modifier) {
+    Card(
+        modifier = modifier,
+        border = border,
+        colors = CardDefaults.elevatedCardColors(),
+        elevation = CardDefaults.elevatedCardElevation(),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1195,6 +1225,7 @@ private fun WorkoutProgressSection(
     workoutExecutionModeMessage: String?,
     workoutExecutionModeIsError: Boolean,
 ) {
+    val cardBorder = sessionCardBorder()
     val activeSegment = remember(workoutSegments, runnerState.workoutElapsedSec, workoutComplete) {
         currentWorkoutProfileSegment(
             workoutSegments = workoutSegments,
@@ -1202,7 +1233,7 @@ private fun WorkoutProgressSection(
             completed = workoutComplete,
         )
     }
-    SectionCard(title = null) {
+    SectionCard(title = null, border = cardBorder) {
         Text(
             text = stringResource(R.string.session_workout_name_value, workoutName),
             style = MaterialTheme.typography.bodyLarge,
@@ -1216,12 +1247,14 @@ private fun WorkoutProgressSection(
             MetricCard(
                 label = stringResource(R.string.session_workout_step_remaining),
                 value = formatTime(runnerState.stepRemainingSec, unknown),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                border = cardBorder,
             )
             MetricCard(
                 label = stringResource(R.string.session_workout_remaining),
                 value = remainingText,
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.weight(1f),
+                border = cardBorder,
             )
             MetricCard(
                 label = stringResource(R.string.session_elapsed_of_total),
@@ -1229,6 +1262,7 @@ private fun WorkoutProgressSection(
                 modifier = Modifier.weight(1f),
                 valueStyle = MaterialTheme.typography.titleMedium,
                 valueMaxLines = 1,
+                border = cardBorder,
             )
         }
 
@@ -1246,6 +1280,7 @@ private fun WorkoutProgressSection(
                     unknown = unknown,
                 ),
                 modifier = Modifier.weight(1f),
+                border = cardBorder,
             )
             MetricCard(
                 label = stringResource(R.string.session_target_label),
@@ -1257,6 +1292,7 @@ private fun WorkoutProgressSection(
                     unknown = unknown,
                 ),
                 modifier = Modifier.weight(1f),
+                border = cardBorder,
             )
         }
 
@@ -1558,7 +1594,10 @@ internal fun SummaryScreen(
 private fun SessionIssuesSection(
     messages: List<String>
 ) {
-    SectionCard(title = stringResource(R.string.session_issue_title)) {
+    SectionCard(
+        title = stringResource(R.string.session_issue_title),
+        border = sessionCardBorder(),
+    ) {
         messages.forEach { message ->
             Text(
                 text = message,
@@ -1684,8 +1723,14 @@ private fun MetricCard(
     modifier: Modifier = Modifier,
     valueStyle: TextStyle = MaterialTheme.typography.headlineSmall,
     valueMaxLines: Int = Int.MAX_VALUE,
+    border: BorderStroke? = null,
 ) {
-    ElevatedCard(modifier = modifier) {
+    Card(
+        modifier = modifier,
+        border = border,
+        colors = CardDefaults.elevatedCardColors(),
+        elevation = CardDefaults.elevatedCardElevation(),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1712,9 +1757,15 @@ private fun MetricCard(
 private fun SectionCard(
     title: String?,
     modifier: Modifier = Modifier,
+    border: BorderStroke? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    ElevatedCard(modifier = modifier.fillMaxWidth()) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        border = border,
+        colors = CardDefaults.elevatedCardColors(),
+        elevation = CardDefaults.elevatedCardElevation(),
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
