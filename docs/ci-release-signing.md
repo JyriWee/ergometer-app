@@ -26,6 +26,15 @@ The build fails fast if only part of the signing configuration is provided.
 
 If none of the signing inputs are provided, release verification still runs unsigned.
 
+## Practical note for generated keystores
+
+If a keystore is generated with a PKCS12 default setup, use the same value for:
+
+- `ERGOMETER_RELEASE_STORE_PASSWORD`
+- `ERGOMETER_RELEASE_KEY_PASSWORD`
+
+Using different values can cause packaging failures when Gradle reads the key from the keystore.
+
 ## GitHub Actions secrets
 
 Recommended setup for CI:
