@@ -72,6 +72,19 @@ fun parseZwo(xml: String): WorkoutFile {
     fun attrDouble(tag: XmlPullParser, name: String): Double? =
         tag.getAttributeValue(null, name)?.toDoubleOrNull()
 
+    fun attrDoubleAny(tag: XmlPullParser, vararg names: String): Double? {
+        names.forEach { name ->
+            val value = attrDouble(tag, name)
+            if (value != null) return value
+        }
+        return null
+    }
+
+    fun midpointOrSingle(low: Double?, high: Double?): Double? {
+        if (low != null && high != null) return (low + high) / 2.0
+        return low ?: high
+    }
+
     fun attrStringMap(tag: XmlPullParser): Map<String, String> {
         if (tag.attributeCount == 0) return emptyMap()
         val map = LinkedHashMap<String, String>(tag.attributeCount)
@@ -90,79 +103,97 @@ fun parseZwo(xml: String): WorkoutFile {
             when (parser.eventType) {
                 XmlPullParser.START_TAG -> {
                     val tagName = parser.name ?: ""
-                if (tagName == "workout") {
-                    inWorkout = true
-                }
-                if (tagName == "tags") {
-                    inTags = true
-                }
+                    if (tagName == "workout") {
+                        inWorkout = true
+                    }
+                    if (tagName == "tags") {
+                        inTags = true
+                    }
 
                     when (tagName) {
                         "name", "description", "author" -> {
                             currentTextTag = tagName
                             currentText = StringBuilder()
                         }
-                    "tag" -> if (inTags) {
-                        val attrName = parser.getAttributeValue(null, "name")
-                        if (!attrName.isNullOrBlank()) {
-                            tags.add(attrName)
-                        } else {
-                            currentTextTag = tagName
-                            currentText = StringBuilder()
+                        "tag" -> if (inTags) {
+                            val attrName = parser.getAttributeValue(null, "name")
+                            if (!attrName.isNullOrBlank()) {
+                                tags.add(attrName)
+                            } else {
+                                currentTextTag = tagName
+                                currentText = StringBuilder()
+                            }
                         }
-                    }
                         "Warmup" -> if (inWorkout) {
+                            val power = attrDouble(parser, "Power")
                             steps.add(
                                 Step.Warmup(
                                     durationSec = attrInt(parser, "Duration"),
-                                    powerLow = attrDouble(parser, "PowerLow"),
-                                    powerHigh = attrDouble(parser, "PowerHigh"),
+                                    powerLow = attrDouble(parser, "PowerLow") ?: power,
+                                    powerHigh = attrDouble(parser, "PowerHigh") ?: power,
                                     cadence = attrInt(parser, "Cadence"),
                                 ),
                             )
                         }
                         "Cooldown" -> if (inWorkout) {
+                            val power = attrDouble(parser, "Power")
                             steps.add(
                                 Step.Cooldown(
                                     durationSec = attrInt(parser, "Duration"),
-                                    powerLow = attrDouble(parser, "PowerLow"),
-                                    powerHigh = attrDouble(parser, "PowerHigh"),
+                                    powerLow = attrDouble(parser, "PowerLow") ?: power,
+                                    powerHigh = attrDouble(parser, "PowerHigh") ?: power,
                                     cadence = attrInt(parser, "Cadence"),
                                 ),
                             )
                         }
-                        "SteadyState" -> if (inWorkout) {
+                        "SteadyState", "SolidState" -> if (inWorkout) {
+                            val power = attrDouble(parser, "Power")
+                            val powerFromRange = midpointOrSingle(
+                                low = attrDouble(parser, "PowerLow"),
+                                high = attrDouble(parser, "PowerHigh"),
+                            )
                             steps.add(
                                 Step.SteadyState(
                                     durationSec = attrInt(parser, "Duration"),
-                                    power = attrDouble(parser, "Power"),
+                                    power = power ?: powerFromRange,
                                     cadence = attrInt(parser, "Cadence"),
                                 ),
                             )
                         }
                         "Ramp" -> if (inWorkout) {
+                            val power = attrDouble(parser, "Power")
                             steps.add(
                                 Step.Ramp(
                                     durationSec = attrInt(parser, "Duration"),
-                                    powerLow = attrDouble(parser, "PowerLow"),
-                                    powerHigh = attrDouble(parser, "PowerHigh"),
+                                    powerLow = attrDouble(parser, "PowerLow") ?: power,
+                                    powerHigh = attrDouble(parser, "PowerHigh") ?: power,
                                     cadence = attrInt(parser, "Cadence"),
                                 ),
                             )
                         }
                         "IntervalsT" -> if (inWorkout) {
+                            val onPower = attrDoubleAny(parser, "OnPower")
+                                ?: midpointOrSingle(
+                                    low = attrDouble(parser, "PowerOnLow"),
+                                    high = attrDouble(parser, "PowerOnHigh"),
+                                )
+                            val offPower = attrDoubleAny(parser, "OffPower")
+                                ?: midpointOrSingle(
+                                    low = attrDouble(parser, "PowerOffLow"),
+                                    high = attrDouble(parser, "PowerOffHigh"),
+                                )
                             steps.add(
                                 Step.IntervalsT(
                                     onDurationSec = attrInt(parser, "OnDuration"),
                                     offDurationSec = attrInt(parser, "OffDuration"),
-                                    onPower = attrDouble(parser, "OnPower"),
-                                    offPower = attrDouble(parser, "OffPower"),
+                                    onPower = onPower,
+                                    offPower = offPower,
                                     repeat = attrInt(parser, "Repeat"),
                                     cadence = attrInt(parser, "Cadence"),
                                 ),
                             )
                         }
-                        "FreeRide" -> if (inWorkout) {
+                        "FreeRide", "Freeride", "MaxEffort" -> if (inWorkout) {
                             steps.add(
                                 Step.FreeRide(
                                     durationSec = attrInt(parser, "Duration"),
@@ -193,17 +224,17 @@ fun parseZwo(xml: String): WorkoutFile {
                 }
                 XmlPullParser.END_TAG -> {
                     val tagName = parser.name ?: ""
-                if (tagName == "workout") {
-                    inWorkout = false
-                }
-                if (tagName == "tags") {
-                    inTags = false
-                }
-                if (currentTextTag == tagName) {
-                    flushTextIfNeeded(tagName)
-                    currentTextTag = null
-                    currentText = StringBuilder()
-                }
+                    if (tagName == "workout") {
+                        inWorkout = false
+                    }
+                    if (tagName == "tags") {
+                        inTags = false
+                    }
+                    if (currentTextTag == tagName) {
+                        flushTextIfNeeded(tagName)
+                        currentTextTag = null
+                        currentText = StringBuilder()
+                    }
                 }
             }
             parser.next()

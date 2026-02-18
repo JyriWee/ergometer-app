@@ -74,6 +74,8 @@ See `docs/ci-release-signing.md` for details.
 - Next-session handoff notes: `docs/next-session.md`
 - CI signing/release notes: `docs/ci-release-signing.md`
 - Adaptive UI checklist (Android 17): `docs/android-17-adaptive-checklist.md`
+- ZWO compatibility notes: `docs/zwo-format-compatibility.md`
+- ZWO full offline reference: `docs/zwo-format-reference.md`
 
 ## Development Notes
 - Prefer feature branches for all changes; avoid direct work on `main`.

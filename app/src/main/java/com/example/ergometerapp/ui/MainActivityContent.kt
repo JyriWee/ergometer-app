@@ -4,6 +4,8 @@ import androidx.compose.runtime.Composable
 import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.DeviceSelectionKind
 import com.example.ergometerapp.ScannedBleDevice
+import com.example.ergometerapp.workout.editor.WorkoutEditorAction
+import com.example.ergometerapp.workout.editor.WorkoutEditorDraft
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
@@ -50,6 +52,12 @@ internal data class MainActivityUiModel(
     val deviceScanInProgress: Boolean,
     val deviceScanStatus: String?,
     val deviceScanStopEnabled: Boolean,
+    val workoutEditorDraft: WorkoutEditorDraft,
+    val workoutEditorValidationErrors: List<String>,
+    val workoutEditorStatusMessage: String?,
+    val workoutEditorStatusIsError: Boolean,
+    val workoutEditorHasUnsavedChanges: Boolean,
+    val workoutEditorShowSaveBeforeApplyPrompt: Boolean,
 )
 
 /**
@@ -69,6 +77,8 @@ internal fun MainActivityContent(
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit,
+    onWorkoutEditorAction: (WorkoutEditorAction) -> Unit,
+    onRequestWorkoutEditorSave: (String) -> Unit,
 ) {
     ErgometerAppTheme {
         MainDestinationContent(
@@ -83,7 +93,9 @@ internal fun MainActivityContent(
             onSearchFtmsDevicesFromConnectionIssue = onSearchFtmsDevicesFromConnectionIssue,
             onStartSession = onStartSession,
             onEndSession = onEndSession,
-            onBackToMenu = onBackToMenu
+            onBackToMenu = onBackToMenu,
+            onWorkoutEditorAction = onWorkoutEditorAction,
+            onRequestWorkoutEditorSave = onRequestWorkoutEditorSave,
         )
     }
 }
@@ -101,7 +113,9 @@ private fun MainDestinationContent(
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
-    onBackToMenu: () -> Unit
+    onBackToMenu: () -> Unit,
+    onWorkoutEditorAction: (WorkoutEditorAction) -> Unit,
+    onRequestWorkoutEditorSave: (String) -> Unit,
 ) {
     when (model.screen) {
         AppScreen.MENU -> {
@@ -140,7 +154,22 @@ private fun MainDestinationContent(
                 onDismissDeviceSelection = onDismissDeviceSelection,
                 onDismissConnectionIssue = onDismissConnectionIssue,
                 onSearchFtmsDevicesFromConnectionIssue = onSearchFtmsDevicesFromConnectionIssue,
-                onStartSession = onStartSession
+                onStartSession = onStartSession,
+                onOpenWorkoutEditor = { onWorkoutEditorAction(WorkoutEditorAction.OpenEditor) },
+            )
+        }
+
+        AppScreen.WORKOUT_EDITOR -> {
+            WorkoutEditorScreen(
+                draft = model.workoutEditorDraft,
+                validationErrors = model.workoutEditorValidationErrors,
+                statusMessage = model.workoutEditorStatusMessage,
+                statusIsError = model.workoutEditorStatusIsError,
+                hasUnsavedChanges = model.workoutEditorHasUnsavedChanges,
+                showSaveBeforeApplyPrompt = model.workoutEditorShowSaveBeforeApplyPrompt,
+                ftpWatts = model.ftpWatts,
+                onAction = onWorkoutEditorAction,
+                onRequestSave = onRequestWorkoutEditorSave,
             )
         }
 

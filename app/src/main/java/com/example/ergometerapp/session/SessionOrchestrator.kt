@@ -177,6 +177,23 @@ class SessionOrchestrator(
     }
 
     /**
+     * Applies an editor-generated workout directly to session selection state.
+     */
+    fun onWorkoutEdited(workout: WorkoutFile, sourceName: String) {
+        uiState.selectedWorkout.value = workout
+        workoutRunner = null
+        uiState.selectedWorkoutFileName.value = sourceName
+        uiState.selectedWorkoutImportError.value = null
+        recalculateSelectedWorkoutDerivedMetrics(workout)
+        lastExecutionFailureSignalKey = null
+        Log.d(
+            "WORKOUT",
+            "Workout editor applied name=$sourceName executionSteps=${uiState.selectedWorkoutStepCount.value} rawSteps=${workout.steps.size} plannedTss=${uiState.selectedWorkoutPlannedTss.value}",
+        )
+        dumpUiState("workoutEditorApplied(name=$sourceName)")
+    }
+
+    /**
      * Re-evaluates execution readiness when FTP changes.
      *
      * Execution mapper output depends on FTP; this keeps menu readiness and

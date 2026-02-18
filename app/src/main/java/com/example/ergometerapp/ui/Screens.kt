@@ -81,18 +81,6 @@ private val SessionMaxContentWidth = 1200.dp
 private val SummaryMaxContentWidth = 920.dp
 private val SessionStickyActionBottomPadding = 96.dp
 private val SessionWorkoutChartHeight = 220.dp
-private val MenuNormalTextColor = Color.Black
-private val MenuErrorTextColor = Color(0xFFD50000)
-private val MenuPickerStatusColor = Color(0xFFFFC107)
-private val MenuPickerWarningColor = Color(0xFFFFC107)
-private val MenuPickerNeutralOnDark = Color.White
-private val MenuStartCtaColor = Color(0xFF0F8FA8)
-private val MenuStartCtaContentColor = Color.White
-private val MenuSecondaryButtonColor = Color(0xFFD8ECF2)
-private val MenuSecondaryButtonContentColor = Color(0xFF1F4C59)
-private val MenuDeviceConnectedColor = Color(0xFF2E7D32)
-private val MenuDeviceIdleColor = Color(0xFF9E9E9E)
-private val MenuDeviceIssueColor = Color(0xFFFFC107)
 
 private data class MetricItem(
     val label: String,
@@ -106,27 +94,63 @@ private enum class DeviceConnectionIndicatorState {
 }
 
 @Composable
+private fun menuNormalTextColor() = MaterialTheme.colorScheme.onSurface
+
+@Composable
+private fun menuErrorTextColor() = MaterialTheme.colorScheme.error
+
+@Composable
+private fun menuPickerStatusColor() = MaterialTheme.colorScheme.tertiary
+
+@Composable
+private fun menuPickerWarningColor() = MaterialTheme.colorScheme.error
+
+@Composable
+private fun menuPickerNeutralColor() = MaterialTheme.colorScheme.onSurface
+
+@Composable
+private fun menuStartCtaColor() = MaterialTheme.colorScheme.primary
+
+@Composable
+private fun menuStartCtaContentColor() = MaterialTheme.colorScheme.onPrimary
+
+@Composable
+private fun menuDeviceConnectedColor() = MaterialTheme.colorScheme.primary
+
+@Composable
+private fun menuDeviceIdleColor() = MaterialTheme.colorScheme.outline
+
+@Composable
+private fun menuDeviceIssueColor() = MaterialTheme.colorScheme.error
+
+@Composable
 private fun menuTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = MenuNormalTextColor,
-    unfocusedTextColor = MenuNormalTextColor,
-    cursorColor = MenuNormalTextColor,
-    focusedBorderColor = MenuNormalTextColor,
-    unfocusedBorderColor = MenuNormalTextColor,
-    focusedLabelColor = MenuNormalTextColor,
-    unfocusedLabelColor = MenuNormalTextColor,
-    focusedPlaceholderColor = MenuNormalTextColor.copy(alpha = 0.7f),
-    unfocusedPlaceholderColor = MenuNormalTextColor.copy(alpha = 0.7f),
-    errorBorderColor = MenuErrorTextColor,
-    errorLabelColor = MenuErrorTextColor,
-    errorCursorColor = MenuErrorTextColor,
+    focusedTextColor = menuNormalTextColor(),
+    unfocusedTextColor = menuNormalTextColor(),
+    cursorColor = menuNormalTextColor(),
+    focusedBorderColor = menuNormalTextColor(),
+    unfocusedBorderColor = menuNormalTextColor(),
+    focusedLabelColor = menuNormalTextColor(),
+    unfocusedLabelColor = menuNormalTextColor(),
+    focusedPlaceholderColor = menuNormalTextColor().copy(alpha = 0.7f),
+    unfocusedPlaceholderColor = menuNormalTextColor().copy(alpha = 0.7f),
+    errorBorderColor = menuErrorTextColor(),
+    errorLabelColor = menuErrorTextColor(),
+    errorCursorColor = menuErrorTextColor(),
 )
 
 @Composable
 private fun menuSecondaryButtonColors() = ButtonDefaults.buttonColors(
-    containerColor = MenuSecondaryButtonColor,
-    contentColor = MenuSecondaryButtonContentColor,
-    disabledContainerColor = MenuSecondaryButtonColor.copy(alpha = 0.6f),
-    disabledContentColor = MenuSecondaryButtonContentColor.copy(alpha = 0.75f),
+    containerColor = MaterialTheme.colorScheme.primaryContainer,
+    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+    disabledContainerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+    disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f),
+)
+
+@Composable
+private fun menuInfoCardColors() = CardDefaults.elevatedCardColors(
+    containerColor = MaterialTheme.colorScheme.surface,
+    contentColor = MaterialTheme.colorScheme.onSurface,
 )
 
 /**
@@ -164,6 +188,7 @@ internal fun MenuScreen(
     deviceScanStopEnabled: Boolean,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
+    onOpenWorkoutEditor: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
     onSearchFtmsDevices: () -> Unit,
     onSearchHrDevices: () -> Unit,
@@ -173,6 +198,13 @@ internal fun MenuScreen(
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit
 ) {
+    val normalTextColor = menuNormalTextColor()
+    val errorTextColor = menuErrorTextColor()
+    val pickerStatusColor = menuPickerStatusColor()
+    val pickerWarningColor = menuPickerWarningColor()
+    val pickerNeutralColor = menuPickerNeutralColor()
+    val startCtaColor = menuStartCtaColor()
+    val startCtaContentColor = menuStartCtaContentColor()
     val showWorkoutFileDialog = remember { mutableStateOf(false) }
     val showWorkoutNameDialog = remember { mutableStateOf(false) }
     val showWorkoutDescriptionDialog = remember { mutableStateOf(false) }
@@ -197,7 +229,7 @@ internal fun MenuScreen(
             selectedWorkout == null -> stringResource(R.string.menu_workout_not_selected)
             else -> null
         }
-    val statusTextColor = if (selectedWorkoutImportError != null) MenuErrorTextColor else MenuNormalTextColor
+    val statusTextColor = if (selectedWorkoutImportError != null) errorTextColor else normalTextColor
     val workoutFileDisplayName = selectedWorkoutFileName
         ?.substringAfterLast('/')
         ?.trim()
@@ -232,6 +264,7 @@ internal fun MenuScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         Box(
@@ -252,7 +285,7 @@ internal fun MenuScreen(
                     text = stringResource(R.string.menu_title),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MenuNormalTextColor
+                    color = normalTextColor
                 )
 
                 Row(
@@ -263,7 +296,7 @@ internal fun MenuScreen(
                     Text(
                         text = stringResource(R.string.menu_subtitle),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MenuNormalTextColor,
+                        color = normalTextColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(0.5f),
@@ -283,7 +316,7 @@ internal fun MenuScreen(
                     Text(
                         text = stringResource(R.string.menu_ftp_hint, ftpWatts),
                         style = MaterialTheme.typography.bodySmall,
-                        color = MenuNormalTextColor,
+                        color = normalTextColor,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(0.33333334f),
@@ -294,7 +327,7 @@ internal fun MenuScreen(
                     Text(
                         text = ftpInputError,
                         style = MaterialTheme.typography.bodySmall,
-                        color = MenuErrorTextColor,
+                        color = errorTextColor,
                     )
                 }
 
@@ -378,7 +411,7 @@ internal fun MenuScreen(
                             Text(
                                 text = scanStatusText,
                                 style = MaterialTheme.typography.bodySmall,
-                                color = MenuPickerStatusColor
+                                color = pickerStatusColor
                             )
                         }
 
@@ -407,9 +440,9 @@ internal fun MenuScreen(
                         }
 
                         val dismissContentColor =
-                            if (deviceScanInProgress) MenuPickerWarningColor else MenuPickerNeutralOnDark
+                            if (deviceScanInProgress) pickerWarningColor else pickerNeutralColor
                         val dismissBorderColor =
-                            if (deviceScanInProgress) MenuPickerWarningColor else MenuPickerNeutralOnDark.copy(alpha = 0.75f)
+                            if (deviceScanInProgress) pickerWarningColor else pickerNeutralColor.copy(alpha = 0.75f)
 
                         OutlinedButton(
                             onClick = onDismissDeviceSelection,
@@ -460,6 +493,16 @@ internal fun MenuScreen(
                     )
                 }
 
+                Button(
+                    onClick = onOpenWorkoutEditor,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp),
+                    colors = menuSecondaryButtonColors(),
+                ) {
+                    Text(stringResource(R.string.menu_open_workout_editor))
+                }
+
                 if (selectedWorkout != null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -494,9 +537,9 @@ internal fun MenuScreen(
                         text = workoutExecutionModeMessage,
                         style = MaterialTheme.typography.bodyMedium,
                         color = if (workoutExecutionModeIsError) {
-                            MenuErrorTextColor
+                            errorTextColor
                         } else {
-                            MenuNormalTextColor
+                            normalTextColor
                         }
                     )
                 }
@@ -512,7 +555,7 @@ internal fun MenuScreen(
                                 text = stringResource(R.string.session_workout_title),
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
+                                color = normalTextColor,
                             )
                             if (stepCountText != null || plannedTssText != null) {
                                 Column(
@@ -523,14 +566,14 @@ internal fun MenuScreen(
                                         Text(
                                             text = stepCountText,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            color = Color.White,
+                                            color = normalTextColor,
                                         )
                                     }
                                     if (plannedTssText != null) {
                                         Text(
                                             text = plannedTssText,
                                             style = MaterialTheme.typography.bodySmall,
-                                            color = Color.White,
+                                            color = normalTextColor,
                                         )
                                     }
                                 }
@@ -550,10 +593,10 @@ internal fun MenuScreen(
                         .fillMaxWidth()
                         .height(56.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MenuStartCtaColor,
-                        contentColor = MenuStartCtaContentColor,
-                        disabledContainerColor = MenuStartCtaColor.copy(alpha = 0.45f),
-                        disabledContentColor = MenuStartCtaContentColor.copy(alpha = 0.75f),
+                        containerColor = startCtaColor,
+                        contentColor = startCtaContentColor,
+                        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                        disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
                     )
                 ) {
                     Icon(
@@ -663,6 +706,7 @@ private fun DeviceSelectionInfoCard(
     indicatorState: DeviceConnectionIndicatorState,
     modifier: Modifier = Modifier,
 ) {
+    val normalTextColor = menuNormalTextColor()
     val connectionPulseTransition = rememberInfiniteTransition(label = "deviceConnectionPulse")
     val pulseAlpha = connectionPulseTransition.animateFloat(
         initialValue = 0.35f,
@@ -674,9 +718,9 @@ private fun DeviceSelectionInfoCard(
         label = "deviceConnectionPulseAlpha",
     ).value
     val indicatorColor = when (indicatorState) {
-        DeviceConnectionIndicatorState.CONNECTED -> MenuDeviceConnectedColor
-        DeviceConnectionIndicatorState.IDLE -> MenuDeviceIdleColor
-        DeviceConnectionIndicatorState.ISSUE -> MenuDeviceIssueColor
+        DeviceConnectionIndicatorState.CONNECTED -> menuDeviceConnectedColor()
+        DeviceConnectionIndicatorState.IDLE -> menuDeviceIdleColor()
+        DeviceConnectionIndicatorState.ISSUE -> menuDeviceIssueColor()
     }
     val indicatorAlpha = if (indicatorState == DeviceConnectionIndicatorState.CONNECTED) {
         pulseAlpha
@@ -686,10 +730,7 @@ private fun DeviceSelectionInfoCard(
 
     ElevatedCard(
         modifier = modifier.height(78.dp),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = Color.White,
-            contentColor = MenuNormalTextColor,
-        ),
+        colors = menuInfoCardColors(),
     ) {
         Column(
             modifier = Modifier
@@ -705,7 +746,7 @@ private fun DeviceSelectionInfoCard(
                 Text(
                     text = label,
                     style = MaterialTheme.typography.labelLarge,
-                    color = MenuNormalTextColor,
+                    color = normalTextColor,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
@@ -723,7 +764,7 @@ private fun DeviceSelectionInfoCard(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MenuNormalTextColor,
+                color = normalTextColor,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -737,6 +778,7 @@ private fun MenuInlineValueCard(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val normalTextColor = menuNormalTextColor()
     val cardModifier = if (onClick != null) {
         modifier
             .height(40.dp)
@@ -746,10 +788,7 @@ private fun MenuInlineValueCard(
     }
     ElevatedCard(
         modifier = cardModifier,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = Color.White,
-            contentColor = MenuNormalTextColor,
-        ),
+        colors = menuInfoCardColors(),
     ) {
         Box(
             modifier = Modifier
@@ -760,7 +799,7 @@ private fun MenuInlineValueCard(
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodySmall,
-                color = MenuNormalTextColor,
+                color = normalTextColor,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -775,6 +814,7 @@ private fun WorkoutMetaListBox(
     onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
+    val normalTextColor = menuNormalTextColor()
     val cardModifier = if (onClick != null) {
         modifier
             .height(92.dp)
@@ -784,10 +824,7 @@ private fun WorkoutMetaListBox(
     }
     ElevatedCard(
         modifier = cardModifier,
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = Color.White,
-            contentColor = MenuNormalTextColor,
-        ),
+        colors = menuInfoCardColors(),
     ) {
         Column(
             modifier = Modifier
@@ -798,7 +835,7 @@ private fun WorkoutMetaListBox(
             Text(
                 text = label,
                 style = MaterialTheme.typography.labelLarge,
-                color = MenuNormalTextColor,
+                color = normalTextColor,
             )
             Box(
                 modifier = Modifier
@@ -809,7 +846,7 @@ private fun WorkoutMetaListBox(
                 Text(
                     text = value,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MenuNormalTextColor,
+                    color = normalTextColor,
                 )
             }
         }

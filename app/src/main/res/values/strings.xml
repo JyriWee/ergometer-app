@@ -22,6 +22,7 @@
         <string name="menu_connection_hint">Waiting for trainer connection</string>
         <string name="menu_select_workout_file">Select workout file</string>
         <string name="menu_select_workout_file_short">Select workout</string>
+        <string name="menu_open_workout_editor">Open workout editor</string>
         <string name="menu_workout_file_none">No file selected</string>
         <string name="menu_workout_file_dialog_title">Workout file</string>
         <string name="menu_dialog_ok">OK</string>
@@ -62,6 +63,55 @@
         <string name="menu_workout_execution_degraded">Degraded execution mode active (legacy fallback): %1$s</string>
         <string name="menu_workout_execution_blocked">Strict execution mapping failed: %1$s</string>
         <string name="menu_start_session">Start session</string>
+
+        <!-- Workout editor -->
+        <string name="workout_editor_title">Workout editor</string>
+        <string name="workout_editor_subtitle">Create, preview and export a workout without leaving the app.</string>
+        <string name="workout_editor_back_to_menu">Back to menu</string>
+        <string name="workout_editor_new">New</string>
+        <string name="workout_editor_load_selected">Load selected</string>
+        <string name="workout_editor_save_zwo">Save .zwo</string>
+        <string name="workout_editor_apply_to_menu">Apply to menu</string>
+        <string name="workout_editor_name">Workout name</string>
+        <string name="workout_editor_author">Author</string>
+        <string name="workout_editor_description">Description</string>
+        <string name="workout_editor_steps">Steps</string>
+        <string name="workout_editor_add_steady">Add steady step</string>
+        <string name="workout_editor_add_ramp">Add ramp step</string>
+        <string name="workout_editor_add_intervals">Add intervals step</string>
+        <string name="workout_editor_validation_title">Fix these issues before save/apply:</string>
+        <string name="workout_editor_preview_steps">Preview steps: %1$d</string>
+        <string name="workout_editor_preview_tss">Planned TSS: %1$.1f</string>
+        <string name="workout_editor_step_title">Step %1$d · %2$s</string>
+        <string name="workout_editor_step_up">Move step earlier</string>
+        <string name="workout_editor_step_down">Move step later</string>
+        <string name="workout_editor_step_duplicate">Duplicate</string>
+        <string name="workout_editor_step_delete">Delete</string>
+        <string name="workout_editor_field_duration_sec">Duration (sec)</string>
+        <string name="workout_editor_field_power">FTP percentage (%)</string>
+        <string name="workout_editor_field_start_power">Start FTP percentage (%)</string>
+        <string name="workout_editor_field_end_power">End FTP percentage (%)</string>
+        <string name="workout_editor_field_repeat">Repeat</string>
+        <string name="workout_editor_field_on_duration_sec">ON duration (sec)</string>
+        <string name="workout_editor_field_off_duration_sec">OFF duration (sec)</string>
+        <string name="workout_editor_field_on_power">ON FTP percentage (%)</string>
+        <string name="workout_editor_field_off_power">OFF FTP percentage (%)</string>
+        <string name="workout_editor_step_type_steady">Steady</string>
+        <string name="workout_editor_step_type_ramp">Ramp</string>
+        <string name="workout_editor_step_type_intervals">Intervals</string>
+        <string name="workout_editor_status_new_draft">Created a new workout draft.</string>
+        <string name="workout_editor_status_no_selected_workout">No selected workout to load.</string>
+        <string name="workout_editor_status_loaded_selected_workout">Loaded selected workout into editor.</string>
+        <string name="workout_editor_status_loaded_with_skipped_steps">Loaded selected workout. Unsupported steps skipped: %1$d.</string>
+        <string name="workout_editor_status_fix_errors_before_apply">Fix validation errors before applying to menu.</string>
+        <string name="workout_editor_status_fix_errors_before_save">Fix validation errors before saving.</string>
+        <string name="workout_editor_status_saved">Workout saved as .zwo.</string>
+        <string name="workout_editor_status_save_failed">Saving workout failed.</string>
+        <string name="workout_editor_unsaved_changes">Unsaved changes</string>
+        <string name="workout_editor_save_prompt_title">Save before apply?</string>
+        <string name="workout_editor_save_prompt_body">This draft has unsaved changes. Do you want to save it before applying to menu?</string>
+        <string name="workout_editor_save_prompt_save_and_apply">Save and apply</string>
+        <string name="workout_editor_save_prompt_apply_without_save">Apply without save</string>
 
         <!-- Session -->
         <string name="session_title">Session</string>
