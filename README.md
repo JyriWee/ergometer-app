@@ -76,6 +76,9 @@ See `docs/ci-release-signing.md` for details.
 - Adaptive UI checklist (Android 17): `docs/android-17-adaptive-checklist.md`
 - ZWO compatibility notes: `docs/zwo-format-compatibility.md`
 - ZWO full offline reference: `docs/zwo-format-reference.md`
+- Release checklist: `docs/release-checklist.md`
+- Release notes draft (`v0.1.0`): `docs/release-notes-v0.1.0.md`
+- Changelog: `CHANGELOG.md`
 
 ## Open Source
 - License: MIT (`LICENSE`)

@@ -37,9 +37,11 @@ render.experimental.xml
 *.jks
 *.keystore
 
+# Local secrets / generated signing material
+.local/
+
 # Google Services (e.g. APIs or Firebase)
 google-services.json
 
 # Android Profiling
 *.hprof
-

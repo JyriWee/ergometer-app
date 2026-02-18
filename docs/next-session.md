@@ -1,22 +1,52 @@
 # Next Session
 
 ## Branch
-- current: `feature/open-source-readiness-mit`
+- current: `feature/v0-1-0-release-prep`
 
 ## Session Handoff
-- next task: Final pre-public release checks (repo visibility settings, branch protection, first tagged release notes).
+- next task: Finalize `v0.1.0` release metadata and publish (version bump + tag + GitHub Release).
 - DoD:
-  - Community and governance files are present and linked.
-  - MIT license is present at repo root.
-  - Public-release checklist is documented and actionable.
+  - Release version fields are updated in `app/build.gradle.kts`.
+  - `v0.1.0` tag is pushed and GitHub Release is published with attached APK.
+  - `CHANGELOG.md` and release notes match shipped content.
 - risks:
-  - GitHub repository settings (visibility/protection/secrets) still require manual maintainer action in UI.
-  - Release artifact signing policy should be validated once before first public tag.
+  - Loss of local keystore file or passwords blocks future update continuity.
+  - Branch protection is strict; release PR must keep `build-test-lint` green before merge.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
   - `./gradlew :app:lintDebug --no-daemon`
+  - `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
 
 ## Recently Completed
+- `v0.1.0` version decision and baseline update:
+  - Updated `app/build.gradle.kts`:
+    - `versionName = "0.1.0"`
+    - `versionCode = 2`
+  - Verified local validation after version bump:
+    - `./gradlew clean :app:compileDebugKotlin :app:lintDebug --no-daemon`
+- Signed release pipeline setup and verification:
+  - Generated local release keystore at `.local/release-signing/ergometer-release.jks` (gitignored).
+  - Generated local signing env file at `.local/release-signing/release-signing.env` (gitignored).
+  - Configured GitHub repository secrets:
+    - `ANDROID_RELEASE_KEYSTORE_B64`
+    - `ANDROID_RELEASE_STORE_PASSWORD`
+    - `ANDROID_RELEASE_KEY_ALIAS`
+    - `ANDROID_RELEASE_KEY_PASSWORD`
+  - Verified signed release build end-to-end:
+    - `:app:assembleRelease` (PASS)
+    - `:app:lintRelease` (PASS)
+  - Verified produced signed APK at:
+    - `app/build/outputs/apk/release/app-release.apk`
+  - Updated branch-protection posture on GitHub:
+    - Repo visibility set to public.
+    - Required status check enforced on `main`: `build-test-lint` (`strict=true`).
+    - Admin bypass disabled (`enforce_admins=true`).
+- Release preparation docs baseline:
+  - Added `docs/release-checklist.md` with DoD-driven release flow and artifact mode split (unsigned/signed).
+  - Added `CHANGELOG.md` with initial `v0.1.0` entry.
+  - Added `docs/release-notes-v0.1.0.md` as GitHub Release draft content.
+  - Updated `README.md` documentation index with release docs links.
 - Open-source readiness baseline (MIT):
   - Added `LICENSE` (MIT).
   - Added community docs: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`.
