@@ -49,6 +49,7 @@ internal data class MainActivityUiModel(
     val scannedDevices: List<ScannedBleDevice>,
     val deviceScanInProgress: Boolean,
     val deviceScanStatus: String?,
+    val deviceScanStopEnabled: Boolean,
 )
 
 /**
@@ -129,6 +130,7 @@ private fun MainDestinationContent(
                 scannedDevices = model.scannedDevices,
                 deviceScanInProgress = model.deviceScanInProgress,
                 deviceScanStatus = model.deviceScanStatus,
+                deviceScanStopEnabled = model.deviceScanStopEnabled,
                 startEnabled = model.startEnabled,
                 onSelectWorkoutFile = onSelectWorkoutFile,
                 onFtpInputChanged = onFtpInputChanged,

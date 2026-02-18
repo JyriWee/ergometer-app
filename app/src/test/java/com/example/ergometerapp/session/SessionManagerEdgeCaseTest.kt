@@ -8,6 +8,7 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import java.util.concurrent.Executor
 
 class SessionManagerEdgeCaseTest {
 
@@ -59,6 +60,32 @@ class SessionManagerEdgeCaseTest {
         assertTrue(sparseTss > 0.0)
         assertEquals(250, denseSummary.avgPower)
         assertEquals(250, sparseSummary.avgPower)
+    }
+
+    @Test
+    fun stopSessionQueuesPersistenceWithoutBlockingSummaryPublication() {
+        val clock = MutableClock(startMillis = 1_000L)
+        val queuedTasks = mutableListOf<Runnable>()
+        val persistedSummaries = mutableListOf<SessionSummary>()
+        val manager = SessionManager(
+            context = ContextWrapper(null),
+            onStateUpdated = { _: SessionState -> },
+            nowMillis = { clock.currentMillis },
+            persistSummary = { _, summary -> persistedSummaries += summary },
+            summaryPersistenceExecutor = Executor { task -> queuedTasks += task },
+        )
+
+        manager.startSession(ftpWatts = 250)
+        clock.advanceBy(5_000L)
+        manager.stopSession()
+
+        val publishedSummary = requireNotNull(manager.lastSummary)
+        assertEquals(5, publishedSummary.durationSeconds)
+        assertTrue(persistedSummaries.isEmpty())
+        assertEquals(1, queuedTasks.size)
+
+        queuedTasks.single().run()
+        assertEquals(listOf(publishedSummary), persistedSummaries)
     }
 
     private fun runConstantPowerSession(sampleIntervalSec: Int, durationSec: Int): SessionSummary {

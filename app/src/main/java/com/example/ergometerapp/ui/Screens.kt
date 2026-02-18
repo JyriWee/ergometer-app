@@ -161,6 +161,7 @@ internal fun MenuScreen(
     scannedDevices: List<ScannedBleDevice>,
     deviceScanInProgress: Boolean,
     deviceScanStatus: String?,
+    deviceScanStopEnabled: Boolean,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
@@ -412,6 +413,7 @@ internal fun MenuScreen(
 
                         OutlinedButton(
                             onClick = onDismissDeviceSelection,
+                            enabled = if (deviceScanInProgress) deviceScanStopEnabled else true,
                             modifier = Modifier.fillMaxWidth(),
                             border = BorderStroke(1.dp, dismissBorderColor),
                             colors = ButtonDefaults.outlinedButtonColors(contentColor = dismissContentColor)

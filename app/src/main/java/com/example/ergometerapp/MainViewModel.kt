@@ -36,6 +36,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val trainerStatusProbeDurationMs = 1_500L
     private val hrStatusProbeIntervalMs = 30_000L
     private val hrStatusProbeDurationMs = 1_500L
+    private val statusProbeScanMode = DeviceScanPolicy.scanModeFor(DeviceScanPolicy.Purpose.MENU_PROBE)
+    private val pickerScanMode = DeviceScanPolicy.scanModeFor(DeviceScanPolicy.Purpose.PICKER)
+    private val pickerScanRetryDelayMs = 1_500L
+    private val pickerStopButtonLockDurationMs = 3_000L
+    private val statusProbeResumeDelayAfterPickerMs = 2_000L
     private val hrStatusMissThreshold = 2
     private val hrStatusStaleTimeoutMs = 75_000L
 
@@ -52,6 +57,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val scannedDevicesState = mutableStateListOf<ScannedBleDevice>()
     val deviceScanInProgressState = mutableStateOf(false)
     val deviceScanStatusState = mutableStateOf<String?>(null)
+    val deviceScanStopEnabledState = mutableStateOf(true)
     private val selectedFtmsDeviceMacState = mutableStateOf<String?>(null)
     private val selectedHrDeviceMacState = mutableStateOf<String?>(null)
 
@@ -60,11 +66,15 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var keepScreenOnCallback: (() -> Unit)? = null
     private var allowScreenOffCallback: (() -> Unit)? = null
     private var pendingDeviceScanKind: DeviceSelectionKind? = null
+    private var pendingPickerScanRetry: Runnable? = null
+    private var pendingPickerStopUnlock: Runnable? = null
+    private var pendingStatusProbeResume: Runnable? = null
+    private var statusProbeSuppressedUntilElapsedMs: Long = 0L
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
-    private val bleDeviceScanner = BleDeviceScanner(appContext)
-    private val trainerStatusScanner = BleDeviceScanner(appContext)
-    private val hrStatusScanner = BleDeviceScanner(appContext)
+    private val bleDeviceScanner = BleDeviceScanner(appContext, scannerLabel = "picker")
+    private val trainerStatusScanner = BleDeviceScanner(appContext, scannerLabel = "probe_ftms")
+    private val hrStatusScanner = BleDeviceScanner(appContext, scannerLabel = "probe_hr")
     private var trainerStatusProbeInProgress = false
     private var hrStatusProbeInProgress = false
     private var trainerStatusProbeLoopRunning = false
@@ -189,6 +199,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun stopAndClose() {
         if (closed) return
         closed = true
+        cancelPendingPickerScanRetry()
+        cancelPendingPickerStopUnlock()
+        cancelPendingStatusProbeResume()
         stopTrainerStatusPolling()
         stopHrStatusPolling()
         bleDeviceScanner.stop()
@@ -277,14 +290,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Closes device picker and stops active scan.
      */
     fun onDismissDeviceSelection() {
+        cancelPendingPickerScanRetry()
+        cancelPendingPickerStopUnlock()
         bleDeviceScanner.stop()
         activeDeviceSelectionKindState.value = null
         deviceScanInProgressState.value = false
         deviceScanStatusState.value = null
+        deviceScanStopEnabledState.value = true
         scannedDevicesState.clear()
         pendingDeviceScanKind = null
-        probeTrainerAvailabilityNow()
-        probeHrAvailabilityNow()
+        suppressStatusProbesTemporarily()
     }
 
     /**
@@ -357,6 +372,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun hasSelectedHrDevice(): Boolean = currentHrDeviceMac() != null
 
     private fun requestDeviceScan(kind: DeviceSelectionKind) {
+        cancelPendingPickerScanRetry()
+        cancelPendingPickerStopUnlock()
+        cancelPendingStatusProbeResume()
         cancelTrainerStatusProbeScan()
         cancelHrStatusProbeScan()
         pendingDeviceScanKind = kind
@@ -368,7 +386,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         startDeviceScan(kind)
     }
 
-    private fun startDeviceScan(kind: DeviceSelectionKind) {
+    private fun startDeviceScan(kind: DeviceSelectionKind, allowRetryOnTooFrequent: Boolean = true) {
+        cancelPendingPickerScanRetry()
+        cancelPendingPickerStopUnlock()
         cancelTrainerStatusProbeScan()
         cancelHrStatusProbeScan()
         bleDeviceScanner.stop()
@@ -376,6 +396,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         scannedDevicesState.clear()
         deviceScanInProgressState.value = true
         deviceScanStatusState.value = appContext.getString(R.string.menu_device_scan_status_scanning)
+        lockPickerStopButton()
 
         val targetServiceUuid = when (kind) {
             DeviceSelectionKind.FTMS -> ftmsServiceUuid
@@ -384,18 +405,45 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         val started = bleDeviceScanner.start(
             serviceUuid = targetServiceUuid,
+            scanMode = pickerScanMode,
             onDeviceFound = { device ->
                 addOrUpdateScannedDevice(device)
             },
-            onFinished = { errorMessage ->
+            onFinished = onFinished@{ errorMessage ->
+                val shouldRetry = DeviceScanPolicy.shouldRetryTooFrequent(
+                    allowRetryOnTooFrequent = allowRetryOnTooFrequent,
+                    errorMessage = errorMessage,
+                    isSelectionStillActive = activeDeviceSelectionKindState.value == kind,
+                )
+                if (shouldRetry) {
+                    deviceScanInProgressState.value = true
+                    deviceScanStatusState.value = appContext.getString(R.string.menu_device_scan_status_retrying)
+                    lockPickerStopButton()
+                    val retryRunnable = Runnable {
+                        pendingPickerScanRetry = null
+                        if (closed) return@Runnable
+                        if (activeDeviceSelectionKindState.value != kind) return@Runnable
+                        startDeviceScan(kind, allowRetryOnTooFrequent = false)
+                    }
+                    pendingPickerScanRetry = retryRunnable
+                    mainHandler.postDelayed(retryRunnable, pickerScanRetryDelayMs)
+                    return@onFinished
+                }
+
                 deviceScanInProgressState.value = false
+                deviceScanStopEnabledState.value = true
+                cancelPendingPickerStopUnlock()
+                val completion = DeviceScanPolicy.classifyCompletion(
+                    errorMessage = errorMessage,
+                    resultCount = scannedDevicesState.size,
+                )
                 deviceScanStatusState.value =
-                    when {
-                        errorMessage != null -> errorMessage
-                        scannedDevicesState.isEmpty() -> {
+                    when (completion) {
+                        DeviceScanPolicy.Completion.ERROR -> errorMessage
+                        DeviceScanPolicy.Completion.NO_RESULTS -> {
                             appContext.getString(R.string.menu_device_scan_status_no_results)
                         }
-                        else -> {
+                        DeviceScanPolicy.Completion.DONE -> {
                             appContext.getString(R.string.menu_device_scan_status_done, scannedDevicesState.size)
                         }
                     }
@@ -404,13 +452,66 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
         if (!started) {
             deviceScanInProgressState.value = false
+            deviceScanStopEnabledState.value = true
+            cancelPendingPickerStopUnlock()
             if (deviceScanStatusState.value == null) {
                 deviceScanStatusState.value = appContext.getString(R.string.menu_device_scan_status_failed)
             }
         }
     }
 
+    private fun cancelPendingPickerScanRetry() {
+        pendingPickerScanRetry?.let { mainHandler.removeCallbacks(it) }
+        pendingPickerScanRetry = null
+    }
+
+    private fun lockPickerStopButton() {
+        deviceScanStopEnabledState.value = false
+        cancelPendingPickerStopUnlock()
+        val unlockRunnable = Runnable {
+            pendingPickerStopUnlock = null
+            if (!deviceScanInProgressState.value) return@Runnable
+            deviceScanStopEnabledState.value = true
+        }
+        pendingPickerStopUnlock = unlockRunnable
+        mainHandler.postDelayed(unlockRunnable, pickerStopButtonLockDurationMs)
+    }
+
+    private fun cancelPendingPickerStopUnlock() {
+        pendingPickerStopUnlock?.let { mainHandler.removeCallbacks(it) }
+        pendingPickerStopUnlock = null
+    }
+
+    /**
+     * Avoids immediate passive probe scans right after closing picker, so rapid
+     * picker reopen does not hit platform scan-frequency throttling.
+     */
+    private fun suppressStatusProbesTemporarily() {
+        cancelPendingStatusProbeResume()
+        statusProbeSuppressedUntilElapsedMs =
+            SystemClock.elapsedRealtime() + statusProbeResumeDelayAfterPickerMs
+        val resumeRunnable = Runnable {
+            pendingStatusProbeResume = null
+            if (closed) return@Runnable
+            if (uiState.screen.value != AppScreen.MENU) return@Runnable
+            if (activeDeviceSelectionKindState.value != null || deviceScanInProgressState.value) return@Runnable
+            probeTrainerAvailabilityNow()
+            probeHrAvailabilityNow()
+        }
+        pendingStatusProbeResume = resumeRunnable
+        mainHandler.postDelayed(resumeRunnable, statusProbeResumeDelayAfterPickerMs)
+    }
+
+    private fun cancelPendingStatusProbeResume() {
+        pendingStatusProbeResume?.let { mainHandler.removeCallbacks(it) }
+        pendingStatusProbeResume = null
+    }
+
     private fun addOrUpdateScannedDevice(device: ScannedBleDevice) {
+        if (deviceScanInProgressState.value) {
+            deviceScanStopEnabledState.value = true
+            cancelPendingPickerStopUnlock()
+        }
         val existingIndex = scannedDevicesState.indexOfFirst { it.macAddress == device.macAddress }
         if (existingIndex < 0) {
             scannedDevicesState.add(device)
@@ -540,6 +641,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun probeTrainerAvailabilityNow() {
         if (closed) return
+        if (SystemClock.elapsedRealtime() < statusProbeSuppressedUntilElapsedMs) return
         if (uiState.screen.value != AppScreen.MENU) return
         if (activeDeviceSelectionKindState.value != null || deviceScanInProgressState.value) return
         if (trainerStatusProbeInProgress || hrStatusProbeInProgress) return
@@ -559,6 +661,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val started = trainerStatusScanner.start(
             serviceUuid = ftmsServiceUuid,
             durationMs = trainerStatusProbeDurationMs,
+            scanMode = statusProbeScanMode,
             onDeviceFound = { device ->
                 if (BluetoothMacAddress.normalizeOrNull(device.macAddress) == targetMac) {
                     targetFound = true
@@ -591,6 +694,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     private fun probeHrAvailabilityNow() {
         if (closed) return
+        if (SystemClock.elapsedRealtime() < statusProbeSuppressedUntilElapsedMs) return
         if (uiState.screen.value != AppScreen.MENU) return
         if (activeDeviceSelectionKindState.value != null || deviceScanInProgressState.value) return
         if (trainerStatusProbeInProgress || hrStatusProbeInProgress) return
@@ -612,6 +716,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val started = hrStatusScanner.start(
             serviceUuid = hrServiceUuid,
             durationMs = hrStatusProbeDurationMs,
+            scanMode = statusProbeScanMode,
             onDeviceFound = { device ->
                 if (BluetoothMacAddress.normalizeOrNull(device.macAddress) == targetMac) {
                     targetFound = true
