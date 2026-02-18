@@ -4,10 +4,11 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Re-run PR `#30` checks after emulator boot-stability tuning, then merge once required checks are green.
+- next task: Re-run PR `#30` checks after smoke command quoting fix, then merge once required checks are green.
 - DoD:
   - `Android Build` workflow uses concurrency per branch (`github.head_ref || github.ref_name`).
   - Older in-progress run for same branch is auto-cancelled when newer run starts.
+  - `android-instrumentation-smoke` no longer fails due malformed Gradle command parsing (`Task '\' not found`).
   - `android-instrumentation-smoke` no longer fails on slow runner boot timeout.
   - Existing smoke test scope remains unchanged (`MainActivityContentFlowTest` only).
   - Run deferred manual picker verification when multi-HR hardware is available.
@@ -35,6 +36,13 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- CI smoke command parsing fix for PR `#30`:
+  - Root cause identified from GitHub Actions logs:
+    - Gradle command in smoke script was parsed with a literal `\` task (`Task '\' not found`).
+  - Updated `.github/workflows/android-build.yml` smoke script to a single-line Gradle command:
+    - `./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest`
+  - Why:
+    - Removes shell line-continuation ambiguity in workflow script execution.
 - CI emulator boot stability tuning for PR `#30`:
   - Updated `.github/workflows/android-build.yml` `android-instrumentation-smoke` runner inputs:
     - `target: default` (lighter system image than `google_apis` for this smoke test).
