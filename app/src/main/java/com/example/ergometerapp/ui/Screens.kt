@@ -1470,10 +1470,12 @@ internal fun SummaryScreen(
     onBackToMenu: () -> Unit
 ) {
     val unknown = stringResource(R.string.value_unknown)
+    val summaryCardBorder = sessionCardBorder()
 
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         Box(
@@ -1495,7 +1497,10 @@ internal fun SummaryScreen(
                 )
 
                 if (summary == null) {
-                    SectionCard(title = stringResource(R.string.summary_title)) {
+                    SectionCard(
+                        title = stringResource(R.string.summary_title),
+                        border = summaryCardBorder,
+                    ) {
                         Text(
                             text = stringResource(R.string.no_summary),
                             style = MaterialTheme.typography.bodyLarge,
@@ -1570,10 +1575,14 @@ internal fun SummaryScreen(
                         )
                     )
 
-                    SectionCard(title = stringResource(R.string.summary_title)) {
+                    SectionCard(
+                        title = stringResource(R.string.summary_title),
+                        border = summaryCardBorder,
+                    ) {
                         MetricsGrid(
                             items = summaryItems,
                             columns = 2,
+                            cardBorder = summaryCardBorder,
                         )
                     }
                 }
@@ -1680,7 +1689,8 @@ private fun workoutStateLabel(runnerState: RunnerState): String {
 @Composable
 private fun MetricsGrid(
     items: List<MetricItem>,
-    columns: Int
+    columns: Int,
+    cardBorder: BorderStroke? = null,
 ) {
     if (columns <= 1) {
         Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -1688,7 +1698,8 @@ private fun MetricsGrid(
                 MetricCard(
                     label = item.label,
                     value = item.value,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    border = cardBorder,
                 )
             }
         }
@@ -1705,7 +1716,8 @@ private fun MetricsGrid(
                     MetricCard(
                         label = item.label,
                         value = item.value,
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f),
+                        border = cardBorder,
                     )
                 }
                 repeat(columns - rowItems.size) {

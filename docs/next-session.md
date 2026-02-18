@@ -1,7 +1,7 @@
 # Next Session
 
 ## Branch
-- current: `feature/session-screen-polish`
+- current: `feature/summary-screen-polish`
 
 ## Session Handoff
 - next task: Continue dark/light theme cleanup from the UI list (item 2), starting with remaining hardcoded colors outside Menu/Workout editor surfaces.
@@ -17,6 +17,14 @@
   - `./gradlew :app:lintDebug --no-daemon`
 
 ## Recently Completed
+- Summary screen theme parity pass (dark/light):
+  - Applied explicit theme background to summary root container for deterministic dark/light rendering.
+  - Added subtle theme-aware borders to summary section card and summary metric cards for better light-theme separation while keeping dark-theme calm.
+  - Kept summary layout and content unchanged.
+  - Verified locally:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+  - Verified on-device with dark/light screenshots; accepted as "good enough" for this iteration.
 - Session screen theme parity pass (dark/light):
   - Added subtle theme-aware card borders for session summary surfaces (`TopTelemetrySection`, `WorkoutProgressSection`, `SessionIssuesSection`) to improve separation on light theme without dark-theme overemphasis.
   - Kept layout/content unchanged; only visual contrast tuning.
