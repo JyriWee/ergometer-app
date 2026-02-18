@@ -1,24 +1,35 @@
 # Next Session
 
 ## Branch
-- current: `feature/cleanup-inspection-findings`
+- current: `feature/hr-stale-callback-hardening`
 
 ## Session Handoff
-- next task: Implement audit P0 HR stale-callback hardening in `HrBleClient` (stale characteristic guard + stale connection callback close path).
+- next task: Merge HR stale-callback hardening, then continue with P1 scan-list update throttling (`MainViewModel.addOrUpdateScannedDevice`).
 - DoD:
-  - `HrBleClient.onCharacteristicChanged` drops stale GATT callbacks.
-  - `HrBleClient.onConnectionStateChange` closes stale GATT before returning.
-  - Add regression tests for stale HR callback handling.
+  - HR stale-callback hardening PR merged to `main`.
+  - Keep test coverage for stale characteristic + stale connection callback close path.
+  - Next performance task defined and scoped before implementation.
   - PR merged cleanly and `build-test-lint` remains green.
 - risks:
-  - Over-aggressive stale filtering can drop valid HR samples during reconnect transitions.
-  - Preserve current reconnect behavior while adding stale guards.
+  - Stale guards must not drop valid first samples after reconnect.
+  - Scan-list throttling must preserve device ordering responsiveness in picker UX.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:testDebugUnitTest --no-daemon`
+  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrBleClientStaleCallbackTest" --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`
 
 ## Recently Completed
+- HR stale-callback hardening (audit P0):
+  - `HrBleClient` now closes stale GATT instances on stale `onConnectionStateChange` callbacks.
+  - `HrBleClient` now ignores stale `onCharacteristicChanged` callbacks.
+  - Added regression tests in `app/src/test/java/com/example/ergometerapp/ble/HrBleClientStaleCallbackTest.kt`.
+  - Added test dependency via version catalog (`mockito-core`) and moved direct dependencies to TOML aliases:
+    - `androidx.compose.material:material-icons-core`
+    - `net.sf.kxml:kxml2`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrBleClientStaleCallbackTest" --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon` (0 errors, 4 warnings)
 - Inspection cleanup pass (Android Studio export + lint hygiene):
   - Deleted exported inspection XML reports from project root (temporary IDE artifacts).
   - Fixed Compose modifier warnings in:
