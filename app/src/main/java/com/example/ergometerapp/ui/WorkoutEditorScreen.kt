@@ -1,5 +1,6 @@
 package com.example.ergometerapp.ui
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -299,7 +300,13 @@ private fun WorkoutEditorStepCard(
     index: Int,
     onAction: (WorkoutEditorAction) -> Unit,
 ) {
-    Card {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = Color.White,
+            contentColor = Color(0xFF111111),
+        ),
+        border = BorderStroke(width = 1.dp, color = Color(0xFFB8B8B8)),
+    ) {
         Column(
             modifier = Modifier.padding(12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -587,7 +594,9 @@ private fun workoutEditorTextFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedTextColor = Color.Black,
     focusedLabelColor = Color.Black,
     unfocusedLabelColor = Color.Black,
-    focusedBorderColor = Color.Black,
-    unfocusedBorderColor = Color.Black,
+    focusedBorderColor = Color(0xFF4A4A4A),
+    unfocusedBorderColor = Color(0xFF6A6A6A),
+    focusedContainerColor = Color.White,
+    unfocusedContainerColor = Color.White,
     cursorColor = Color.Black,
 )

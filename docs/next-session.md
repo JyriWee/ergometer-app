@@ -4,6 +4,9 @@
 - current: `feature/workout-editor-mvp`
 
 ## Recently Completed
+- Improved workout editor step-card readability:
+  - Step cards now use a white container with dark content text and a subtle border for higher contrast on bright backgrounds.
+  - Step input fields now use white filled containers with darker borders so values remain readable inside step cards.
 - Clarified workout editor step-order controls:
   - Renamed step reordering button labels from `Up` / `Down` to `Move step earlier` / `Move step later`.
   - Rebalanced step action row button widths and tightened button content spacing so all four actions remain on one row with longer labels.
