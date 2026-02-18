@@ -30,7 +30,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.R
 import com.example.ergometerapp.ui.components.WorkoutProfileChart
@@ -300,12 +299,13 @@ private fun WorkoutEditorStepCard(
     index: Int,
     onAction: (WorkoutEditorAction) -> Unit,
 ) {
+    val colorScheme = MaterialTheme.colorScheme
     Card(
         colors = CardDefaults.cardColors(
-            containerColor = Color.White,
-            contentColor = Color(0xFF111111),
+            containerColor = colorScheme.surface,
+            contentColor = colorScheme.onSurface,
         ),
-        border = BorderStroke(width = 1.dp, color = Color(0xFFB8B8B8)),
+        border = BorderStroke(width = 1.dp, color = colorScheme.outline),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
@@ -590,13 +590,13 @@ private fun StepDecimalField(
 
 @Composable
 private fun workoutEditorTextFieldColors() = OutlinedTextFieldDefaults.colors(
-    focusedTextColor = Color.Black,
-    unfocusedTextColor = Color.Black,
-    focusedLabelColor = Color.Black,
-    unfocusedLabelColor = Color.Black,
-    focusedBorderColor = Color(0xFF4A4A4A),
-    unfocusedBorderColor = Color(0xFF6A6A6A),
-    focusedContainerColor = Color.White,
-    unfocusedContainerColor = Color.White,
-    cursorColor = Color.Black,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    focusedLabelColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+    focusedBorderColor = MaterialTheme.colorScheme.primary,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+    focusedContainerColor = MaterialTheme.colorScheme.surface,
+    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+    cursorColor = MaterialTheme.colorScheme.onSurface,
 )

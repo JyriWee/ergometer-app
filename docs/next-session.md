@@ -3,7 +3,31 @@
 ## Branch
 - current: `feature/workout-editor-mvp`
 
+## Session Handoff
+- next task: Continue dark/light theme cleanup from the UI list (item 2), starting with remaining hardcoded colors outside Menu/Workout editor surfaces.
+- DoD:
+  - All updated screens use `MaterialTheme.colorScheme` (no new hardcoded UI colors in touched files).
+  - `:app:compileDebugKotlin` and `:app:lintDebug` pass locally.
+  - Quick manual check done on device in both light and dark modes for modified screens.
+- risks:
+  - Theme-token changes can reduce contrast on some cards/buttons if not verified on-device.
+  - Small visual regressions are possible in landscape/tablet layouts where these colors were previously tuned manually.
+- validation commands:
+  - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `./gradlew :app:lintDebug --no-daemon`
+
 ## Recently Completed
+- Finalized MENU theme contrast after on-device dark/light verification:
+  - Applied theme background to the MENU root container so dark theme no longer renders dark text on a light surface.
+  - Increased secondary button contrast by using `primaryContainer/onPrimaryContainer`.
+  - Improved disabled `Start session` legibility by using explicit themed disabled colors instead of low-alpha primary tint.
+- Completed UI list item 1 (theme color refactor pass):
+  - Replaced remaining hardcoded Menu card/text/device-indicator colors in `Screens.kt` with theme-driven values.
+  - Updated Menu card helpers to use centralized themed card colors.
+  - Updated Workout Editor step-card and text-field colors in `WorkoutEditorScreen.kt` to follow `MaterialTheme.colorScheme`.
+  - Verified locally:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - Improved workout editor step-card readability:
   - Step cards now use a white container with dark content text and a subtle border for higher contrast on bright backgrounds.
   - Step input fields now use white filled containers with darker borders so values remain readable inside step cards.
