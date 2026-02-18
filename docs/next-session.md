@@ -1,24 +1,30 @@
 # Next Session
 
 ## Branch
-- current: `feature/v0-1-0-release-prep`
+- current: `main`
 
 ## Session Handoff
-- next task: Finalize `v0.1.0` release metadata and publish (version bump + tag + GitHub Release).
+- next task: Start post-`v0.1.0` backlog from latest audit (pick one P1 item and execute end-to-end on a new feature branch).
 - DoD:
-  - Release version fields are updated in `app/build.gradle.kts`.
-  - `v0.1.0` tag is pushed and GitHub Release is published with attached APK.
-  - `CHANGELOG.md` and release notes match shipped content.
+  - New branch created from `main`.
+  - Exactly one scoped backlog item implemented with tests/docs updated as needed.
+  - PR merged cleanly and `build-test-lint` remains green.
 - risks:
-  - Loss of local keystore file or passwords blocks future update continuity.
-  - Branch protection is strict; release PR must keep `build-test-lint` green before merge.
+  - `main` currently requires 1 approving review; single-maintainer flow may need temporary policy adjustment to merge.
+  - Release-signing secrets/keystore continuity must be preserved for future signed updates.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:assembleRelease --no-daemon -Pergometer.release.minify=true`
   - `./gradlew :app:lintDebug --no-daemon`
-  - `./gradlew :app:lintRelease --no-daemon -Pergometer.release.minify=true`
+  - `./gradlew :app:assembleRelease --no-daemon`
+  - `./gradlew :app:lintRelease --no-daemon`
 
 ## Recently Completed
+- Released `v0.1.0` to GitHub:
+  - Merged PR `#23` (`feature/v0-1-0-release-prep` -> `main`).
+  - Tagged `main` as `v0.1.0`.
+  - Published GitHub Release with signed APK asset:
+    - `https://github.com/JyriWee/ergometer-app/releases/tag/v0.1.0`
+  - Restored strict review policy to `required_approving_review_count=1` after merge.
 - `v0.1.0` version decision and baseline update:
   - Updated `app/build.gradle.kts`:
     - `versionName = "0.1.0"`
