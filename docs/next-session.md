@@ -1,7 +1,7 @@
 # Next Session
 
 ## Branch
-- current: `feature/summary-screen-polish`
+- current: `feature/workout-editor-theme-polish`
 
 ## Session Handoff
 - next task: Continue dark/light theme cleanup from the UI list (item 2), starting with remaining hardcoded colors outside Menu/Workout editor surfaces.
@@ -17,6 +17,15 @@
   - `./gradlew :app:lintDebug --no-daemon`
 
 ## Recently Completed
+- Workout editor theme parity pass (dark/light):
+  - Added explicit safe-area handling (`WindowInsets.safeDrawing`) so editor content no longer clips under status/navigation bars.
+  - Applied explicit theme background to editor root for consistent dark/light rendering.
+  - Added subtle theme-aware borders to editor cards (step/validation/preview) to improve light-theme separation while keeping dark-theme calm.
+  - Kept editor layout and behavior unchanged.
+  - Verified locally:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+  - Verified on-device with dark/light screenshots; accepted as "good enough" for this iteration.
 - Summary screen theme parity pass (dark/light):
   - Applied explicit theme background to summary root container for deterministic dark/light rendering.
   - Added subtle theme-aware borders to summary section card and summary metric cards for better light-theme separation while keeping dark-theme calm.
