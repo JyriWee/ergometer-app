@@ -84,6 +84,7 @@ class MainActivity : ComponentActivity() {
                     scannedDevices = viewModel.scannedDevicesState.toList(),
                     deviceScanInProgress = viewModel.deviceScanInProgressState.value,
                     deviceScanStatus = viewModel.deviceScanStatusState.value,
+                    deviceScanStopEnabled = viewModel.deviceScanStopEnabledState.value,
                 ),
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                 onFtpInputChanged = { input -> viewModel.onFtpInputChanged(input) },

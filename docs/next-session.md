@@ -1,9 +1,28 @@
 # Next Session
 
 ## Branch
-- current: `feature/session-summary-io-background`
+- current: `feature/menu-probe-scan-tuning`
 
 ## Recently Completed
+- Added proactive low-latency scan start window guard in `BleDeviceScanner`:
+  - Tracks successful low-latency starts in a global 30-second rolling window.
+  - Caps starts to 3 per window to avoid Android scanner registration throttle (`status=6`) during rapid picker restart patterns.
+  - Integrates with existing restart cooldown and post-failure backoff.
+- Added BLE scanner diagnostics for throttle root-cause analysis:
+  - `BleDeviceScanner` now records a global ring-buffer scan journal with source label (`picker`, `probe_ftms`, `probe_hr`), service, mode, and lifecycle events.
+  - On Android scan throttle failure (`status=6`), journal is dumped to LogCat automatically for timeline analysis.
+- Hardened picker UX against rapid start/stop tap patterns:
+  - Added a 3-second safety lock for the picker `Stop scanning` button at scan start.
+  - Unlocks early as soon as at least one matching device is discovered.
+  - Always unlocks when scan stops/fails so the picker can be closed deterministically.
+- Implemented menu scan-cost hardening for passive availability probes:
+  - Added configurable `scanMode` to `BleDeviceScanner.start(...)` (default remains low-latency for interactive picker scans).
+  - Switched trainer/HR background MENU probes to `SCAN_MODE_BALANCED`.
+  - Kept interactive picker scanning behavior unchanged.
+- Validated passive probe tuning locally:
+  - `:app:compileDebugKotlin`
+  - `:app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest"`
+  - `:app:lintDebug`
 - Implemented audit P0-3 stop-flow persistence hardening:
   - `SessionManager` now queues session summary persistence to a background single-thread executor.
   - Summary publication (`lastSummary`, phase transition, emitted UI state) remains synchronous on main thread.
@@ -170,23 +189,23 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Implement audit P1-1 as the next bounded increment:
-  - Tune menu availability probing to lower scan cost (`SCAN_MODE_BALANCED` / adjusted probe cadence).
-  - Keep trainer/HR status indicators behaviorally unchanged for end users.
-  - Verify probing pauses remain compatible with picker scans and session start.
+- Implement audit follow-up test increment:
+  - Add focused tests for probe scan mode and scanner error -> status-state handling where feasible.
+  - Keep probe and picker scan behavior separated (balanced vs low-latency).
+  - Preserve current status-indicator semantics.
 
 ## Definition of Done
 - Implementation is done on a dedicated feature branch (not `main`).
-- Trainer and HR probe scans no longer use low-latency mode for periodic background checks.
-- Status-indicator semantics (green/gray/amber) stay unchanged in practical use.
-- No scan contention regressions with picker and active-session flow.
+- Probe scan mode wiring has regression coverage for the introduced behavior split.
+- Scan failure handling remains deterministic and user-visible state does not regress.
+- No functional changes to workout/session flow.
 - No regressions in compile/test/lint for touched scope.
 - Session handoff notes are updated for the next increment.
 
 ## Risks / Open Questions
 - Keep commit size controlled; propose commit as soon as each tested increment is complete.
-- Determine final probe intervals for trainer vs HR after balancing responsiveness and battery.
-- Confirm whether scan mode tuning should be split into two commits (trainer first, HR second).
+- Android BLE scan APIs are difficult to unit test without abstraction; may require a narrow indirection layer.
+- Decide whether to keep current probe intervals or tune them after practical battery tests.
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`

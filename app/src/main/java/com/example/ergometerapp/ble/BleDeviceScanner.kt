@@ -13,6 +13,7 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
+import android.os.SystemClock
 import android.util.Log
 import com.example.ergometerapp.ScannedBleDevice
 import java.util.UUID
@@ -23,26 +24,97 @@ import java.util.UUID
  * The scanner owns a single in-flight scan to avoid overlapping callbacks and
  * duplicated device lists in UI.
  */
-class BleDeviceScanner(private val context: Context) {
+class BleDeviceScanner(
+    private val context: Context,
+    private val scannerLabel: String = "scanner",
+) {
+    companion object {
+        private const val LOW_LATENCY_RESTART_COOLDOWN_MS = 1200L
+        private const val SCAN_THROTTLE_ERROR_BACKOFF_MS = 6000L
+        private const val LOW_LATENCY_SCAN_START_WINDOW_MS = 30_000L
+        private const val LOW_LATENCY_MAX_STARTS_PER_WINDOW = 3
+        private const val JOURNAL_CAPACITY = 160
+        private val scanRateLock = Any()
+        private val journalLock = Any()
+        private val scanJournal = ArrayDeque<String>(JOURNAL_CAPACITY)
+        private val lowLatencyStartHistoryElapsedMs = ArrayDeque<Long>(LOW_LATENCY_MAX_STARTS_PER_WINDOW)
+        private var globalLastScanStopElapsedMs: Long = 0L
+        private var globalThrottleBackoffUntilElapsedMs: Long = 0L
+
+        private fun appendJournal(line: String) {
+            synchronized(journalLock) {
+                if (scanJournal.size >= JOURNAL_CAPACITY) {
+                    scanJournal.removeFirst()
+                }
+                scanJournal.addLast(line)
+            }
+        }
+
+        private fun dumpJournal(tag: String, reason: String) {
+            val snapshot = synchronized(journalLock) { scanJournal.toList() }
+            Log.w(tag, "Scan journal dump ($reason), entries=${snapshot.size}")
+            snapshot.forEach { entry ->
+                Log.w(tag, "JOURNAL $entry")
+            }
+        }
+    }
+
     private val mainHandler = Handler(Looper.getMainLooper())
     private var scanner: android.bluetooth.le.BluetoothLeScanner? = null
     private var callback: ScanCallback? = null
     private var stopRunnable: Runnable? = null
+    private var pendingStartRunnable: Runnable? = null
+
+    /**
+     * Captures the effective delay for a low-latency scan start.
+     *
+     * [reason] is logged for diagnostics and helps separate cooldown, explicit
+     * backoff, and global scan-start window throttling.
+     */
+    private data class StartDelay(
+        val delayMs: Long,
+        val reason: String? = null,
+    )
 
     /**
      * Starts a fresh scan for [serviceUuid] and emits discovered devices.
+     *
+     * [scanMode] defaults to low-latency for interactive picker flows. Callers
+     * can pass a lower-power mode for passive availability probes.
      *
      * Returns false when scanning cannot start.
      */
     fun start(
         serviceUuid: UUID,
         durationMs: Long = 10000L,
+        scanMode: Int = ScanSettings.SCAN_MODE_LOW_LATENCY,
         onDeviceFound: (ScannedBleDevice) -> Unit,
         onFinished: (String?) -> Unit,
     ): Boolean {
-        stop()
+        journal(
+            event = "start_requested",
+            serviceUuid = serviceUuid,
+            scanMode = scanMode,
+            detail = "durationMs=$durationMs",
+        )
+        val hadActiveOrPending = clearScanState(stopNativeScan = true)
+        if (hadActiveOrPending) {
+            markGlobalScanStopNow()
+            journal(
+                event = "reset_previous_scan",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "activeOrPending=true",
+            )
+        }
 
         if (!hasBluetoothScanPermission()) {
+            journal(
+                event = "start_rejected",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "missing_scan_permission",
+            )
             onFinished("Missing BLUETOOTH_SCAN permission.")
             return false
         }
@@ -50,12 +122,24 @@ class BleDeviceScanner(private val context: Context) {
         val bluetoothManager = context.getSystemService(BluetoothManager::class.java)
         val adapter = bluetoothManager?.adapter
         if (adapter == null || !adapter.isEnabled) {
+            journal(
+                event = "start_rejected",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "bluetooth_unavailable_or_disabled",
+            )
             onFinished("Bluetooth is unavailable or disabled.")
             return false
         }
 
         val leScanner = adapter.bluetoothLeScanner
         if (leScanner == null) {
+            journal(
+                event = "start_rejected",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "ble_scanner_unavailable",
+            )
             onFinished("BLE scanner is unavailable on this device.")
             return false
         }
@@ -66,7 +150,7 @@ class BleDeviceScanner(private val context: Context) {
                 .build(),
         )
         val settings = ScanSettings.Builder()
-            .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+            .setScanMode(scanMode)
             .build()
 
         val scanCallback = object : ScanCallback() {
@@ -79,28 +163,78 @@ class BleDeviceScanner(private val context: Context) {
             }
 
             override fun onScanFailed(errorCode: Int) {
-                stop()
+                clearScanState(stopNativeScan = false)
+                markGlobalScanStopNow()
+                if (errorCode == ScanCallback.SCAN_FAILED_SCANNING_TOO_FREQUENTLY) {
+                    markGlobalThrottleBackoff()
+                    journal(
+                        event = "scan_failed",
+                        serviceUuid = serviceUuid,
+                        scanMode = scanMode,
+                        detail = "errorCode=$errorCode throttle_backoff_applied=true",
+                    )
+                    dumpJournal(
+                        tag = "BLE_SCAN",
+                        reason = "status=6 source=$scannerLabel mode=${scanModeToLabel(scanMode)}",
+                    )
+                } else {
+                    journal(
+                        event = "scan_failed",
+                        serviceUuid = serviceUuid,
+                        scanMode = scanMode,
+                        detail = "errorCode=$errorCode",
+                    )
+                }
                 mainHandler.post { onFinished("Scan failed (code=$errorCode).") }
             }
         }
 
-        try {
-            leScanner.startScan(filters, settings, scanCallback)
-        } catch (e: SecurityException) {
-            onFinished("Scan failed: ${e.message ?: "permission denied"}")
-            return false
-        } catch (e: Exception) {
-            onFinished("Scan failed: ${e.message ?: "unknown error"}")
-            return false
+        val startDelay = restartDelayForScanMode(scanMode)
+        if (startDelay.delayMs > 0L) {
+            journal(
+                event = "start_delayed",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "delayMs=${startDelay.delayMs} reason=${startDelay.reason ?: "unknown"}",
+            )
+        }
+        val startRunnable = Runnable {
+            pendingStartRunnable = null
+            if (!hasBluetoothScanPermission()) {
+                journal(
+                    event = "start_aborted",
+                    serviceUuid = serviceUuid,
+                    scanMode = scanMode,
+                    detail = "permission_revoked_before_start",
+                )
+                onFinished("Missing BLUETOOTH_SCAN permission.")
+                return@Runnable
+            }
+            journal(
+                event = "start_attempt",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "durationMs=$durationMs",
+            )
+            startNativeScan(
+                leScanner = leScanner,
+                filters = filters,
+                settings = settings,
+                scanCallback = scanCallback,
+                durationMs = durationMs,
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                onFinished = onFinished,
+            )
         }
 
-        scanner = leScanner
-        callback = scanCallback
-        stopRunnable = Runnable {
-            stop()
-            onFinished(null)
+        if (startDelay.delayMs <= 0L) {
+            startRunnable.run()
+            return scanner != null && callback != null
         }
-        mainHandler.postDelayed(stopRunnable!!, durationMs)
+
+        pendingStartRunnable = startRunnable
+        mainHandler.postDelayed(startRunnable, startDelay.delayMs)
         return true
     }
 
@@ -108,22 +242,181 @@ class BleDeviceScanner(private val context: Context) {
      * Stops current scan, if any.
      */
     fun stop() {
+        val hadActiveOrPending = clearScanState(stopNativeScan = true)
+        journal(
+            event = "stop_called",
+            detail = "activeOrPending=$hadActiveOrPending",
+        )
+        if (hadActiveOrPending) {
+            markGlobalScanStopNow()
+        }
+    }
+
+    private fun restartDelayForScanMode(scanMode: Int): StartDelay {
+        if (scanMode != ScanSettings.SCAN_MODE_LOW_LATENCY) return StartDelay(0L)
+        val now = SystemClock.elapsedRealtime()
+        return synchronized(scanRateLock) {
+            pruneLowLatencyStartHistoryLocked(now)
+            val earliestRestartAtMs = globalLastScanStopElapsedMs + LOW_LATENCY_RESTART_COOLDOWN_MS
+            val earliestAllowedByBackoffMs = globalThrottleBackoffUntilElapsedMs
+            val cooldownDelayMs = (earliestRestartAtMs - now).coerceAtLeast(0L)
+            val backoffDelayMs = (earliestAllowedByBackoffMs - now).coerceAtLeast(0L)
+            val windowDelayMs = if (lowLatencyStartHistoryElapsedMs.size < LOW_LATENCY_MAX_STARTS_PER_WINDOW) {
+                0L
+            } else {
+                val oldestStartMs = lowLatencyStartHistoryElapsedMs.first()
+                (oldestStartMs + LOW_LATENCY_SCAN_START_WINDOW_MS - now).coerceAtLeast(0L)
+            }
+            val delayMs = maxOf(cooldownDelayMs, backoffDelayMs, windowDelayMs)
+            val reason = when (delayMs) {
+                0L -> null
+                windowDelayMs -> "window_guard"
+                backoffDelayMs -> "throttle_backoff"
+                else -> "restart_cooldown"
+            }
+            StartDelay(delayMs = delayMs, reason = reason)
+        }
+    }
+
+    private fun startNativeScan(
+        leScanner: android.bluetooth.le.BluetoothLeScanner,
+        filters: List<ScanFilter>,
+        settings: ScanSettings,
+        scanCallback: ScanCallback,
+        durationMs: Long,
+        serviceUuid: UUID,
+        scanMode: Int,
+        onFinished: (String?) -> Unit,
+    ) {
+        try {
+            leScanner.startScan(filters, settings, scanCallback)
+            recordLowLatencyStartNow(scanMode)
+            journal(
+                event = "start_success",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "durationMs=$durationMs",
+            )
+        } catch (e: SecurityException) {
+            journal(
+                event = "start_failed_exception",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "security_exception=${e.message ?: "permission denied"}",
+            )
+            onFinished("Scan failed: ${e.message ?: "permission denied"}")
+            return
+        } catch (e: Exception) {
+            journal(
+                event = "start_failed_exception",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+                detail = "exception=${e.message ?: "unknown error"}",
+            )
+            onFinished("Scan failed: ${e.message ?: "unknown error"}")
+            return
+        }
+
+        scanner = leScanner
+        callback = scanCallback
+        stopRunnable = Runnable {
+            journal(
+                event = "stop_timeout_elapsed",
+                serviceUuid = serviceUuid,
+                scanMode = scanMode,
+            )
+            stop()
+            onFinished(null)
+        }
+        mainHandler.postDelayed(stopRunnable!!, durationMs)
+    }
+
+    /**
+     * Clears active and pending scanner state.
+     *
+     * Returns true when there was active/pending work that was cancelled.
+     */
+    private fun clearScanState(stopNativeScan: Boolean): Boolean {
         stopRunnable?.let { mainHandler.removeCallbacks(it) }
         stopRunnable = null
+
+        pendingStartRunnable?.let { mainHandler.removeCallbacks(it) }
+        val hadPendingStart = pendingStartRunnable != null
+        pendingStartRunnable = null
 
         val currentScanner = scanner
         val currentCallback = callback
         scanner = null
         callback = null
 
-        if (currentScanner != null && currentCallback != null) {
+        val hadActiveScan = currentScanner != null && currentCallback != null
+        if (stopNativeScan && hadActiveScan) {
             try {
                 currentScanner.stopScan(currentCallback)
+                journal(
+                    event = "stop_native_scan",
+                    detail = "hadActiveScan=true",
+                )
             } catch (e: SecurityException) {
                 Log.w("BLE_SCAN", "stopScan failed: ${e.message}")
             } catch (_: IllegalStateException) {
                 // Scanner may already be torn down.
             }
+        }
+        return hadPendingStart || hadActiveScan
+    }
+
+    private fun markGlobalScanStopNow() {
+        val now = SystemClock.elapsedRealtime()
+        synchronized(scanRateLock) {
+            globalLastScanStopElapsedMs = maxOf(globalLastScanStopElapsedMs, now)
+        }
+        journal(
+            event = "global_stop_marked",
+            detail = "globalLastScanStopElapsedMs=$now",
+        )
+    }
+
+    private fun markGlobalThrottleBackoff() {
+        val backoffUntil = SystemClock.elapsedRealtime() + SCAN_THROTTLE_ERROR_BACKOFF_MS
+        synchronized(scanRateLock) {
+            globalThrottleBackoffUntilElapsedMs =
+                maxOf(globalThrottleBackoffUntilElapsedMs, backoffUntil)
+        }
+        journal(
+            event = "global_throttle_backoff",
+            detail = "untilElapsedMs=$backoffUntil",
+        )
+    }
+
+    /**
+     * Records successful low-latency scan starts in a rolling window.
+     *
+     * This proactively guards against Android scanner registration throttling
+     * (status=6) when interactive scans are toggled repeatedly.
+     */
+    private fun recordLowLatencyStartNow(scanMode: Int) {
+        if (scanMode != ScanSettings.SCAN_MODE_LOW_LATENCY) return
+        val now = SystemClock.elapsedRealtime()
+        val windowCount = synchronized(scanRateLock) {
+            pruneLowLatencyStartHistoryLocked(now)
+            lowLatencyStartHistoryElapsedMs.addLast(now)
+            lowLatencyStartHistoryElapsedMs.size
+        }
+        journal(
+            event = "low_latency_start_recorded",
+            scanMode = scanMode,
+            detail = "countWithinWindow=$windowCount windowMs=$LOW_LATENCY_SCAN_START_WINDOW_MS",
+        )
+    }
+
+    private fun pruneLowLatencyStartHistoryLocked(now: Long) {
+        while (lowLatencyStartHistoryElapsedMs.isNotEmpty()) {
+            val oldest = lowLatencyStartHistoryElapsedMs.first()
+            if (now - oldest <= LOW_LATENCY_SCAN_START_WINDOW_MS) {
+                return
+            }
+            lowLatencyStartHistoryElapsedMs.removeFirst()
         }
     }
 
@@ -155,5 +448,54 @@ class BleDeviceScanner(private val context: Context) {
     private fun hasBluetoothScanPermission(): Boolean {
         return context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) ==
             PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun journal(
+        event: String,
+        serviceUuid: UUID? = null,
+        scanMode: Int? = null,
+        detail: String? = null,
+    ) {
+        val elapsedMs = SystemClock.elapsedRealtime()
+        val line = buildString {
+            append("t=")
+            append(elapsedMs)
+            append(" src=")
+            append(scannerLabel)
+            append(" event=")
+            append(event)
+            if (serviceUuid != null) {
+                append(" service=")
+                append(shortServiceId(serviceUuid))
+            }
+            if (scanMode != null) {
+                append(" mode=")
+                append(scanModeToLabel(scanMode))
+            }
+            if (!detail.isNullOrBlank()) {
+                append(" ")
+                append(detail)
+            }
+        }
+        appendJournal(line)
+    }
+
+    private fun shortServiceId(uuid: UUID): String {
+        val normalized = uuid.toString().lowercase()
+        return when {
+            normalized.startsWith("00001826") -> "FTMS"
+            normalized.startsWith("0000180d") -> "HR"
+            else -> normalized
+        }
+    }
+
+    private fun scanModeToLabel(scanMode: Int): String {
+        return when (scanMode) {
+            ScanSettings.SCAN_MODE_LOW_POWER -> "LOW_POWER"
+            ScanSettings.SCAN_MODE_BALANCED -> "BALANCED"
+            ScanSettings.SCAN_MODE_LOW_LATENCY -> "LOW_LATENCY"
+            ScanSettings.SCAN_MODE_OPPORTUNISTIC -> "OPPORTUNISTIC"
+            else -> scanMode.toString()
+        }
     }
 }

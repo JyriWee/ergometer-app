@@ -49,6 +49,7 @@
         <string name="menu_device_unknown_name">Unnamed device</string>
         <string name="menu_device_scan_permission_required">Scan permission is required to search devices.</string>
         <string name="menu_device_scan_status_scanning">Scanning nearby BLE devices…</string>
+        <string name="menu_device_scan_status_retrying">Scanner busy, retrying…</string>
         <string name="menu_device_scan_status_no_results">No matching devices found. Keep trainer/strap powered on and try again.</string>
         <string name="menu_device_scan_status_done">%1$d device(s) found.</string>
         <string name="menu_device_scan_status_failed">Device scan could not be started.</string>
