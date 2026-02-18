@@ -4,6 +4,10 @@
 - current: `feature/menu-probe-scan-tuning`
 
 ## Recently Completed
+- Added focused low-latency guard unit coverage in BLE layer:
+  - Extracted guard logic into `LowLatencyScanStartGate` to keep scanner pacing behavior directly testable.
+  - Added `LowLatencyScanStartGateTest` for cooldown, throttle-backoff, rolling-window cap, and non-low-latency bypass behavior.
+  - Kept `BleDeviceScanner` behavior unchanged by routing start-delay decisions through the extracted guard.
 - Added testable device-scan policy extraction:
   - New `DeviceScanPolicy` centralizes picker/probe scan mode mapping and picker completion decisions (retry/error/no-results/done).
   - `MainViewModel` now uses this policy for retry gating and scan completion status classification.
@@ -196,10 +200,10 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Extend scan stability test coverage with one additional increment:
-  - Add focused unit tests for the low-latency start-window throttle guard behavior in `BleDeviceScanner`.
+- Run practical verification pass for MENU status indicators and picker stability:
   - Verify no regression in status-indicator semantics after repeated picker scans.
   - Keep scanner diagnostics available until practical stress testing is complete.
+  - Remove or downgrade scanner journal verbosity after confidence is established.
 
 ## Definition of Done
 - Implementation is done on a dedicated feature branch (not `main`).
@@ -216,5 +220,5 @@
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.DeviceScanPolicyTest" --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.DeviceScanPolicyTest" --tests "com.example.ergometerapp.ble.LowLatencyScanStartGateTest" --no-daemon`
 3. `./gradlew :app:lintDebug --no-daemon`

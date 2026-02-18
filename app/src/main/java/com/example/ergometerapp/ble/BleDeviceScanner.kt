@@ -29,17 +29,11 @@ class BleDeviceScanner(
     private val scannerLabel: String = "scanner",
 ) {
     companion object {
-        private const val LOW_LATENCY_RESTART_COOLDOWN_MS = 1200L
-        private const val SCAN_THROTTLE_ERROR_BACKOFF_MS = 6000L
-        private const val LOW_LATENCY_SCAN_START_WINDOW_MS = 30_000L
-        private const val LOW_LATENCY_MAX_STARTS_PER_WINDOW = 3
         private const val JOURNAL_CAPACITY = 160
         private val scanRateLock = Any()
         private val journalLock = Any()
+        private val lowLatencyStartGate = LowLatencyScanStartGate()
         private val scanJournal = ArrayDeque<String>(JOURNAL_CAPACITY)
-        private val lowLatencyStartHistoryElapsedMs = ArrayDeque<Long>(LOW_LATENCY_MAX_STARTS_PER_WINDOW)
-        private var globalLastScanStopElapsedMs: Long = 0L
-        private var globalThrottleBackoffUntilElapsedMs: Long = 0L
 
         private fun appendJournal(line: String) {
             synchronized(journalLock) {
@@ -253,29 +247,17 @@ class BleDeviceScanner(
     }
 
     private fun restartDelayForScanMode(scanMode: Int): StartDelay {
-        if (scanMode != ScanSettings.SCAN_MODE_LOW_LATENCY) return StartDelay(0L)
         val now = SystemClock.elapsedRealtime()
-        return synchronized(scanRateLock) {
-            pruneLowLatencyStartHistoryLocked(now)
-            val earliestRestartAtMs = globalLastScanStopElapsedMs + LOW_LATENCY_RESTART_COOLDOWN_MS
-            val earliestAllowedByBackoffMs = globalThrottleBackoffUntilElapsedMs
-            val cooldownDelayMs = (earliestRestartAtMs - now).coerceAtLeast(0L)
-            val backoffDelayMs = (earliestAllowedByBackoffMs - now).coerceAtLeast(0L)
-            val windowDelayMs = if (lowLatencyStartHistoryElapsedMs.size < LOW_LATENCY_MAX_STARTS_PER_WINDOW) {
-                0L
-            } else {
-                val oldestStartMs = lowLatencyStartHistoryElapsedMs.first()
-                (oldestStartMs + LOW_LATENCY_SCAN_START_WINDOW_MS - now).coerceAtLeast(0L)
-            }
-            val delayMs = maxOf(cooldownDelayMs, backoffDelayMs, windowDelayMs)
-            val reason = when (delayMs) {
-                0L -> null
-                windowDelayMs -> "window_guard"
-                backoffDelayMs -> "throttle_backoff"
-                else -> "restart_cooldown"
-            }
-            StartDelay(delayMs = delayMs, reason = reason)
+        val gateDelay = synchronized(scanRateLock) {
+            lowLatencyStartGate.computeDelay(
+                nowElapsedMs = now,
+                scanMode = scanMode,
+            )
         }
+        return StartDelay(
+            delayMs = gateDelay.delayMs,
+            reason = gateDelay.reason?.key,
+        )
     }
 
     private fun startNativeScan(
@@ -368,9 +350,7 @@ class BleDeviceScanner(
 
     private fun markGlobalScanStopNow() {
         val now = SystemClock.elapsedRealtime()
-        synchronized(scanRateLock) {
-            globalLastScanStopElapsedMs = maxOf(globalLastScanStopElapsedMs, now)
-        }
+        synchronized(scanRateLock) { lowLatencyStartGate.markStop(now) }
         journal(
             event = "global_stop_marked",
             detail = "globalLastScanStopElapsedMs=$now",
@@ -378,14 +358,11 @@ class BleDeviceScanner(
     }
 
     private fun markGlobalThrottleBackoff() {
-        val backoffUntil = SystemClock.elapsedRealtime() + SCAN_THROTTLE_ERROR_BACKOFF_MS
-        synchronized(scanRateLock) {
-            globalThrottleBackoffUntilElapsedMs =
-                maxOf(globalThrottleBackoffUntilElapsedMs, backoffUntil)
-        }
+        val now = SystemClock.elapsedRealtime()
+        synchronized(scanRateLock) { lowLatencyStartGate.markThrottleFailure(now) }
         journal(
             event = "global_throttle_backoff",
-            detail = "untilElapsedMs=$backoffUntil",
+            detail = "markedAtElapsedMs=$now",
         )
     }
 
@@ -399,25 +376,16 @@ class BleDeviceScanner(
         if (scanMode != ScanSettings.SCAN_MODE_LOW_LATENCY) return
         val now = SystemClock.elapsedRealtime()
         val windowCount = synchronized(scanRateLock) {
-            pruneLowLatencyStartHistoryLocked(now)
-            lowLatencyStartHistoryElapsedMs.addLast(now)
-            lowLatencyStartHistoryElapsedMs.size
+            lowLatencyStartGate.recordSuccessfulStart(
+                nowElapsedMs = now,
+                scanMode = scanMode,
+            )
         }
         journal(
             event = "low_latency_start_recorded",
             scanMode = scanMode,
-            detail = "countWithinWindow=$windowCount windowMs=$LOW_LATENCY_SCAN_START_WINDOW_MS",
+            detail = "countWithinWindow=$windowCount",
         )
-    }
-
-    private fun pruneLowLatencyStartHistoryLocked(now: Long) {
-        while (lowLatencyStartHistoryElapsedMs.isNotEmpty()) {
-            val oldest = lowLatencyStartHistoryElapsedMs.first()
-            if (now - oldest <= LOW_LATENCY_SCAN_START_WINDOW_MS) {
-                return
-            }
-            lowLatencyStartHistoryElapsedMs.removeFirst()
-        }
     }
 
     private fun emitDevice(result: ScanResult, onDeviceFound: (ScannedBleDevice) -> Unit) {
