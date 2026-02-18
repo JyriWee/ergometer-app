@@ -9,6 +9,7 @@ import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.R
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.workout.editor.WorkoutEditorDraft
 import com.example.ergometerapp.workout.runner.RunnerState
 import org.junit.Rule
 import org.junit.Test
@@ -35,6 +36,8 @@ class MainActivityContentFlowTest {
                 onStartSession = {},
                 onEndSession = {},
                 onBackToMenu = {},
+                onWorkoutEditorAction = {},
+                onRequestWorkoutEditorSave = {},
             )
         }
 
@@ -114,6 +117,13 @@ class MainActivityContentFlowTest {
             scannedDevices = emptyList(),
             deviceScanInProgress = false,
             deviceScanStatus = null,
+            deviceScanStopEnabled = true,
+            workoutEditorDraft = WorkoutEditorDraft.empty(),
+            workoutEditorValidationErrors = emptyList(),
+            workoutEditorStatusMessage = null,
+            workoutEditorStatusIsError = false,
+            workoutEditorHasUnsavedChanges = false,
+            workoutEditorShowSaveBeforeApplyPrompt = false,
         )
     }
 }

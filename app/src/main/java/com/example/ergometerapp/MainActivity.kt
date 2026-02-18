@@ -11,6 +11,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import com.example.ergometerapp.ui.MainActivityContent
 import com.example.ergometerapp.ui.MainActivityUiModel
+import com.example.ergometerapp.workout.editor.WorkoutEditorAction
 
 /**
  * App entry point that binds lifecycle/permissions to UI and orchestration services.
@@ -30,6 +31,11 @@ class MainActivity : ComponentActivity() {
     private val selectWorkoutFile =
         registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
             viewModel.onWorkoutFileSelected(uri)
+        }
+    // Use a generic MIME type so document providers keep the suggested `.zwo` suffix as-is.
+    private val exportWorkoutFile =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+            viewModel.onWorkoutEditorExportTargetSelected(uri)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -85,6 +91,12 @@ class MainActivity : ComponentActivity() {
                     deviceScanInProgress = viewModel.deviceScanInProgressState.value,
                     deviceScanStatus = viewModel.deviceScanStatusState.value,
                     deviceScanStopEnabled = viewModel.deviceScanStopEnabledState.value,
+                    workoutEditorDraft = viewModel.workoutEditorDraftState.value,
+                    workoutEditorValidationErrors = viewModel.workoutEditorValidationErrorsState.value,
+                    workoutEditorStatusMessage = viewModel.workoutEditorStatusMessageState.value,
+                    workoutEditorStatusIsError = viewModel.workoutEditorStatusIsErrorState.value,
+                    workoutEditorHasUnsavedChanges = viewModel.workoutEditorHasUnsavedChangesState.value,
+                    workoutEditorShowSaveBeforeApplyPrompt = viewModel.workoutEditorShowSaveBeforeApplyPromptState.value,
                 ),
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                 onFtpInputChanged = { input -> viewModel.onFtpInputChanged(input) },
@@ -97,6 +109,12 @@ class MainActivity : ComponentActivity() {
                 onStartSession = { viewModel.onStartSession() },
                 onEndSession = { viewModel.onEndSessionAndGoToSummary() },
                 onBackToMenu = { viewModel.onBackToMenu() },
+                onWorkoutEditorAction = { action: WorkoutEditorAction ->
+                    viewModel.onWorkoutEditorAction(action)
+                },
+                onRequestWorkoutEditorSave = { suggestedFileName ->
+                    exportWorkoutFile.launch(suggestedFileName)
+                },
             )
         }
     }

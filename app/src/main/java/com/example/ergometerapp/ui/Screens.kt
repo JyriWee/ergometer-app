@@ -164,6 +164,7 @@ internal fun MenuScreen(
     deviceScanStopEnabled: Boolean,
     startEnabled: Boolean,
     onSelectWorkoutFile: () -> Unit,
+    onOpenWorkoutEditor: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
     onSearchFtmsDevices: () -> Unit,
     onSearchHrDevices: () -> Unit,
@@ -458,6 +459,16 @@ internal fun MenuScreen(
                             null
                         },
                     )
+                }
+
+                Button(
+                    onClick = onOpenWorkoutEditor,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(40.dp),
+                    colors = menuSecondaryButtonColors(),
+                ) {
+                    Text(stringResource(R.string.menu_open_workout_editor))
                 }
 
                 if (selectedWorkout != null) {

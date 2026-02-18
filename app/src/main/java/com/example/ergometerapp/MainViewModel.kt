@@ -17,6 +17,15 @@ import com.example.ergometerapp.ble.BleDeviceScanner
 import com.example.ergometerapp.ble.HrBleClient
 import com.example.ergometerapp.session.SessionManager
 import com.example.ergometerapp.session.SessionOrchestrator
+import com.example.ergometerapp.workout.editor.WorkoutEditorAction
+import com.example.ergometerapp.workout.editor.WorkoutEditorBuildResult
+import com.example.ergometerapp.workout.editor.WorkoutEditorDraft
+import com.example.ergometerapp.workout.editor.WorkoutEditorMapper
+import com.example.ergometerapp.workout.editor.WorkoutEditorStepDraft
+import com.example.ergometerapp.workout.editor.WorkoutEditorStepField
+import com.example.ergometerapp.workout.editor.WorkoutEditorStepType
+import com.example.ergometerapp.workout.editor.WorkoutZwoSerializer
+import java.io.OutputStreamWriter
 import java.util.UUID
 
 /**
@@ -43,6 +52,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val statusProbeResumeDelayAfterPickerMs = 2_000L
     private val hrStatusMissThreshold = 2
     private val hrStatusStaleTimeoutMs = 75_000L
+    private val workoutEditorMaxTextLength = 180
+    private val workoutEditorMaxDescriptionLength = 400
 
     val uiState = AppUiState()
     val ftpWattsState = mutableIntStateOf(defaultFtpWatts)
@@ -58,6 +69,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val deviceScanInProgressState = mutableStateOf(false)
     val deviceScanStatusState = mutableStateOf<String?>(null)
     val deviceScanStopEnabledState = mutableStateOf(true)
+    val workoutEditorDraftState = mutableStateOf(WorkoutEditorDraft.empty())
+    val workoutEditorValidationErrorsState = mutableStateOf(WorkoutEditorMapper.validate(WorkoutEditorDraft.empty()))
+    val workoutEditorStatusMessageState = mutableStateOf<String?>(null)
+    val workoutEditorStatusIsErrorState = mutableStateOf(false)
+    val workoutEditorHasUnsavedChangesState = mutableStateOf(true)
+    val workoutEditorShowSaveBeforeApplyPromptState = mutableStateOf(false)
     private val selectedFtmsDeviceMacState = mutableStateOf<String?>(null)
     private val selectedHrDeviceMacState = mutableStateOf<String?>(null)
 
@@ -70,6 +87,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingPickerStopUnlock: Runnable? = null
     private var pendingStatusProbeResume: Runnable? = null
     private var statusProbeSuppressedUntilElapsedMs: Long = 0L
+    private var nextWorkoutEditorStepId: Long = 1L
+    private var pendingWorkoutEditorApplyAfterSave = false
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bleDeviceScanner = BleDeviceScanner(appContext, scannerLabel = "picker")
@@ -273,6 +292,154 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
+     * Handles workout editor events from UI.
+     */
+    fun onWorkoutEditorAction(action: WorkoutEditorAction) {
+        when (action) {
+            WorkoutEditorAction.OpenEditor -> {
+                clearWorkoutEditorStatus()
+                workoutEditorShowSaveBeforeApplyPromptState.value = false
+                pendingWorkoutEditorApplyAfterSave = false
+                uiState.screen.value = AppScreen.WORKOUT_EDITOR
+            }
+            WorkoutEditorAction.BackToMenu -> {
+                uiState.screen.value = AppScreen.MENU
+            }
+            WorkoutEditorAction.NewDraft -> {
+                resetWorkoutEditorDraft()
+                setWorkoutEditorStatus(
+                    message = appContext.getString(R.string.workout_editor_status_new_draft),
+                    isError = false,
+                )
+            }
+            WorkoutEditorAction.LoadSelectedWorkout -> {
+                loadSelectedWorkoutIntoEditor()
+            }
+            WorkoutEditorAction.ApplyToMenuSelection -> {
+                applyEditorWorkoutToMenuSelection()
+            }
+            WorkoutEditorAction.DismissSaveBeforeApplyPrompt -> {
+                workoutEditorShowSaveBeforeApplyPromptState.value = false
+                pendingWorkoutEditorApplyAfterSave = false
+            }
+            WorkoutEditorAction.ConfirmApplyWithoutSaving -> {
+                workoutEditorShowSaveBeforeApplyPromptState.value = false
+                pendingWorkoutEditorApplyAfterSave = false
+                applyEditorWorkoutToMenuSelection(skipUnsavedPrompt = true)
+            }
+            WorkoutEditorAction.PrepareSaveAndApply -> {
+                workoutEditorShowSaveBeforeApplyPromptState.value = false
+                pendingWorkoutEditorApplyAfterSave = true
+            }
+            is WorkoutEditorAction.SetName -> {
+                updateWorkoutEditorDraft(
+                    workoutEditorDraftState.value.copy(
+                        name = action.value.trim().take(workoutEditorMaxTextLength),
+                    ),
+                )
+            }
+            is WorkoutEditorAction.SetDescription -> {
+                updateWorkoutEditorDraft(
+                    workoutEditorDraftState.value.copy(
+                        description = action.value.take(workoutEditorMaxDescriptionLength),
+                    ),
+                )
+            }
+            is WorkoutEditorAction.SetAuthor -> {
+                updateWorkoutEditorDraft(
+                    workoutEditorDraftState.value.copy(
+                        author = action.value.trim().take(workoutEditorMaxTextLength),
+                    ),
+                )
+            }
+            is WorkoutEditorAction.AddStep -> {
+                val draft = workoutEditorDraftState.value
+                val added = draft.steps + createStepDraft(action.type)
+                updateWorkoutEditorDraft(draft.copy(steps = added))
+            }
+            is WorkoutEditorAction.DeleteStep -> {
+                val draft = workoutEditorDraftState.value
+                val filtered = draft.steps.filterNot { it.id == action.stepId }
+                updateWorkoutEditorDraft(draft.copy(steps = filtered))
+            }
+            is WorkoutEditorAction.DuplicateStep -> {
+                val draft = workoutEditorDraftState.value
+                val sourceIndex = draft.steps.indexOfFirst { it.id == action.stepId }
+                if (sourceIndex < 0) return
+                val source = draft.steps[sourceIndex]
+                val duplicated = source.withId(nextWorkoutEditorStepId++)
+                val updated = draft.steps.toMutableList().apply {
+                    add(sourceIndex + 1, duplicated)
+                }
+                updateWorkoutEditorDraft(draft.copy(steps = updated))
+            }
+            is WorkoutEditorAction.MoveStepUp -> {
+                moveWorkoutEditorStep(stepId = action.stepId, direction = -1)
+            }
+            is WorkoutEditorAction.MoveStepDown -> {
+                moveWorkoutEditorStep(stepId = action.stepId, direction = 1)
+            }
+            is WorkoutEditorAction.ChangeStepField -> {
+                updateWorkoutEditorStepField(action.stepId, action.field, action.value)
+            }
+        }
+    }
+
+    /**
+     * Suggested default file name for editor export.
+     */
+    fun workoutEditorSuggestedFileName(): String {
+        return WorkoutEditorMapper.suggestedFileName(workoutEditorDraftState.value)
+    }
+
+    /**
+     * Persists editor draft as `.zwo` to the document selected by user.
+     */
+    fun onWorkoutEditorExportTargetSelected(uri: Uri?) {
+        if (uri == null) {
+            pendingWorkoutEditorApplyAfterSave = false
+            return
+        }
+        when (val buildResult = WorkoutEditorMapper.buildWorkout(workoutEditorDraftState.value)) {
+            is WorkoutEditorBuildResult.Failure -> {
+                pendingWorkoutEditorApplyAfterSave = false
+                workoutEditorValidationErrorsState.value = buildResult.errors
+                setWorkoutEditorStatus(
+                    message = appContext.getString(R.string.workout_editor_status_fix_errors_before_save),
+                    isError = true,
+                )
+            }
+            is WorkoutEditorBuildResult.Success -> {
+                val xml = WorkoutZwoSerializer.serialize(buildResult.workout)
+                val writeOk = runCatching {
+                    appContext.contentResolver.openOutputStream(uri, "wt")?.use { output ->
+                        OutputStreamWriter(output, Charsets.UTF_8).use { writer ->
+                            writer.write(xml)
+                        }
+                    } ?: throw IllegalStateException("Output stream unavailable")
+                }.isSuccess
+                if (writeOk) {
+                    workoutEditorHasUnsavedChangesState.value = false
+                    setWorkoutEditorStatus(
+                        message = appContext.getString(R.string.workout_editor_status_saved),
+                        isError = false,
+                    )
+                    if (pendingWorkoutEditorApplyAfterSave) {
+                        pendingWorkoutEditorApplyAfterSave = false
+                        applyEditorWorkoutToMenuSelection(skipUnsavedPrompt = true)
+                    }
+                } else {
+                    pendingWorkoutEditorApplyAfterSave = false
+                    setWorkoutEditorStatus(
+                        message = appContext.getString(R.string.workout_editor_status_save_failed),
+                        isError = true,
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * Starts FTMS device discovery flow for trainer selection.
      */
     fun onSearchFtmsDevicesRequested() {
@@ -370,6 +537,154 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Returns whether optional HR selection contains a valid persisted MAC.
      */
     fun hasSelectedHrDevice(): Boolean = currentHrDeviceMac() != null
+
+    private fun resetWorkoutEditorDraft() {
+        val empty = WorkoutEditorDraft.empty()
+        workoutEditorDraftState.value = empty
+        workoutEditorValidationErrorsState.value = WorkoutEditorMapper.validate(empty)
+        workoutEditorHasUnsavedChangesState.value = true
+        workoutEditorShowSaveBeforeApplyPromptState.value = false
+        pendingWorkoutEditorApplyAfterSave = false
+        nextWorkoutEditorStepId = (empty.steps.maxOfOrNull { it.id } ?: 0L) + 1L
+    }
+
+    private fun loadSelectedWorkoutIntoEditor() {
+        val selectedWorkout = uiState.selectedWorkout.value
+        if (selectedWorkout == null) {
+            setWorkoutEditorStatus(
+                message = appContext.getString(R.string.workout_editor_status_no_selected_workout),
+                isError = true,
+            )
+            return
+        }
+        val importResult = WorkoutEditorMapper.fromWorkout(selectedWorkout)
+        updateWorkoutEditorDraft(importResult.draft)
+        nextWorkoutEditorStepId = (importResult.draft.steps.maxOfOrNull { it.id } ?: 0L) + 1L
+        if (importResult.skippedStepCount > 0) {
+            setWorkoutEditorStatus(
+                message = appContext.getString(
+                    R.string.workout_editor_status_loaded_with_skipped_steps,
+                    importResult.skippedStepCount,
+                ),
+                isError = false,
+            )
+        } else {
+            setWorkoutEditorStatus(
+                message = appContext.getString(R.string.workout_editor_status_loaded_selected_workout),
+                isError = false,
+            )
+        }
+    }
+
+    private fun applyEditorWorkoutToMenuSelection(skipUnsavedPrompt: Boolean = false) {
+        if (!skipUnsavedPrompt && workoutEditorHasUnsavedChangesState.value) {
+            workoutEditorShowSaveBeforeApplyPromptState.value = true
+            return
+        }
+        workoutEditorShowSaveBeforeApplyPromptState.value = false
+        pendingWorkoutEditorApplyAfterSave = false
+        when (val buildResult = WorkoutEditorMapper.buildWorkout(workoutEditorDraftState.value)) {
+            is WorkoutEditorBuildResult.Failure -> {
+                workoutEditorValidationErrorsState.value = buildResult.errors
+                setWorkoutEditorStatus(
+                    message = appContext.getString(R.string.workout_editor_status_fix_errors_before_apply),
+                    isError = true,
+                )
+            }
+            is WorkoutEditorBuildResult.Success -> {
+                val fileName = WorkoutEditorMapper.suggestedFileName(workoutEditorDraftState.value)
+                sessionOrchestrator.onWorkoutEdited(
+                    workout = buildResult.workout,
+                    sourceName = fileName,
+                )
+                workoutEditorHasUnsavedChangesState.value = false
+                clearWorkoutEditorStatus()
+                uiState.screen.value = AppScreen.MENU
+            }
+        }
+    }
+
+    private fun updateWorkoutEditorDraft(updated: WorkoutEditorDraft) {
+        workoutEditorDraftState.value = updated
+        workoutEditorValidationErrorsState.value = WorkoutEditorMapper.validate(updated)
+        workoutEditorHasUnsavedChangesState.value = true
+    }
+
+    private fun setWorkoutEditorStatus(message: String, isError: Boolean) {
+        workoutEditorStatusMessageState.value = message
+        workoutEditorStatusIsErrorState.value = isError
+    }
+
+    private fun clearWorkoutEditorStatus() {
+        workoutEditorStatusMessageState.value = null
+        workoutEditorStatusIsErrorState.value = false
+    }
+
+    private fun createStepDraft(type: WorkoutEditorStepType): WorkoutEditorStepDraft {
+        val id = nextWorkoutEditorStepId++
+        return when (type) {
+            WorkoutEditorStepType.STEADY -> WorkoutEditorStepDraft.Steady(
+                id = id,
+                durationSecText = "300",
+                powerText = "75",
+            )
+            WorkoutEditorStepType.RAMP -> WorkoutEditorStepDraft.Ramp(
+                id = id,
+                durationSecText = "300",
+                startPowerText = "60",
+                endPowerText = "80",
+            )
+            WorkoutEditorStepType.INTERVALS -> WorkoutEditorStepDraft.Intervals(
+                id = id,
+                repeatText = "4",
+                onDurationSecText = "60",
+                offDurationSecText = "60",
+                onPowerText = "100",
+                offPowerText = "60",
+            )
+        }
+    }
+
+    private fun moveWorkoutEditorStep(stepId: Long, direction: Int) {
+        val draft = workoutEditorDraftState.value
+        val index = draft.steps.indexOfFirst { it.id == stepId }
+        if (index < 0) return
+        val targetIndex = index + direction
+        if (targetIndex !in draft.steps.indices) return
+        val reordered = draft.steps.toMutableList()
+        val current = reordered.removeAt(index)
+        reordered.add(targetIndex, current)
+        updateWorkoutEditorDraft(draft.copy(steps = reordered))
+    }
+
+    private fun updateWorkoutEditorStepField(stepId: Long, field: WorkoutEditorStepField, rawValue: String) {
+        val draft = workoutEditorDraftState.value
+        val updated = draft.steps.map { step ->
+            if (step.id != stepId) return@map step
+            when (step) {
+                is WorkoutEditorStepDraft.Steady -> when (field) {
+                    WorkoutEditorStepField.DURATION_SEC -> step.copy(durationSecText = rawValue)
+                    WorkoutEditorStepField.POWER -> step.copy(powerText = rawValue)
+                    else -> step
+                }
+                is WorkoutEditorStepDraft.Ramp -> when (field) {
+                    WorkoutEditorStepField.DURATION_SEC -> step.copy(durationSecText = rawValue)
+                    WorkoutEditorStepField.START_POWER -> step.copy(startPowerText = rawValue)
+                    WorkoutEditorStepField.END_POWER -> step.copy(endPowerText = rawValue)
+                    else -> step
+                }
+                is WorkoutEditorStepDraft.Intervals -> when (field) {
+                    WorkoutEditorStepField.REPEAT -> step.copy(repeatText = rawValue)
+                    WorkoutEditorStepField.ON_DURATION_SEC -> step.copy(onDurationSecText = rawValue)
+                    WorkoutEditorStepField.OFF_DURATION_SEC -> step.copy(offDurationSecText = rawValue)
+                    WorkoutEditorStepField.ON_POWER -> step.copy(onPowerText = rawValue)
+                    WorkoutEditorStepField.OFF_POWER -> step.copy(offPowerText = rawValue)
+                    else -> step
+                }
+            }
+        }
+        updateWorkoutEditorDraft(draft.copy(steps = updated))
+    }
 
     private fun requestDeviceScan(kind: DeviceSelectionKind) {
         cancelPendingPickerScanRetry()
@@ -754,6 +1069,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun hasBluetoothScanPermission(): Boolean {
         return appContext.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN) ==
             PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun WorkoutEditorStepDraft.withId(newId: Long): WorkoutEditorStepDraft {
+        return when (this) {
+            is WorkoutEditorStepDraft.Steady -> copy(id = newId)
+            is WorkoutEditorStepDraft.Ramp -> copy(id = newId)
+            is WorkoutEditorStepDraft.Intervals -> copy(id = newId)
+        }
     }
 
     override fun onCleared() {

@@ -1,9 +1,55 @@
 # Next Session
 
 ## Branch
-- current: `feature/menu-probe-scan-tuning`
+- current: `feature/workout-editor-mvp`
 
 ## Recently Completed
+- Added a full offline ZWO format reference to avoid future web dependency:
+  - New document: `docs/zwo-format-reference.md`
+  - Includes observed root elements, workout child elements, per-step attribute inventory, parser normalization rules, export scope, and maintenance commands.
+- Updated documentation index and compatibility doc links:
+  - `README.md` now links both ZWO docs.
+  - `docs/zwo-format-compatibility.md` points to the full reference.
+- Fixed workout editor export filename behavior:
+  - Switched `CreateDocument` MIME from `application/xml` to `application/octet-stream` so document providers keep the suggested `.zwo` suffix (avoids auto-appended `.xml`).
+- Extended ZWO parser compatibility based on external ZWO field reference:
+  - Added support for step aliases: `Freeride`, `SolidState`, `MaxEffort`.
+  - Added power fallbacks for common variants:
+    - Warmup/Cooldown/Ramp: fallback from `Power` to low/high when needed.
+    - SteadyState/SolidState: fallback from `PowerLow`/`PowerHigh` average when `Power` is missing.
+    - IntervalsT: fallback from `PowerOnLow/High` and `PowerOffLow/High` when `OnPower`/`OffPower` are missing.
+  - Added parser tests for alias handling and fallback power mapping in `ZwoParserTest`.
+- Added compatibility documentation with web sources:
+  - `docs/zwo-format-compatibility.md`
+- Switched workout editor power input semantics from fraction to percentage:
+  - Editor input fields now use percentage values (e.g., `80`) to match UI labels.
+  - Import conversion maps stored workout fractions to editor percentages (e.g., `0.80 -> 80`).
+  - Build/export conversion maps editor percentages back to workout fractions (`80 -> 0.80`) for unchanged ZWO output format.
+  - Validation range now enforces percentage limits (`30-200`).
+  - Updated default step values in editor actions to percentage-based inputs.
+  - Extended `WorkoutEditorMapperTest` assertions to verify both import and export conversion behavior.
+- Updated workout editor initialization behavior (Option A):
+  - `WorkoutEditorDraft.empty()` now starts with zero steps (no prefilled step).
+  - `MainViewModel` `nextWorkoutEditorStepId` now starts at `1L` and remains monotonic after add/duplicate/import.
+  - `WorkoutEditorMapper.fromWorkout(...)` no longer injects a fallback steady step when imported workout has no editor-supported steps.
+  - Added unit test `fromWorkoutLeavesDraftEmptyWhenNoSupportedStepsExist`.
+  - Practical effect: users explicitly choose the first step type (including warmup-style ramp via `Add ramp step`).
+- Refined workout editor usability pass:
+  - Updated editor top text fields to explicit black text/border styling for stronger readability.
+  - Renamed power labels from fraction terminology to user-facing `FTP percentage (%)`.
+  - Updated add-step button labels to explicit action wording (`Add steady step`, `Add ramp step`, `Add intervals step`).
+  - Added mandatory save prompt when applying unsaved editor draft to menu selection:
+    - `Save and apply` opens document export and applies on successful save.
+    - `Apply without save` allows immediate apply after explicit confirmation.
+- Implemented in-app workout editor MVP foundation:
+  - Added new destination `WORKOUT_EDITOR` and menu entry point (`Open workout editor`).
+  - Added editor draft models/actions for supported step types (`Steady`, `Ramp`, `Intervals`).
+  - Added editor mapper with validation and strict conversion to `WorkoutFile`.
+  - Added `.zwo` serializer for supported step tags and wired export through `CreateDocument`.
+  - Added `SessionOrchestrator.onWorkoutEdited(...)` so editor output can be applied directly to menu session selection.
+  - Added preview metrics on editor screen via existing chart + planned TSS/step counter pipeline.
+  - Added unit tests for editor mapper/serializer (`WorkoutEditorMapperTest`).
+  - Updated `MainActivityContentFlowTest` fixture for extended UI model/callback contract.
 - Added focused low-latency guard unit coverage in BLE layer:
   - Extracted guard logic into `LowLatencyScanStartGate` to keep scanner pacing behavior directly testable.
   - Added `LowLatencyScanStartGateTest` for cooldown, throttle-backoff, rolling-window cap, and non-low-latency bypass behavior.
@@ -200,15 +246,15 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Run practical verification pass for MENU status indicators and picker stability:
-  - Verify no regression in status-indicator semantics after repeated picker scans.
-  - Keep scanner diagnostics available until practical stress testing is complete.
-  - Remove or downgrade scanner journal verbosity after confidence is established.
+- Continue workout editor MVP hardening:
+  - Run practical device verification for editor save/apply flow (new draft, load selected, save `.zwo`, re-import, start session).
+  - Improve editor step UX (optional step-type conversion and tighter field layout on tablet portrait).
+  - Add focused tests for validation boundary values and editor-to-session apply flow.
 
 ## Definition of Done
 - Implementation is done on a dedicated feature branch (not `main`).
-- Probe scan mode wiring has regression coverage for the introduced behavior split.
-- Picker scan failure handling remains deterministic and user-visible state does not regress.
+- Editor supports create/edit for steady/ramp/interval steps with deterministic validation and apply/save actions.
+- Exported `.zwo` files are accepted by the existing importer and preserve planned TSS/step count semantics.
 - No functional changes to workout/session flow.
 - No regressions in compile/test/lint for touched scope.
 - Session handoff notes are updated for the next increment.
@@ -220,5 +266,6 @@
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.DeviceScanPolicyTest" --tests "com.example.ergometerapp.ble.LowLatencyScanStartGateTest" --no-daemon`
-3. `./gradlew :app:lintDebug --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ZwoParserTest" --tests "com.example.ergometerapp.workout.editor.WorkoutEditorMapperTest" --tests "com.example.ergometerapp.DeviceScanPolicyTest" --tests "com.example.ergometerapp.ble.LowLatencyScanStartGateTest" --no-daemon`
+3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+4. `./gradlew :app:lintDebug --no-daemon`

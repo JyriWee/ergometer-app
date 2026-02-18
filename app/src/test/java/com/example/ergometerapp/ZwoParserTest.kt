@@ -1,8 +1,10 @@
 package com.example.ergometerapp
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
+import com.example.ergometerapp.workout.Step
 import com.example.ergometerapp.workout.parseZwo
 
 class ZwoParserTest {
@@ -51,5 +53,57 @@ class ZwoParserTest {
         val result = parseZwo(xml)
 
         assertEquals(listOf("name"), result.tags)
+    }
+
+    @Test
+    fun freeRideAliasFreerideIsRecognized() {
+        val xml = """
+            <workout_file>
+              <workout>
+                <Freeride Duration="120"/>
+              </workout>
+            </workout_file>
+        """.trimIndent()
+
+        val result = parseZwo(xml)
+
+        assertEquals(1, result.steps.size)
+        assertTrue(result.steps.first() is Step.FreeRide)
+        assertEquals(120, (result.steps.first() as Step.FreeRide).durationSec)
+    }
+
+    @Test
+    fun steadyStateCanFallbackToPowerRangeAverage() {
+        val xml = """
+            <workout_file>
+              <workout>
+                <SteadyState Duration="300" PowerLow="0.70" PowerHigh="0.90"/>
+              </workout>
+            </workout_file>
+        """.trimIndent()
+
+        val result = parseZwo(xml)
+
+        assertEquals(1, result.steps.size)
+        val steady = result.steps.first() as Step.SteadyState
+        assertEquals(0.80, steady.power ?: 0.0, 0.0001)
+    }
+
+    @Test
+    fun intervalsTCanFallbackToPowerOnOffRanges() {
+        val xml = """
+            <workout_file>
+              <workout>
+                <IntervalsT Repeat="4" OnDuration="30" OffDuration="30" PowerOnLow="0.95" PowerOnHigh="1.05" PowerOffLow="0.55" PowerOffHigh="0.65"/>
+              </workout>
+            </workout_file>
+        """.trimIndent()
+
+        val result = parseZwo(xml)
+
+        assertEquals(1, result.steps.size)
+        val intervals = result.steps.first() as Step.IntervalsT
+        assertEquals(1.00, intervals.onPower ?: 0.0, 0.0001)
+        assertEquals(0.60, intervals.offPower ?: 0.0, 0.0001)
     }
 }
