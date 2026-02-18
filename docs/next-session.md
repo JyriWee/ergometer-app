@@ -1,24 +1,33 @@
 # Next Session
 
 ## Branch
-- current: `main`
+- current: `feature/backup-exclude-rules`
 
 ## Session Handoff
-- next task: Start post-`v0.1.0` backlog from latest audit (pick one P1 item and execute end-to-end on a new feature branch).
+- next task: Continue audit P0 work by hardening HR stale-callback handling (`HrBleClient` stale characteristic + stale connection close).
 - DoD:
-  - New branch created from `main`.
-  - Exactly one scoped backlog item implemented with tests/docs updated as needed.
+  - HR `onCharacteristicChanged` ignores stale GATT callbacks.
+  - Stale `onConnectionStateChange` callbacks close stale GATT deterministically.
+  - Unit tests added for both stale paths.
   - PR merged cleanly and `build-test-lint` remains green.
 - risks:
-  - `main` currently requires 1 approving review; single-maintainer flow may need temporary policy adjustment to merge.
-  - Release-signing secrets/keystore continuity must be preserved for future signed updates.
+  - Backup exclusions intentionally prevent restoring local settings/summaries on a new device.
+  - HR stale guards must not suppress valid data after reconnect.
 - validation commands:
-  - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`
+  - `./gradlew :app:testDebugUnitTest --no-daemon`
   - `./gradlew :app:assembleRelease --no-daemon`
-  - `./gradlew :app:lintRelease --no-daemon`
 
 ## Recently Completed
+- Backup policy hardened with explicit exclusions (offline-first/privacy):
+  - Updated `app/src/main/res/xml/data_extraction_rules.xml` to exclude:
+    - `sharedpref/ergometer_app_settings.xml`
+    - all `file/.`
+    - all `database/.`
+  - Updated `app/src/main/res/xml/backup_rules.xml` with matching exclusions.
+  - Documented backup behavior in `README.md` (`Backup policy` section).
+  - Validated with:
+    - `./gradlew :app:lintDebug --no-daemon`
 - Released `v0.1.0` to GitHub:
   - Merged PR `#23` (`feature/v0-1-0-release-prep` -> `main`).
   - Tagged `main` as `v0.1.0`.
