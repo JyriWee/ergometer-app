@@ -4,23 +4,27 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Re-run PR `#30` checks after smoke command quoting fix, then merge once required checks are green.
+- next task: Run on-device adaptive UI validation for `MENU`, `SESSION`, `SUMMARY`, and `WORKOUT_EDITOR` in compact vs large-window modes; then merge after CI green.
 - DoD:
-  - `Android Build` workflow uses concurrency per branch (`github.head_ref || github.ref_name`).
-  - Older in-progress run for same branch is auto-cancelled when newer run starts.
-  - `android-instrumentation-smoke` no longer fails due malformed Gradle command parsing (`Task '\' not found`).
-  - `android-instrumentation-smoke` no longer fails on slow runner boot timeout.
-  - Existing smoke test scope remains unchanged (`MainActivityContentFlowTest` only).
+  - Shared `AdaptiveLayoutMode` resolver is used by all primary screens.
+  - `MENU` uses two-pane structure on medium/expanded windows and keeps compact flow unchanged.
+  - `SESSION` uses two-pane structure on medium/expanded windows and keeps compact flow unchanged.
+  - `SUMMARY` uses one-column metrics on compact and two-column metrics on medium/expanded.
+  - `WORKOUT_EDITOR` uses two-pane structure on medium/expanded windows (left: edit flow, right: validation/preview).
+  - CI smoke command fix remains active and `Android Build` checks pass for PR `#30`.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
-  - Concurrency key must not accidentally cancel unrelated runs (e.g., different branches).
-  - Emulator startup remains CI-environment dependent; timeout is higher but not infinite.
+  - Two-pane content density may require spacing tweaks after real-device landscape checks.
+  - Editor right pane can look sparse when no validation or preview content is present.
+  - CI emulator startup remains environment dependent.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
+  - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
+  - `./gradlew :app:lintDebug --no-daemon`
   - `gh pr checks 30`
   - `gh run view <run-id> --json jobs,status,conclusion`
   - `gh run view <run-id> --job <job-id> --log | tail -n 80`
-  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+  - manual: validate portrait + landscape on tablet for `MENU/SESSION/SUMMARY/WORKOUT_EDITOR`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -36,6 +40,29 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Adaptive layout foundation and screen integration:
+  - Added `app/src/main/java/com/example/ergometerapp/ui/AdaptiveLayout.kt`:
+    - width classes: `<600dp`, `600..839dp`, `>=840dp`
+    - height classes: `<480dp`, `480..899dp`, `>=900dp`
+    - layout modes: `SINGLE_PANE`, `SINGLE_PANE_DENSE`, `TWO_PANE_MEDIUM`, `TWO_PANE_EXPANDED`
+    - pane ratios: `45/55` (medium), `35/65` (expanded)
+  - Updated `MenuScreen` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - compact keeps existing vertical flow
+    - medium/expanded use two-pane split (device/setup on left, workout/metadata on right)
+  - Updated `SessionScreen` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - compact keeps stacked telemetry + workout
+    - medium/expanded split telemetry/issues and workout progress into two panes
+  - Updated `SummaryScreen` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - compact metrics grid is 1 column
+    - medium/expanded metrics grid is 2 columns with wider content width
+  - Updated `WorkoutEditorScreen` in `app/src/main/java/com/example/ergometerapp/ui/WorkoutEditorScreen.kt`:
+    - compact keeps single-column editor
+    - medium/expanded split into left editor pane and right validation/preview pane
+  - Added unit coverage:
+    - `app/src/test/java/com/example/ergometerapp/ui/AdaptiveLayoutTest.kt`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - CI smoke command parsing fix for PR `#30`:
   - Root cause identified from GitHub Actions logs:
     - Gradle command in smoke script was parsed with a literal `\` task (`Task '\' not found`).

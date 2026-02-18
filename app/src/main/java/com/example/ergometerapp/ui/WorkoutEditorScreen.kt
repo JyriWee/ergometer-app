@@ -2,7 +2,10 @@ package com.example.ergometerapp.ui
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -30,6 +34,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -47,6 +52,9 @@ import com.example.ergometerapp.workout.editor.WorkoutEditorMapper
 import com.example.ergometerapp.workout.editor.WorkoutEditorStepDraft
 import com.example.ergometerapp.workout.editor.WorkoutEditorStepField
 import com.example.ergometerapp.workout.editor.WorkoutEditorStepType
+
+private val WorkoutEditorSinglePaneMaxWidth = 920.dp
+private val WorkoutEditorTwoPaneMaxWidth = 1400.dp
 
 @Composable
 private fun workoutEditorCardBorder(): BorderStroke {
@@ -83,211 +91,267 @@ internal fun WorkoutEditorScreen(
         WorkoutPlannedTssCalculator.calculate(workout = it, ftpWatts = ftpWatts)
     }
 
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
-            .padding(horizontal = 16.dp, vertical = 16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text(
-            text = stringResource(R.string.workout_editor_title),
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.SemiBold,
-        )
-        Text(
-            text = stringResource(R.string.workout_editor_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        val layoutMode = resolveAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
+        val showTwoPane = layoutMode.isTwoPane()
+        val paneWeights = layoutMode.paneWeights()
+        val contentMaxWidth = if (showTwoPane) WorkoutEditorTwoPaneMaxWidth else WorkoutEditorSinglePaneMaxWidth
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = { onAction(WorkoutEditorAction.BackToMenu) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.workout_editor_back_to_menu))
-            }
-            Button(
-                onClick = { onAction(WorkoutEditorAction.NewDraft) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.workout_editor_new))
-            }
-            Button(
-                onClick = { onAction(WorkoutEditorAction.LoadSelectedWorkout) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.workout_editor_load_selected))
-            }
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = { onRequestSave(WorkoutEditorMapper.suggestedFileName(draft)) },
-                enabled = validationErrors.isEmpty(),
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.workout_editor_save_zwo))
-            }
-            Button(
-                onClick = { onAction(WorkoutEditorAction.ApplyToMenuSelection) },
-                enabled = validationErrors.isEmpty(),
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.workout_editor_apply_to_menu))
-            }
-        }
-
-        if (!statusMessage.isNullOrBlank()) {
+        val headerAndActionsContent: @Composable ColumnScope.() -> Unit = {
             Text(
-                text = statusMessage,
-                style = MaterialTheme.typography.bodyMedium,
-                color = if (statusIsError) {
-                    MaterialTheme.colorScheme.error
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                },
+                text = stringResource(R.string.workout_editor_title),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.SemiBold,
             )
-        }
-        if (hasUnsavedChanges) {
             Text(
-                text = stringResource(R.string.workout_editor_unsaved_changes),
-                style = MaterialTheme.typography.bodySmall,
+                text = stringResource(R.string.workout_editor_subtitle),
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-        }
 
-        EditorTextField(
-            label = stringResource(R.string.workout_editor_name),
-            value = draft.name,
-            onValueChange = { onAction(WorkoutEditorAction.SetName(it)) },
-            singleLine = true,
-        )
-        EditorTextField(
-            label = stringResource(R.string.workout_editor_author),
-            value = draft.author,
-            onValueChange = { onAction(WorkoutEditorAction.SetAuthor(it)) },
-            singleLine = true,
-        )
-        EditorTextField(
-            label = stringResource(R.string.workout_editor_description),
-            value = draft.description,
-            onValueChange = { onAction(WorkoutEditorAction.SetDescription(it)) },
-            singleLine = false,
-        )
-
-        Text(
-            text = stringResource(R.string.workout_editor_steps),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold,
-        )
-        draft.steps.forEachIndexed { index, step ->
-            WorkoutEditorStepCard(
-                step = step,
-                index = index,
-                onAction = onAction,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Button(
-                onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.STEADY)) },
-                modifier = Modifier.weight(1f),
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(stringResource(R.string.workout_editor_add_steady))
-            }
-            Button(
-                onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.RAMP)) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.workout_editor_add_ramp))
-            }
-            Button(
-                onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.INTERVALS)) },
-                modifier = Modifier.weight(1f),
-            ) {
-                Text(stringResource(R.string.workout_editor_add_intervals))
-            }
-        }
-
-        if (validationErrors.isNotEmpty()) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                ),
-                border = workoutEditorCardBorder(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                Button(
+                    onClick = { onAction(WorkoutEditorAction.BackToMenu) },
+                    modifier = Modifier.weight(1f),
                 ) {
-                    Text(
-                        text = stringResource(R.string.workout_editor_validation_title),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                    validationErrors.forEach { error ->
-                        Text(
-                            text = "• $error",
-                            style = MaterialTheme.typography.bodySmall,
-                        )
-                    }
+                    Text(stringResource(R.string.workout_editor_back_to_menu))
+                }
+                Button(
+                    onClick = { onAction(WorkoutEditorAction.NewDraft) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.workout_editor_new))
+                }
+                Button(
+                    onClick = { onAction(WorkoutEditorAction.LoadSelectedWorkout) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.workout_editor_load_selected))
+                }
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = { onRequestSave(WorkoutEditorMapper.suggestedFileName(draft)) },
+                    enabled = validationErrors.isEmpty(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.workout_editor_save_zwo))
+                }
+                Button(
+                    onClick = { onAction(WorkoutEditorAction.ApplyToMenuSelection) },
+                    enabled = validationErrors.isEmpty(),
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.workout_editor_apply_to_menu))
+                }
+            }
+
+            if (!statusMessage.isNullOrBlank()) {
+                Text(
+                    text = statusMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (statusIsError) {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    },
+                )
+            }
+            if (hasUnsavedChanges) {
+                Text(
+                    text = stringResource(R.string.workout_editor_unsaved_changes),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        val editorDraftContent: @Composable ColumnScope.() -> Unit = {
+            EditorTextField(
+                label = stringResource(R.string.workout_editor_name),
+                value = draft.name,
+                onValueChange = { onAction(WorkoutEditorAction.SetName(it)) },
+                singleLine = true,
+            )
+            EditorTextField(
+                label = stringResource(R.string.workout_editor_author),
+                value = draft.author,
+                onValueChange = { onAction(WorkoutEditorAction.SetAuthor(it)) },
+                singleLine = true,
+            )
+            EditorTextField(
+                label = stringResource(R.string.workout_editor_description),
+                value = draft.description,
+                onValueChange = { onAction(WorkoutEditorAction.SetDescription(it)) },
+                singleLine = false,
+            )
+
+            Text(
+                text = stringResource(R.string.workout_editor_steps),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            draft.steps.forEachIndexed { index, step ->
+                WorkoutEditorStepCard(
+                    step = step,
+                    index = index,
+                    onAction = onAction,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.STEADY)) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.workout_editor_add_steady))
+                }
+                Button(
+                    onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.RAMP)) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.workout_editor_add_ramp))
+                }
+                Button(
+                    onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.INTERVALS)) },
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text(stringResource(R.string.workout_editor_add_intervals))
                 }
             }
         }
 
-        if (previewWorkout != null) {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                ),
-                border = workoutEditorCardBorder(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
+        val validationAndPreviewContent: @Composable ColumnScope.() -> Unit = {
+            if (validationErrors.isNotEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ),
+                    border = workoutEditorCardBorder(),
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
-                            text = stringResource(
-                                R.string.workout_editor_preview_steps,
-                                stepCount ?: 0,
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
+                            text = stringResource(R.string.workout_editor_validation_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
                         )
-                        if (plannedTss != null) {
+                        validationErrors.forEach { error ->
                             Text(
-                                text = stringResource(R.string.workout_editor_preview_tss, plannedTss),
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = "• $error",
+                                style = MaterialTheme.typography.bodySmall,
                             )
                         }
                     }
-                    WorkoutProfileChart(
-                        workout = previewWorkout,
-                        ftpWatts = ftpWatts,
-                    )
+                }
+            }
+
+            if (previewWorkout != null) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        contentColor = MaterialTheme.colorScheme.onSurface,
+                    ),
+                    border = workoutEditorCardBorder(),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                        ) {
+                            Text(
+                                text = stringResource(
+                                    R.string.workout_editor_preview_steps,
+                                    stepCount ?: 0,
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                            if (plannedTss != null) {
+                                Text(
+                                    text = stringResource(R.string.workout_editor_preview_tss, plannedTss),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                )
+                            }
+                        }
+                        WorkoutProfileChart(
+                            workout = previewWorkout,
+                            ftpWatts = ftpWatts,
+                        )
+                    }
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            if (showTwoPane) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = contentMaxWidth),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.Top,
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(paneWeights.left)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        headerAndActionsContent()
+                        editorDraftContent()
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(paneWeights.right)
+                            .verticalScroll(rememberScrollState()),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        validationAndPreviewContent()
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
+                }
+            } else {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .widthIn(max = contentMaxWidth)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    headerAndActionsContent()
+                    editorDraftContent()
+                    validationAndPreviewContent()
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
+        }
     }
 
     if (showSaveBeforeApplyPrompt) {
