@@ -2,7 +2,6 @@ package com.example.ergometerapp
 
 import android.Manifest
 import android.app.Application
-import android.bluetooth.le.ScanSettings
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.media.ToneGenerator
@@ -37,8 +36,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val trainerStatusProbeDurationMs = 1_500L
     private val hrStatusProbeIntervalMs = 30_000L
     private val hrStatusProbeDurationMs = 1_500L
-    private val statusProbeScanMode = ScanSettings.SCAN_MODE_BALANCED
-    private val pickerScanMode = ScanSettings.SCAN_MODE_LOW_LATENCY
+    private val statusProbeScanMode = DeviceScanPolicy.scanModeFor(DeviceScanPolicy.Purpose.MENU_PROBE)
+    private val pickerScanMode = DeviceScanPolicy.scanModeFor(DeviceScanPolicy.Purpose.PICKER)
     private val pickerScanRetryDelayMs = 1_500L
     private val pickerStopButtonLockDurationMs = 3_000L
     private val statusProbeResumeDelayAfterPickerMs = 2_000L
@@ -411,10 +410,11 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 addOrUpdateScannedDevice(device)
             },
             onFinished = onFinished@{ errorMessage ->
-                val shouldRetry =
-                    allowRetryOnTooFrequent &&
-                        errorMessage?.contains("code=6") == true &&
-                        activeDeviceSelectionKindState.value == kind
+                val shouldRetry = DeviceScanPolicy.shouldRetryTooFrequent(
+                    allowRetryOnTooFrequent = allowRetryOnTooFrequent,
+                    errorMessage = errorMessage,
+                    isSelectionStillActive = activeDeviceSelectionKindState.value == kind,
+                )
                 if (shouldRetry) {
                     deviceScanInProgressState.value = true
                     deviceScanStatusState.value = appContext.getString(R.string.menu_device_scan_status_retrying)
@@ -433,13 +433,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 deviceScanInProgressState.value = false
                 deviceScanStopEnabledState.value = true
                 cancelPendingPickerStopUnlock()
+                val completion = DeviceScanPolicy.classifyCompletion(
+                    errorMessage = errorMessage,
+                    resultCount = scannedDevicesState.size,
+                )
                 deviceScanStatusState.value =
-                    when {
-                        errorMessage != null -> errorMessage
-                        scannedDevicesState.isEmpty() -> {
+                    when (completion) {
+                        DeviceScanPolicy.Completion.ERROR -> errorMessage
+                        DeviceScanPolicy.Completion.NO_RESULTS -> {
                             appContext.getString(R.string.menu_device_scan_status_no_results)
                         }
-                        else -> {
+                        DeviceScanPolicy.Completion.DONE -> {
                             appContext.getString(R.string.menu_device_scan_status_done, scannedDevicesState.size)
                         }
                     }

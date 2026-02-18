@@ -4,6 +4,13 @@
 - current: `feature/menu-probe-scan-tuning`
 
 ## Recently Completed
+- Added testable device-scan policy extraction:
+  - New `DeviceScanPolicy` centralizes picker/probe scan mode mapping and picker completion decisions (retry/error/no-results/done).
+  - `MainViewModel` now uses this policy for retry gating and scan completion status classification.
+- Added focused JVM regression tests:
+  - `DeviceScanPolicyTest.pickerUsesLowLatencyAndProbeUsesBalancedMode`
+  - `DeviceScanPolicyTest.retryTooFrequentRequiresAllowFlagActivePickerAndCodeSix`
+  - `DeviceScanPolicyTest.completionClassificationMapsToExpectedUiStatusPath`
 - Added proactive low-latency scan start window guard in `BleDeviceScanner`:
   - Tracks successful low-latency starts in a global 30-second rolling window.
   - Caps starts to 3 per window to avoid Android scanner registration throttle (`status=6`) during rapid picker restart patterns.
@@ -189,15 +196,15 @@
   - New `MainActivityContentFlowTest` verifies `MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY` rendering anchors.
 
 ## Next Task
-- Implement audit follow-up test increment:
-  - Add focused tests for probe scan mode and scanner error -> status-state handling where feasible.
-  - Keep probe and picker scan behavior separated (balanced vs low-latency).
-  - Preserve current status-indicator semantics.
+- Extend scan stability test coverage with one additional increment:
+  - Add focused unit tests for the low-latency start-window throttle guard behavior in `BleDeviceScanner`.
+  - Verify no regression in status-indicator semantics after repeated picker scans.
+  - Keep scanner diagnostics available until practical stress testing is complete.
 
 ## Definition of Done
 - Implementation is done on a dedicated feature branch (not `main`).
 - Probe scan mode wiring has regression coverage for the introduced behavior split.
-- Scan failure handling remains deterministic and user-visible state does not regress.
+- Picker scan failure handling remains deterministic and user-visible state does not regress.
 - No functional changes to workout/session flow.
 - No regressions in compile/test/lint for touched scope.
 - Session handoff notes are updated for the next increment.
@@ -209,5 +216,5 @@
 
 ## Validation
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
-2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.DeviceScanPolicyTest" --no-daemon`
 3. `./gradlew :app:lintDebug --no-daemon`
