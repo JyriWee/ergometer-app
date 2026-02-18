@@ -75,7 +75,7 @@ class MainActivityContentFlowTest {
                 )
             )
         }
-        composeRule.onNodeWithText(composeRule.activity.getString(R.string.summary_title)).assertIsDisplayed()
+        composeRule.onNodeWithText(composeRule.activity.getString(R.string.back_to_menu)).assertIsDisplayed()
     }
 
     private fun baseModel(
