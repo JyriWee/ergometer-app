@@ -83,8 +83,8 @@
         <string name="workout_editor_preview_steps">Preview steps: %1$d</string>
         <string name="workout_editor_preview_tss">Planned TSS: %1$.1f</string>
         <string name="workout_editor_step_title">Step %1$d · %2$s</string>
-        <string name="workout_editor_step_up">Up</string>
-        <string name="workout_editor_step_down">Down</string>
+        <string name="workout_editor_step_up">Move step earlier</string>
+        <string name="workout_editor_step_down">Move step later</string>
         <string name="workout_editor_step_duplicate">Duplicate</string>
         <string name="workout_editor_step_delete">Delete</string>
         <string name="workout_editor_field_duration_sec">Duration (sec)</string>

@@ -4,6 +4,9 @@
 - current: `feature/workout-editor-mvp`
 
 ## Recently Completed
+- Clarified workout editor step-order controls:
+  - Renamed step reordering button labels from `Up` / `Down` to `Move step earlier` / `Move step later`.
+  - Rebalanced step action row button widths and tightened button content spacing so all four actions remain on one row with longer labels.
 - Added a full offline ZWO format reference to avoid future web dependency:
   - New document: `docs/zwo-format-reference.md`
   - Includes observed root elements, workout child elements, per-step attribute inventory, parser normalization rules, export scope, and maintenance commands.

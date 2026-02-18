@@ -2,6 +2,7 @@ package com.example.ergometerapp.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -19,6 +20,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -26,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.R
@@ -318,20 +321,56 @@ private fun WorkoutEditorStepCard(
             ) {
                 Button(
                     onClick = { onAction(WorkoutEditorAction.MoveStepUp(step.id)) },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.workout_editor_step_up)) }
+                    modifier = Modifier.weight(1.45f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.workout_editor_step_up),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Button(
                     onClick = { onAction(WorkoutEditorAction.MoveStepDown(step.id)) },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.workout_editor_step_down)) }
+                    modifier = Modifier.weight(1.45f),
+                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                ) {
+                    Text(
+                        text = stringResource(R.string.workout_editor_step_down),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Button(
                     onClick = { onAction(WorkoutEditorAction.DuplicateStep(step.id)) },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.workout_editor_step_duplicate)) }
+                    modifier = Modifier.weight(0.9f),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    Text(
+                        text = stringResource(R.string.workout_editor_step_duplicate),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
                 Button(
                     onClick = { onAction(WorkoutEditorAction.DeleteStep(step.id)) },
-                    modifier = Modifier.weight(1f),
-                ) { Text(stringResource(R.string.workout_editor_step_delete)) }
+                    modifier = Modifier.weight(0.9f),
+                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                ) {
+                    Text(
+                        text = stringResource(R.string.workout_editor_step_delete),
+                        style = MaterialTheme.typography.labelSmall,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
             }
 
             when (step) {
