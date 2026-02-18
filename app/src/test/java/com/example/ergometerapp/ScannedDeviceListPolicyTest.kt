@@ -26,7 +26,7 @@ class ScannedDeviceListPolicyTest {
     }
 
     @Test
-    fun upsertKeepsExistingDeviceWhenIncomingIsWeakerAndNameNotBetter() {
+    fun upsertUpdatesExistingRssiWhenIncomingSignalIsWeaker() {
         val devices = mutableListOf(
             ScannedBleDevice(
                 macAddress = "AA:BB:CC:DD:EE:02",
@@ -44,8 +44,8 @@ class ScannedDeviceListPolicyTest {
             ),
         )
 
-        assertFalse(changed)
-        assertEquals(-55, devices.first().rssi)
+        assertTrue(changed)
+        assertEquals(-70, devices.first().rssi)
     }
 
     @Test
@@ -70,6 +70,30 @@ class ScannedDeviceListPolicyTest {
         assertTrue(changed)
         assertEquals("Polar H10", devices.first().displayName)
         assertEquals(-65, devices.first().rssi)
+    }
+
+    @Test
+    fun upsertKeepsExistingNameWhenIncomingNameIsBlank() {
+        val devices = mutableListOf(
+            ScannedBleDevice(
+                macAddress = "AA:BB:CC:DD:EE:04",
+                displayName = "Known Name",
+                rssi = -62,
+            ),
+        )
+
+        val changed = ScannedDeviceListPolicy.upsert(
+            devices = devices,
+            incoming = ScannedBleDevice(
+                macAddress = "AA:BB:CC:DD:EE:04",
+                displayName = "",
+                rssi = -61,
+            ),
+        )
+
+        assertTrue(changed)
+        assertEquals("Known Name", devices.first().displayName)
+        assertEquals(-61, devices.first().rssi)
     }
 
     @Test

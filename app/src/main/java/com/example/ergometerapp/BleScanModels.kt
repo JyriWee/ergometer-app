@@ -39,13 +39,19 @@ internal object ScannedDeviceListPolicy {
         }
 
         val existing = devices[existingIndex]
-        val preferIncoming = incoming.rssi > existing.rssi ||
-            (existing.displayName.isNullOrBlank() && !incoming.displayName.isNullOrBlank())
-        if (!preferIncoming) {
+        val mergedName = if (incoming.displayName.isNullOrBlank()) {
+            existing.displayName
+        } else {
+            incoming.displayName
+        }
+        val merged = existing.copy(
+            displayName = mergedName,
+            rssi = incoming.rssi,
+        )
+        if (merged == existing) {
             return false
         }
-
-        devices[existingIndex] = incoming
+        devices[existingIndex] = merged
         return true
     }
 

@@ -4,17 +4,18 @@
 - current: `feature/ftms-telemetry-parse-off-main`
 
 ## Session Handoff
-- next task: Merge FTMS parse-off-main optimization and continue with P1 scanner performance follow-up (device list ordering responsiveness under dense advertisement traffic).
+- next task: Merge FTMS parse-off-main optimization + scanner RSSI responsiveness update, then run deferred multi-HR picker validation when hardware is available.
 - DoD:
   - FTMS telemetry parsing stays off the main thread with stale-result guards.
   - Session start/stop/reconnect behavior remains unchanged in practical use.
+  - Picker ordering follows current RSSI (not historical peak) while keeping list updates smooth.
   - `build-test-lint` remains green after merge.
   - Keep unit coverage for stale HR callbacks and scan-list policy behavior.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
   - Stale guards must not drop valid first samples after reconnect.
   - Background parse result ordering must not regress cadence-gated runner behavior.
-  - Scan-list throttling must preserve device ordering responsiveness in picker UX.
+  - Scan-list throttling must preserve device ordering responsiveness in picker UX under dense BLE traffic.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
@@ -38,6 +39,26 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Scanner ordering responsiveness follow-up (P1 refinement):
+  - Updated `ScannedDeviceListPolicy.upsert(...)` to keep per-device RSSI current in both directions (stronger and weaker), while preserving known device name if incoming advertisement name is blank.
+  - This prevents picker ordering from sticking to old peak RSSI values in long scans.
+  - Expanded policy unit tests in `ScannedDeviceListPolicyTest`:
+    - weaker RSSI updates existing row
+    - blank incoming name keeps existing name
+  - Validation:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ScannedDeviceListPolicyTest" --no-daemon`
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+- FTMS parse-main-thread load reduction:
+  - `SessionOrchestrator` now parses FTMS Indoor Bike payloads on a single-thread background executor.
+  - Added stale-result guards (generation + latest request id) before applying parsed data to UI/session state.
+  - Executor is closed in orchestrator `stopAndClose()` to avoid lifecycle leaks.
+  - Practical validation result: PASS on device session start/run/stop path.
+  - Validation:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - HR stale-callback hardening (audit P0):
   - `HrBleClient` now closes stale GATT instances on stale `onConnectionStateChange` callbacks.
   - `HrBleClient` now ignores stale `onCharacteristicChanged` callbacks.
