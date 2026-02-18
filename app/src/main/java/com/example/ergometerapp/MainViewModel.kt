@@ -49,6 +49,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val pickerScanMode = DeviceScanPolicy.scanModeFor(DeviceScanPolicy.Purpose.PICKER)
     private val pickerScanRetryDelayMs = 1_500L
     private val pickerStopButtonLockDurationMs = 3_000L
+    private val scannedDeviceSortThrottleMs = 300L
     private val statusProbeResumeDelayAfterPickerMs = 2_000L
     private val hrStatusMissThreshold = 2
     private val hrStatusStaleTimeoutMs = 75_000L
@@ -85,6 +86,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var pendingDeviceScanKind: DeviceSelectionKind? = null
     private var pendingPickerScanRetry: Runnable? = null
     private var pendingPickerStopUnlock: Runnable? = null
+    private var pendingScannedDeviceSort: Runnable? = null
     private var pendingStatusProbeResume: Runnable? = null
     private var statusProbeSuppressedUntilElapsedMs: Long = 0L
     private var nextWorkoutEditorStepId: Long = 1L
@@ -220,6 +222,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         closed = true
         cancelPendingPickerScanRetry()
         cancelPendingPickerStopUnlock()
+        cancelPendingScannedDeviceSort()
         cancelPendingStatusProbeResume()
         stopTrainerStatusPolling()
         stopHrStatusPolling()
@@ -452,6 +455,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onDismissDeviceSelection() {
         cancelPendingPickerScanRetry()
         cancelPendingPickerStopUnlock()
+        cancelPendingScannedDeviceSort()
         bleDeviceScanner.stop()
         activeDeviceSelectionKindState.value = null
         deviceScanInProgressState.value = false
@@ -682,9 +686,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun requestDeviceScan(kind: DeviceSelectionKind) {
         cancelPendingPickerScanRetry()
         cancelPendingPickerStopUnlock()
+        cancelPendingScannedDeviceSort()
         cancelPendingStatusProbeResume()
         cancelTrainerStatusProbeScan()
         cancelHrStatusProbeScan()
+        if (kind == DeviceSelectionKind.HEART_RATE) {
+            // Many HR sensors stop advertising while connected, so close active
+            // HR GATT before opening picker to keep device discovery reliable.
+            hrClient.close()
+            hrConnectedState.value = false
+            uiState.heartRate.value = null
+            sessionManager.updateHeartRate(null)
+        }
         pendingDeviceScanKind = kind
         val permissionAvailable = ensureBluetoothScanPermissionCallback?.invoke() == true
         if (!permissionAvailable) {
@@ -697,6 +710,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun startDeviceScan(kind: DeviceSelectionKind, allowRetryOnTooFrequent: Boolean = true) {
         cancelPendingPickerScanRetry()
         cancelPendingPickerStopUnlock()
+        cancelPendingScannedDeviceSort()
         cancelTrainerStatusProbeScan()
         cancelHrStatusProbeScan()
         bleDeviceScanner.stop()
@@ -741,6 +755,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 deviceScanInProgressState.value = false
                 deviceScanStopEnabledState.value = true
                 cancelPendingPickerStopUnlock()
+                flushPendingScannedDeviceSort()
                 val completion = DeviceScanPolicy.classifyCompletion(
                     errorMessage = errorMessage,
                     resultCount = scannedDevicesState.size,
@@ -790,6 +805,39 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         pendingPickerStopUnlock = null
     }
 
+    private fun scheduleScannedDeviceSort() {
+        if (pendingScannedDeviceSort != null) return
+        val sortRunnable = Runnable {
+            pendingScannedDeviceSort = null
+            applyScannedDeviceSort()
+        }
+        pendingScannedDeviceSort = sortRunnable
+        mainHandler.postDelayed(sortRunnable, scannedDeviceSortThrottleMs)
+    }
+
+    private fun flushPendingScannedDeviceSort() {
+        val pending = pendingScannedDeviceSort ?: return
+        mainHandler.removeCallbacks(pending)
+        pendingScannedDeviceSort = null
+        applyScannedDeviceSort()
+    }
+
+    private fun cancelPendingScannedDeviceSort() {
+        pendingScannedDeviceSort?.let { mainHandler.removeCallbacks(it) }
+        pendingScannedDeviceSort = null
+    }
+
+    private fun applyScannedDeviceSort() {
+        if (scannedDevicesState.size <= 1) return
+        val sorted = ScannedDeviceListPolicy.sortedBySignal(scannedDevicesState)
+        val orderChanged = sorted.indices.any { index ->
+            sorted[index].macAddress != scannedDevicesState[index].macAddress
+        }
+        if (!orderChanged) return
+        scannedDevicesState.clear()
+        scannedDevicesState.addAll(sorted)
+    }
+
     /**
      * Avoids immediate passive probe scans right after closing picker, so rapid
      * picker reopen does not hit platform scan-frequency throttling.
@@ -820,20 +868,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             deviceScanStopEnabledState.value = true
             cancelPendingPickerStopUnlock()
         }
-        val existingIndex = scannedDevicesState.indexOfFirst { it.macAddress == device.macAddress }
-        if (existingIndex < 0) {
-            scannedDevicesState.add(device)
-        } else {
-            val existing = scannedDevicesState[existingIndex]
-            val preferNew = device.rssi > existing.rssi ||
-                (existing.displayName.isNullOrBlank() && !device.displayName.isNullOrBlank())
-            if (preferNew) {
-                scannedDevicesState[existingIndex] = device
-            }
+        val listChanged = ScannedDeviceListPolicy.upsert(
+            devices = scannedDevicesState,
+            incoming = device,
+        )
+        if (listChanged) {
+            scheduleScannedDeviceSort()
         }
-        val sorted = scannedDevicesState.sortedByDescending { it.rssi }
-        scannedDevicesState.clear()
-        scannedDevicesState.addAll(sorted)
     }
 
     private fun applyFtmsDeviceSelection(normalizedMac: String?, deviceName: String?) {

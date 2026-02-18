@@ -52,6 +52,7 @@ class HrBleClient(
         ) {
             if (gatt != this@HrBleClient.gatt) {
                 Log.d("HR", "Ignoring stale connection callback state=$newState status=$status")
+                safeCloseGatt(gatt, source = "staleConnectionCallback")
                 return
             }
             if (newState == BluetoothProfile.STATE_CONNECTED) {
@@ -172,6 +173,10 @@ class HrBleClient(
             characteristic: BluetoothGattCharacteristic,
             value: ByteArray
         ) {
+            if (gatt != this@HrBleClient.gatt) {
+                Log.d("HR", "Ignoring stale characteristic callback")
+                return
+            }
             if (characteristic.uuid == HR_MEASUREMENT_UUID) {
                 val bpm = HrMeasurementParser.parseBpm(value) ?: return
                 mainThreadHandler.post { onHeartRate(bpm) }
