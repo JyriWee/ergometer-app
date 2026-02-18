@@ -4,19 +4,21 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Merge CI concurrency guard, then confirm duplicated push+PR workflow runs are cancelled automatically on next feature branch push.
+- next task: Re-run PR `#30` checks after emulator boot-stability tuning, then merge once required checks are green.
 - DoD:
   - `Android Build` workflow uses concurrency per branch (`github.head_ref || github.ref_name`).
   - Older in-progress run for same branch is auto-cancelled when newer run starts.
-  - Existing `build-test-lint` and `android-instrumentation-smoke` jobs remain unchanged.
+  - `android-instrumentation-smoke` no longer fails on slow runner boot timeout.
+  - Existing smoke test scope remains unchanged (`MainActivityContentFlowTest` only).
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
   - Concurrency key must not accidentally cancel unrelated runs (e.g., different branches).
-  - Emulator smoke step may still be slow; this change only removes redundant parallel runs.
+  - Emulator startup remains CI-environment dependent; timeout is higher but not infinite.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
-  - `gh run list --workflow "Android Build" --limit 5`
+  - `gh pr checks 30`
   - `gh run view <run-id> --json jobs,status,conclusion`
+  - `gh run view <run-id> --job <job-id> --log | tail -n 80`
   - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
 
 ## Deferred Manual Validation
@@ -33,6 +35,15 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- CI emulator boot stability tuning for PR `#30`:
+  - Updated `.github/workflows/android-build.yml` `android-instrumentation-smoke` runner inputs:
+    - `target: default` (lighter system image than `google_apis` for this smoke test).
+    - `emulator-boot-timeout: 900` to tolerate slower GitHub runner startup.
+    - Added `-no-snapshot` to emulator options for cleaner cold boot behavior.
+  - Kept smoke scope unchanged:
+    - `connectedDebugAndroidTest` with `MainActivityContentFlowTest`.
+  - Trigger reason:
+    - Previous CI run failed with `Timeout waiting for emulator to boot.`
 - CI workflow deduplication guard:
   - Added top-level workflow `concurrency` to `.github/workflows/android-build.yml`:
     - `group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}`
