@@ -1,20 +1,25 @@
 # Next Session
 
 ## Branch
-- current: `feature/hr-stale-callback-hardening`
+- current: `feature/ftms-telemetry-parse-off-main`
 
 ## Session Handoff
-- next task: Commit and validate P1 scan-list update throttling (`MainViewModel.addOrUpdateScannedDevice`) with deferred multi-HR manual verification.
+- next task: Merge FTMS parse-off-main optimization and continue with P1 scanner performance follow-up (device list ordering responsiveness under dense advertisement traffic).
 - DoD:
-  - P1 scan-list throttling merged cleanly and `build-test-lint` remains green.
+  - FTMS telemetry parsing stays off the main thread with stale-result guards.
+  - Session start/stop/reconnect behavior remains unchanged in practical use.
+  - `build-test-lint` remains green after merge.
   - Keep unit coverage for stale HR callbacks and scan-list policy behavior.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
   - Stale guards must not drop valid first samples after reconnect.
+  - Background parse result ordering must not regress cadence-gated runner behavior.
   - Scan-list throttling must preserve device ordering responsiveness in picker UX.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
   - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrBleClientStaleCallbackTest" --no-daemon`
   - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ScannedDeviceListPolicyTest" --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`

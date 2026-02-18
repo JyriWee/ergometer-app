@@ -26,6 +26,9 @@ import com.example.ergometerapp.workout.WorkoutExecutionStepCounter
 import com.example.ergometerapp.workout.WorkoutPlannedTssCalculator
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
+import java.util.concurrent.ExecutorService
+import java.util.concurrent.Executors
+import java.util.concurrent.RejectedExecutionException
 
 /**
  * Owns FTMS/session/workout orchestration while Activity keeps lifecycle and permissions.
@@ -59,6 +62,11 @@ class SessionOrchestrator(
     private var lastExecutionFailureSignalKey: String? = null
     private val stopFlowTimeoutMs = 4000L
     private var stopFlowTimeoutRunnable: Runnable? = null
+    private val indoorBikeParseExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
+        Thread(runnable, "ftms-indoor-bike-parse").apply { isDaemon = true }
+    }
+    private val indoorBikeParseLock = Any()
+    private var latestIndoorBikeParseRequestId = 0L
 
     /**
      * Creates fresh BLE/controller instances for the current activity lifetime.
@@ -244,8 +252,42 @@ class SessionOrchestrator(
         dumpUiState("onDestroy")
         workoutRunner?.stop()
         bleClient?.close()
+        indoorBikeParseExecutor.shutdownNow()
         closeHeartRate()
         allowScreenOff()
+    }
+
+    /**
+     * Parses FTMS telemetry on a background executor and applies only the latest
+     * parse result to UI/session state.
+     *
+     * This keeps heavy byte parsing away from the main thread while preserving
+     * reconnect safety via generation and request-id stale guards.
+     */
+    private fun scheduleIndoorBikeParsing(payload: ByteArray, generation: Int) {
+        val snapshot = payload.copyOf()
+        val requestId = synchronized(indoorBikeParseLock) {
+            latestIndoorBikeParseRequestId += 1
+            latestIndoorBikeParseRequestId
+        }
+
+        try {
+            indoorBikeParseExecutor.execute {
+                val parsedData = parseIndoorBikeData(snapshot)
+                mainThreadHandler.post {
+                    if (generation != activeFtmsClientGeneration) return@post
+                    val isLatest = synchronized(indoorBikeParseLock) {
+                        requestId == latestIndoorBikeParseRequestId
+                    }
+                    if (!isLatest) return@post
+                    uiState.bikeData.value = parsedData
+                    sessionManager.updateBikeData(parsedData)
+                    applyCadenceDrivenRunnerControl(parsedData.instantaneousCadenceRpm)
+                }
+            }
+        } catch (_: RejectedExecutionException) {
+            Log.w("FTMS", "Indoor bike parsing skipped after orchestrator shutdown")
+        }
     }
 
     private fun importWorkoutFromUri(uri: Uri) {
@@ -374,10 +416,10 @@ class SessionOrchestrator(
                     Log.d("FTMS", "Ignoring stale onIndoorBikeData callback (generation=$generation)")
                     return@FtmsBleClient
                 }
-                val parsedData = parseIndoorBikeData(bytes)
-                uiState.bikeData.value = parsedData
-                sessionManager.updateBikeData(parsedData)
-                applyCadenceDrivenRunnerControl(parsedData.instantaneousCadenceRpm)
+                scheduleIndoorBikeParsing(
+                    payload = bytes,
+                    generation = generation,
+                )
             },
             onReady = { controlPointReady ->
                 if (generation != activeFtmsClientGeneration) {
