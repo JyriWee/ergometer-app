@@ -1,28 +1,23 @@
 # Next Session
 
 ## Branch
-- current: `feature/ftms-telemetry-parse-off-main`
+- current: `feature/ci-androidtest-smoke`
 
 ## Session Handoff
-- next task: Merge FTMS parse-off-main optimization + scanner RSSI responsiveness update, then run deferred multi-HR picker validation when hardware is available.
+- next task: Merge CI emulator smoke job, then monitor first GitHub run and tune emulator job timeout/retries only if flakiness appears.
 - DoD:
-  - FTMS telemetry parsing stays off the main thread with stale-result guards.
-  - Session start/stop/reconnect behavior remains unchanged in practical use.
-  - Picker ordering follows current RSSI (not historical peak) while keeping list updates smooth.
+  - Workflow runs existing `build-test-lint` job and new instrumentation smoke job on PR/push.
+  - Instrumentation smoke job executes `MainActivityContentFlowTest` on emulator.
+  - Existing workflow checks remain unchanged in behavior.
   - `build-test-lint` remains green after merge.
-  - Keep unit coverage for stale HR callbacks and scan-list policy behavior.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
-  - Stale guards must not drop valid first samples after reconnect.
-  - Background parse result ordering must not regress cadence-gated runner behavior.
-  - Scan-list throttling must preserve device ordering responsiveness in picker UX under dense BLE traffic.
+  - Emulator boot/install can be slow or flaky on shared runners.
+  - Instrumentation smoke should stay intentionally narrow to avoid long queue times.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
+  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
-  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
-  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrBleClientStaleCallbackTest" --no-daemon`
-  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ScannedDeviceListPolicyTest" --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`
 
 ## Deferred Manual Validation
@@ -39,6 +34,14 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- CI Android instrumentation smoke baseline:
+  - Added new workflow job `android-instrumentation-smoke` in `.github/workflows/android-build.yml`.
+  - Job runs after `build-test-lint` and executes emulator-based instrumentation smoke using `reactivecircus/android-emulator-runner@v2`.
+  - Smoke scope is intentionally narrow: `MainActivityContentFlowTest` only.
+  - Validation:
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - Scanner ordering responsiveness follow-up (P1 refinement):
   - Updated `ScannedDeviceListPolicy.upsert(...)` to keep per-device RSSI current in both directions (stronger and weaker), while preserving known device name if incoming advertisement name is blank.
   - This prevents picker ordering from sticking to old peak RSSI values in long scans.
