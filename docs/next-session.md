@@ -4,19 +4,33 @@
 - current: `feature/hr-stale-callback-hardening`
 
 ## Session Handoff
-- next task: Merge HR stale-callback hardening, then continue with P1 scan-list update throttling (`MainViewModel.addOrUpdateScannedDevice`).
+- next task: Commit and validate P1 scan-list update throttling (`MainViewModel.addOrUpdateScannedDevice`) with deferred multi-HR manual verification.
 - DoD:
-  - HR stale-callback hardening PR merged to `main`.
-  - Keep test coverage for stale characteristic + stale connection callback close path.
-  - Next performance task defined and scoped before implementation.
-  - PR merged cleanly and `build-test-lint` remains green.
+  - P1 scan-list throttling merged cleanly and `build-test-lint` remains green.
+  - Keep unit coverage for stale HR callbacks and scan-list policy behavior.
+  - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
   - Stale guards must not drop valid first samples after reconnect.
   - Scan-list throttling must preserve device ordering responsiveness in picker UX.
+  - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ble.HrBleClientStaleCallbackTest" --no-daemon`
+  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ScannedDeviceListPolicyTest" --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`
+
+## Deferred Manual Validation
+- id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
+- scope: Verify HR picker discovery behavior with multiple HR straps after scan-list throttling changes.
+- reason deferred:
+  - Only one chest strap can be worn in a valid position at a time.
+  - Spare batteries for additional straps are currently unavailable.
+- execute when:
+  - At least two HR straps are powered and advertising simultaneously.
+- expected:
+  - HR picker shows all advertising straps.
+  - Device rows remain stable and ordering converges by strongest RSSI.
+  - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
 - HR stale-callback hardening (audit P0):
