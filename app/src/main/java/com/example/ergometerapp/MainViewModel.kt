@@ -685,6 +685,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         cancelPendingStatusProbeResume()
         cancelTrainerStatusProbeScan()
         cancelHrStatusProbeScan()
+        if (kind == DeviceSelectionKind.HEART_RATE) {
+            // Many HR sensors stop advertising while connected, so close active
+            // HR GATT before opening picker to keep device discovery reliable.
+            hrClient.close()
+            hrConnectedState.value = false
+            uiState.heartRate.value = null
+            sessionManager.updateHeartRate(null)
+        }
         pendingDeviceScanKind = kind
         val permissionAvailable = ensureBluetoothScanPermissionCallback?.invoke() == true
         if (!permissionAvailable) {
