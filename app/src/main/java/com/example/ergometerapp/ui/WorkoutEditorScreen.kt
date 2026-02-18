@@ -580,7 +580,7 @@ private fun StepNumberField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier.fillMaxWidth(),
+    modifier: Modifier = Modifier,
 ) {
     OutlinedTextField(
         value = value,
@@ -588,7 +588,7 @@ private fun StepNumberField(
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         colors = workoutEditorTextFieldColors(),
     )
 }
@@ -598,7 +598,7 @@ private fun StepDecimalField(
     label: String,
     value: String,
     onValueChange: (String) -> Unit,
-    modifier: Modifier = Modifier.fillMaxWidth(),
+    modifier: Modifier = Modifier,
 ) {
     OutlinedTextField(
         value = value,
@@ -606,7 +606,7 @@ private fun StepDecimalField(
         label = { Text(label) },
         singleLine = true,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-        modifier = modifier,
+        modifier = modifier.fillMaxWidth(),
         colors = workoutEditorTextFieldColors(),
     )
 }

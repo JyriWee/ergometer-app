@@ -1,6 +1,7 @@
 package com.example.ergometerapp
 
 import android.content.Context
+import androidx.core.content.edit
 
 /**
  * Persists user-selected BLE device addresses for FTMS and optional HR sensors.
@@ -28,10 +29,10 @@ object DeviceSettingsStorage {
         val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         val normalized = macAddress?.let { BluetoothMacAddress.normalizeOrNull(it) }
         if (normalized == null) {
-            prefs.edit().remove(KEY_FTMS_DEVICE_MAC).apply()
+            prefs.edit { remove(KEY_FTMS_DEVICE_MAC) }
             return
         }
-        prefs.edit().putString(KEY_FTMS_DEVICE_MAC, normalized).apply()
+        prefs.edit { putString(KEY_FTMS_DEVICE_MAC, normalized) }
     }
 
     /**
@@ -49,10 +50,10 @@ object DeviceSettingsStorage {
         val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         val normalized = deviceName?.trim()?.takeIf { it.isNotEmpty() }
         if (normalized == null) {
-            prefs.edit().remove(KEY_FTMS_DEVICE_NAME).apply()
+            prefs.edit { remove(KEY_FTMS_DEVICE_NAME) }
             return
         }
-        prefs.edit().putString(KEY_FTMS_DEVICE_NAME, normalized).apply()
+        prefs.edit { putString(KEY_FTMS_DEVICE_NAME, normalized) }
     }
 
     /**
@@ -71,10 +72,10 @@ object DeviceSettingsStorage {
         val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         val normalized = macAddress?.let { BluetoothMacAddress.normalizeOrNull(it) }
         if (normalized == null) {
-            prefs.edit().remove(KEY_HR_DEVICE_MAC).apply()
+            prefs.edit { remove(KEY_HR_DEVICE_MAC) }
             return
         }
-        prefs.edit().putString(KEY_HR_DEVICE_MAC, normalized).apply()
+        prefs.edit { putString(KEY_HR_DEVICE_MAC, normalized) }
     }
 
     /**
@@ -92,9 +93,9 @@ object DeviceSettingsStorage {
         val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
         val normalized = deviceName?.trim()?.takeIf { it.isNotEmpty() }
         if (normalized == null) {
-            prefs.edit().remove(KEY_HR_DEVICE_NAME).apply()
+            prefs.edit { remove(KEY_HR_DEVICE_NAME) }
             return
         }
-        prefs.edit().putString(KEY_HR_DEVICE_NAME, normalized).apply()
+        prefs.edit { putString(KEY_HR_DEVICE_NAME, normalized) }
     }
 }

@@ -1,24 +1,38 @@
 # Next Session
 
 ## Branch
-- current: `feature/backup-exclude-rules`
+- current: `feature/cleanup-inspection-findings`
 
 ## Session Handoff
-- next task: Continue audit P0 work by hardening HR stale-callback handling (`HrBleClient` stale characteristic + stale connection close).
+- next task: Implement audit P0 HR stale-callback hardening in `HrBleClient` (stale characteristic guard + stale connection callback close path).
 - DoD:
-  - HR `onCharacteristicChanged` ignores stale GATT callbacks.
-  - Stale `onConnectionStateChange` callbacks close stale GATT deterministically.
-  - Unit tests added for both stale paths.
+  - `HrBleClient.onCharacteristicChanged` drops stale GATT callbacks.
+  - `HrBleClient.onConnectionStateChange` closes stale GATT before returning.
+  - Add regression tests for stale HR callback handling.
   - PR merged cleanly and `build-test-lint` remains green.
 - risks:
-  - Backup exclusions intentionally prevent restoring local settings/summaries on a new device.
-  - HR stale guards must not suppress valid data after reconnect.
+  - Over-aggressive stale filtering can drop valid HR samples during reconnect transitions.
+  - Preserve current reconnect behavior while adding stale guards.
 - validation commands:
-  - `./gradlew :app:lintDebug --no-daemon`
+  - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `./gradlew :app:testDebugUnitTest --no-daemon`
-  - `./gradlew :app:assembleRelease --no-daemon`
+  - `./gradlew :app:lintDebug --no-daemon`
 
 ## Recently Completed
+- Inspection cleanup pass (Android Studio export + lint hygiene):
+  - Deleted exported inspection XML reports from project root (temporary IDE artifacts).
+  - Fixed Compose modifier warnings in:
+    - `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`
+    - `app/src/main/java/com/example/ergometerapp/ui/WorkoutEditorScreen.kt`
+  - Removed one unused ViewModel helper (`workoutEditorSuggestedFileName`).
+  - Applied `SharedPreferences.edit { ... }` KTX style in:
+    - `app/src/main/java/com/example/ergometerapp/DeviceSettingsStorage.kt`
+    - `app/src/main/java/com/example/ergometerapp/FtpSettingsStorage.kt`
+  - Removed unused resource set:
+    - deleted `app/src/main/res/values/colors.xml` (template-only colors)
+    - cleaned unused entries from `app/src/main/res/values/strings.xml`
+  - Validation:
+    - `./gradlew :app:lintDebug --no-daemon` -> `0 errors, 5 warnings`
 - Backup policy hardened with explicit exclusions (offline-first/privacy):
   - Updated `app/src/main/res/xml/data_extraction_rules.xml` to exclude:
     - `sharedpref/ergometer_app_settings.xml`
