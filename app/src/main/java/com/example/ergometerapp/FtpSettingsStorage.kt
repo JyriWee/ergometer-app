@@ -1,6 +1,7 @@
 package com.example.ergometerapp
 
 import android.content.Context
+import androidx.core.content.edit
 
 /**
  * Persists user-selected FTP watts value for reuse across app launches.
@@ -24,6 +25,6 @@ object FtpSettingsStorage {
     fun saveFtpWatts(context: Context, ftpWatts: Int) {
         if (ftpWatts <= 0) return
         val prefs = context.getSharedPreferences(PREFERENCES_NAME, Context.MODE_PRIVATE)
-        prefs.edit().putInt(KEY_FTP_WATTS, ftpWatts).apply()
+        prefs.edit { putInt(KEY_FTP_WATTS, ftpWatts) }
     }
 }

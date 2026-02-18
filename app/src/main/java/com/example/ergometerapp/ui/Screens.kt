@@ -786,8 +786,8 @@ private fun DeviceSelectionInfoCard(
 @Composable
 private fun MenuInlineValueCard(
     value: String,
-    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val normalTextColor = menuNormalTextColor()
     val cardModifier = if (onClick != null) {
@@ -822,8 +822,8 @@ private fun MenuInlineValueCard(
 private fun WorkoutMetaListBox(
     label: String,
     value: String,
-    onClick: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
+    onClick: (() -> Unit)? = null,
 ) {
     val normalTextColor = menuNormalTextColor()
     val cardModifier = if (onClick != null) {

@@ -386,13 +386,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * Suggested default file name for editor export.
-     */
-    fun workoutEditorSuggestedFileName(): String {
-        return WorkoutEditorMapper.suggestedFileName(workoutEditorDraftState.value)
-    }
-
-    /**
      * Persists editor draft as `.zwo` to the document selected by user.
      */
     fun onWorkoutEditorExportTargetSelected(uri: Uri?) {
