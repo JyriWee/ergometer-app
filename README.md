@@ -77,6 +77,12 @@ See `docs/ci-release-signing.md` for details.
 - ZWO compatibility notes: `docs/zwo-format-compatibility.md`
 - ZWO full offline reference: `docs/zwo-format-reference.md`
 
+## Open Source
+- License: MIT (`LICENSE`)
+- Contribution guide: `CONTRIBUTING.md`
+- Code of Conduct: `CODE_OF_CONDUCT.md`
+- Security policy: `SECURITY.md`
+
 ## Development Notes
 - Prefer feature branches for all changes; avoid direct work on `main`.
 - Keep changes small and testable.

@@ -1,22 +1,27 @@
 # Next Session
 
 ## Branch
-- current: `feature/workout-editor-theme-polish`
+- current: `feature/open-source-readiness-mit`
 
 ## Session Handoff
-- next task: Continue dark/light theme cleanup from the UI list (item 2), starting with remaining hardcoded colors outside Menu/Workout editor surfaces.
+- next task: Final pre-public release checks (repo visibility settings, branch protection, first tagged release notes).
 - DoD:
-  - All updated screens use `MaterialTheme.colorScheme` (no new hardcoded UI colors in touched files).
-  - `:app:compileDebugKotlin` and `:app:lintDebug` pass locally.
-  - Quick manual check done on device in both light and dark modes for modified screens.
+  - Community and governance files are present and linked.
+  - MIT license is present at repo root.
+  - Public-release checklist is documented and actionable.
 - risks:
-  - Theme-token changes can reduce contrast on some cards/buttons if not verified on-device.
-  - Small visual regressions are possible in landscape/tablet layouts where these colors were previously tuned manually.
+  - GitHub repository settings (visibility/protection/secrets) still require manual maintainer action in UI.
+  - Release artifact signing policy should be validated once before first public tag.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`
 
 ## Recently Completed
+- Open-source readiness baseline (MIT):
+  - Added `LICENSE` (MIT).
+  - Added community docs: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `SECURITY.md`.
+  - Added GitHub templates: bug report, feature request, issue template config, and PR template.
+  - Updated `README.md` with an explicit Open Source section linking governance documents.
 - Workout editor theme parity pass (dark/light):
   - Added explicit safe-area handling (`WindowInsets.safeDrawing`) so editor content no longer clips under status/navigation bars.
   - Applied explicit theme background to editor root for consistent dark/light rendering.
