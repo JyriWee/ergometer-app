@@ -48,6 +48,12 @@ Run from project root:
 - `ergometer.release.minify`
   - Controls release minification (`true` by default).
 
+### Backup policy
+- Android Auto Backup is enabled, but sensitive/local-only app data is excluded from cloud backup and device transfer:
+  - `sharedpref/ergometer_app_settings.xml` (device addresses and FTP setting)
+  - all app-private files (`file/.`, includes session summary exports)
+  - all app-private databases (`database/.`)
+
 ### Release signing (CI/local)
 Set all of these (environment variables preferred):
 - `ERGOMETER_RELEASE_STORE_FILE`
