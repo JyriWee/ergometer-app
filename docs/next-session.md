@@ -578,3 +578,35 @@
 2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ZwoParserTest" --tests "com.example.ergometerapp.workout.editor.WorkoutEditorMapperTest" --tests "com.example.ergometerapp.DeviceScanPolicyTest" --tests "com.example.ergometerapp.ble.LowLatencyScanStartGateTest" --no-daemon`
 3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
 4. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - FIT Export Planning)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added `docs/fit-export-plan.md`.
+- Collected official FIT Activity export requirements and message sequencing references.
+- Mapped current ErgometerApp session fields to FIT `FileId/Record/Lap/Session/Activity` model.
+- Documented staged implementation path (`v1`, `v1.1`, `v2`) and licensing risk checkpoints.
+
+### Next Task
+- Implement `v1` minimal valid FIT export behind a feature flag (single-session activity file with required messages).
+
+### Definition of Done
+- A completed session can be exported as a syntactically valid `.fit` activity file.
+- Exported file includes required message types (`FileId`, `Activity`, `Session`, `Lap`, `Record`).
+- Required summary fields are populated (`start_time`, `total_elapsed_time`, `total_timer_time`, `timestamp`).
+- Export path reports typed success/failure back to UI.
+- Documentation is updated with user-visible export behavior and known limitations.
+
+### Risks / Open Questions
+- FIT SDK licensing model is not standard OSS; verify compatibility with public-template distribution policy before shipping SDK-based writer.
+- Summary-only export is valid but may appear sparse in analysis platforms until per-sample record timeline is added.
+- Platform-specific import tolerance differs; practical smoke import is required.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --no-daemon`
+3. `./gradlew :app:lintDebug --no-daemon`
+4. Manual: export one session and verify import on at least one target platform.
