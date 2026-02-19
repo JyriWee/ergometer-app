@@ -231,6 +231,8 @@ class SessionManager(
             )
 
             val summary = SessionSummary(
+                startTimestampMillis = start,
+                stopTimestampMillis = stopTimestampMillis,
                 durationSeconds = durationSec,
                 actualTss = actualTss,
                 avgPower = avgPower,

@@ -206,5 +206,10 @@
         <string name="summary_avg_hr">Average HR</string>
         <string name="summary_max_hr">Max HR</string>
         <string name="summary_hr_value">%1$s bpm</string>
+        <string name="summary_export_fit">Export .fit</string>
+        <string name="summary_fit_export_success">Session exported as .fit.</string>
+        <string name="summary_fit_export_failed">FIT export failed.</string>
+        <string name="summary_fit_export_no_summary">No summary available for export.</string>
+        <string name="summary_fit_export_invalid_timestamps">Session timestamps are invalid for FIT export.</string>
 
 </resources>

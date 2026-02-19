@@ -1590,6 +1590,9 @@ private fun formatWatts(value: Int?, fallback: String): String {
 @Composable
 internal fun SummaryScreen(
     summary: SessionSummary?,
+    fitExportStatusMessage: String?,
+    fitExportStatusIsError: Boolean,
+    onRequestFitExport: () -> Unit,
     onBackToMenu: () -> Unit
 ) {
     val unknown = stringResource(R.string.value_unknown)
@@ -1718,16 +1721,43 @@ internal fun SummaryScreen(
                     }
                 }
 
-                Button(
-                    onClick = onBackToMenu,
-                    modifier = if (layoutMode.isTwoPane()) {
-                        Modifier.fillMaxWidth(0.5f).align(Alignment.CenterHorizontally)
-                    } else {
-                        Modifier.fillMaxWidth()
-                    },
-                    colors = disabledVisibleButtonColors()
+                if (!fitExportStatusMessage.isNullOrBlank()) {
+                    Text(
+                        text = fitExportStatusMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (fitExportStatusIsError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+
+                val buttonModifier = if (layoutMode.isTwoPane()) {
+                    Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally)
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+
+                Row(
+                    modifier = buttonModifier,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(stringResource(R.string.back_to_menu))
+                    Button(
+                        onClick = onRequestFitExport,
+                        enabled = summary != null,
+                        modifier = Modifier.weight(1f),
+                        colors = disabledVisibleButtonColors(),
+                    ) {
+                        Text(stringResource(R.string.summary_export_fit))
+                    }
+                    Button(
+                        onClick = onBackToMenu,
+                        modifier = Modifier.weight(1f),
+                        colors = disabledVisibleButtonColors()
+                    ) {
+                        Text(stringResource(R.string.back_to_menu))
+                    }
                 }
             }
         }

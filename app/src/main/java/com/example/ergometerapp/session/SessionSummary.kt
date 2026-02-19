@@ -7,6 +7,8 @@ package com.example.ergometerapp.session
  * to compute a stable statistic (e.g., no HR samples).
  */
 data class SessionSummary(
+    val startTimestampMillis: Long,
+    val stopTimestampMillis: Long,
     val durationSeconds: Int,
     val actualTss: Double?,
     val avgPower: Int?,

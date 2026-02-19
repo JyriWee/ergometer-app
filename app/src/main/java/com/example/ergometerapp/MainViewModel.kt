@@ -17,6 +17,10 @@ import com.example.ergometerapp.ble.BleDeviceScanner
 import com.example.ergometerapp.ble.HrBleClient
 import com.example.ergometerapp.session.SessionManager
 import com.example.ergometerapp.session.SessionOrchestrator
+import com.example.ergometerapp.session.export.FitExportFailureReason
+import com.example.ergometerapp.session.export.FitExportResult
+import com.example.ergometerapp.session.export.FitExportService
+import com.example.ergometerapp.session.SessionSummary
 import com.example.ergometerapp.workout.editor.WorkoutEditorAction
 import com.example.ergometerapp.workout.editor.WorkoutEditorBuildResult
 import com.example.ergometerapp.workout.editor.WorkoutEditorDraft
@@ -76,6 +80,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val workoutEditorStatusIsErrorState = mutableStateOf(false)
     val workoutEditorHasUnsavedChangesState = mutableStateOf(false)
     val workoutEditorShowSaveBeforeApplyPromptState = mutableStateOf(false)
+    val summaryFitExportStatusMessageState = mutableStateOf<String?>(null)
+    val summaryFitExportStatusIsErrorState = mutableStateOf(false)
     private val selectedFtmsDeviceMacState = mutableStateOf<String?>(null)
     private val selectedHrDeviceMacState = mutableStateOf<String?>(null)
 
@@ -91,6 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var statusProbeSuppressedUntilElapsedMs: Long = 0L
     private var nextWorkoutEditorStepId: Long = 1L
     private var pendingWorkoutEditorApplyAfterSave = false
+    private var pendingFitExportSummary: SessionSummary? = null
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bleDeviceScanner = BleDeviceScanner(appContext, scannerLabel = "picker")
@@ -298,15 +305,72 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onEndSessionAndGoToSummary() {
+        clearSessionFitExportStatus()
         sessionOrchestrator.endSessionAndGoToSummary()
     }
 
     fun onBackToMenu() {
         uiState.summary.value = null
+        clearSessionFitExportStatus()
         uiState.screen.value = AppScreen.MENU
         allowScreenOffCallback?.invoke()
         probeTrainerAvailabilityNow()
         probeHrAvailabilityNow()
+    }
+
+    /**
+     * Prepares a summary FIT export by capturing the current summary snapshot.
+     *
+     * Returns a suggested filename for create-document flows when export can continue.
+     */
+    fun prepareSessionFitExport(): String? {
+        val summary = uiState.summary.value
+        if (summary == null) {
+            setSessionFitExportStatus(
+                message = appContext.getString(R.string.summary_fit_export_no_summary),
+                isError = true,
+            )
+            pendingFitExportSummary = null
+            return null
+        }
+        pendingFitExportSummary = summary
+        clearSessionFitExportStatus()
+        return FitExportService.suggestedFileName(summary)
+    }
+
+    /**
+     * Completes FIT export after the user selects the target document URI.
+     */
+    fun onSessionFitExportTargetSelected(uri: Uri?) {
+        if (uri == null) {
+            pendingFitExportSummary = null
+            return
+        }
+        val summary = pendingFitExportSummary ?: uiState.summary.value
+        pendingFitExportSummary = null
+        when (val result = FitExportService.exportToUri(appContext, uri, summary)) {
+            FitExportResult.Success -> {
+                setSessionFitExportStatus(
+                    message = appContext.getString(R.string.summary_fit_export_success),
+                    isError = false,
+                )
+            }
+
+            is FitExportResult.Failure -> {
+                val message = when (result.reason) {
+                    FitExportFailureReason.NO_SUMMARY ->
+                        appContext.getString(R.string.summary_fit_export_no_summary)
+
+                    FitExportFailureReason.INVALID_TIMESTAMPS ->
+                        appContext.getString(R.string.summary_fit_export_invalid_timestamps)
+
+                    FitExportFailureReason.OUTPUT_STREAM_UNAVAILABLE,
+                    FitExportFailureReason.WRITE_FAILED ->
+                        appContext.getString(R.string.summary_fit_export_failed)
+                }
+                setSessionFitExportStatus(message = message, isError = true)
+            }
+        }
     }
 
     /**
@@ -637,6 +701,17 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private fun clearWorkoutEditorStatus() {
         workoutEditorStatusMessageState.value = null
         workoutEditorStatusIsErrorState.value = false
+    }
+
+    private fun setSessionFitExportStatus(message: String?, isError: Boolean) {
+        summaryFitExportStatusMessageState.value = message
+        summaryFitExportStatusIsErrorState.value = isError
+    }
+
+    private fun clearSessionFitExportStatus() {
+        pendingFitExportSummary = null
+        summaryFitExportStatusMessageState.value = null
+        summaryFitExportStatusIsErrorState.value = false
     }
 
     private fun createStepDraft(type: WorkoutEditorStepType): WorkoutEditorStepDraft {

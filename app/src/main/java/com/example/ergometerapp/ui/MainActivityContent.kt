@@ -58,6 +58,8 @@ internal data class MainActivityUiModel(
     val workoutEditorStatusIsError: Boolean,
     val workoutEditorHasUnsavedChanges: Boolean,
     val workoutEditorShowSaveBeforeApplyPrompt: Boolean,
+    val summaryFitExportStatusMessage: String?,
+    val summaryFitExportStatusIsError: Boolean,
 )
 
 /**
@@ -79,6 +81,7 @@ internal fun MainActivityContent(
     onBackToMenu: () -> Unit,
     onWorkoutEditorAction: (WorkoutEditorAction) -> Unit,
     onRequestWorkoutEditorSave: (String) -> Unit,
+    onRequestSummaryFitExport: () -> Unit,
 ) {
     ErgometerAppTheme {
         MainDestinationContent(
@@ -96,6 +99,7 @@ internal fun MainActivityContent(
             onBackToMenu = onBackToMenu,
             onWorkoutEditorAction = onWorkoutEditorAction,
             onRequestWorkoutEditorSave = onRequestWorkoutEditorSave,
+            onRequestSummaryFitExport = onRequestSummaryFitExport,
         )
     }
 }
@@ -116,6 +120,7 @@ private fun MainDestinationContent(
     onBackToMenu: () -> Unit,
     onWorkoutEditorAction: (WorkoutEditorAction) -> Unit,
     onRequestWorkoutEditorSave: (String) -> Unit,
+    onRequestSummaryFitExport: () -> Unit,
 ) {
     when (model.screen) {
         AppScreen.MENU -> {
@@ -202,7 +207,10 @@ private fun MainDestinationContent(
         AppScreen.SUMMARY -> {
             SummaryScreen(
                 summary = model.summary,
-                onBackToMenu = onBackToMenu
+                fitExportStatusMessage = model.summaryFitExportStatusMessage,
+                fitExportStatusIsError = model.summaryFitExportStatusIsError,
+                onRequestFitExport = onRequestSummaryFitExport,
+                onBackToMenu = onBackToMenu,
             )
         }
     }

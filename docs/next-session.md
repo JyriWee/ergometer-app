@@ -610,3 +610,67 @@
 2. `./gradlew :app:testDebugUnitTest --no-daemon`
 3. `./gradlew :app:lintDebug --no-daemon`
 4. Manual: export one session and verify import on at least one target platform.
+
+## Session Update (2026-02-19 - FTMS Protocol Documentation)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added and finalized `docs/ftms-protocol-reference.md`.
+- Consolidated public FTMS references (profile/service page, assigned numbers, public ICS/TS docs).
+- Documented current app FTMS contract (UUID requirements, setup order, control-point invariants, opcode set).
+- Added interoperability checklist for validating new trainer models.
+
+### Next Task
+- Wait for current smoke-test result and then continue FIT export `v1` implementation (`FileId` + `Activity` + `Session` + `Lap` + `Record`).
+
+### Definition of Done
+- FTMS protocol reference is accurate against current code and public Bluetooth sources.
+- Document distinguishes normative public references vs app-specific behavior.
+- Future maintainer can verify trainer compatibility using the provided checklist.
+- Session handoff data is updated for continuation.
+
+### Risks / Open Questions
+- Public Bluetooth documents do not include full normative payload semantics; deeper details still require licensed spec text.
+- Trainer firmware differences can still require device-level validation despite protocol-level checklist pass.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --no-daemon`
+3. `./gradlew :app:lintDebug --no-daemon`
+4. Manual: verify one trainer end-to-end (`MENU -> CONNECTING -> SESSION -> SUMMARY`) with control-point command acknowledgments.
+
+## Session Update (2026-02-19 - Custom FIT Export v1, no SDK)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Implemented a custom in-repo FIT binary export path (Option B, no Garmin SDK dependency).
+- Added `session/export/FitExportService` + minimal FIT writer with CRC/header/definition/data record support.
+- Export now writes required activity message set: `file_id`, `record`, `lap`, `session`, `activity`.
+- Added Summary UI export action (`Export .fit`) with typed success/error status messaging.
+- Added session timestamps to `SessionSummary` (`startTimestampMillis`, `stopTimestampMillis`) for valid FIT timing fields.
+- Added unit tests for FIT structure/CRC/message coverage and sparse-summary handling.
+
+### Next Task
+- Manual validation of generated `.fit` imports on target platforms (Intervals.icu, Strava, GoldenCheetah).
+- If needed, add richer record timeline export (1 Hz samples) after import compatibility baseline is confirmed.
+
+### Definition of Done
+- Summary screen can export a completed session as `.fit` through create-document flow.
+- Exported file has valid FIT header, header CRC, and file CRC.
+- File contains required activity messages (`file_id`, `record`, `lap`, `session`, `activity`).
+- Compile, unit tests, androidTest compile, and lint pass for touched scope.
+
+### Risks / Open Questions
+- Current export uses a single record sample from summary-level data; downstream chart richness is limited.
+- Some platforms may accept minimal FIT strictly but display reduced analytics until per-sample record timeline is added.
+- Event semantics are intentionally minimal (`activity` + `stop`) and may need tuning for platform-specific expectations.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.export.FitExportServiceTest" --no-daemon`
+3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+4. `./gradlew :app:lintDebug --no-daemon`

@@ -37,6 +37,10 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             viewModel.onWorkoutEditorExportTargetSelected(uri)
         }
+    private val exportSessionFitFile =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+            viewModel.onSessionFitExportTargetSelected(uri)
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,6 +101,8 @@ class MainActivity : ComponentActivity() {
                     workoutEditorStatusIsError = viewModel.workoutEditorStatusIsErrorState.value,
                     workoutEditorHasUnsavedChanges = viewModel.workoutEditorHasUnsavedChangesState.value,
                     workoutEditorShowSaveBeforeApplyPrompt = viewModel.workoutEditorShowSaveBeforeApplyPromptState.value,
+                    summaryFitExportStatusMessage = viewModel.summaryFitExportStatusMessageState.value,
+                    summaryFitExportStatusIsError = viewModel.summaryFitExportStatusIsErrorState.value,
                 ),
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                 onFtpInputChanged = { input -> viewModel.onFtpInputChanged(input) },
@@ -117,6 +123,10 @@ class MainActivity : ComponentActivity() {
                 },
                 onRequestWorkoutEditorSave = { suggestedFileName ->
                     exportWorkoutFile.launch(suggestedFileName)
+                },
+                onRequestSummaryFitExport = {
+                    viewModel.prepareSessionFitExport()
+                        ?.let { suggestedFileName -> exportSessionFitFile.launch(suggestedFileName) }
                 },
             )
         }

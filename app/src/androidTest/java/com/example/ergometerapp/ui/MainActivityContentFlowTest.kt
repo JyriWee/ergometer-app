@@ -38,6 +38,7 @@ class MainActivityContentFlowTest {
                 onBackToMenu = {},
                 onWorkoutEditorAction = {},
                 onRequestWorkoutEditorSave = {},
+                onRequestSummaryFitExport = {},
             )
         }
 
@@ -62,6 +63,8 @@ class MainActivityContentFlowTest {
             modelState.value = baseModel(
                 screen = AppScreen.SUMMARY,
                 summary = SessionSummary(
+                    startTimestampMillis = 1_700_000_000_000L,
+                    stopTimestampMillis = 1_700_000_120_000L,
                     durationSeconds = 120,
                     actualTss = 3.3,
                     avgPower = 200,
@@ -124,6 +127,8 @@ class MainActivityContentFlowTest {
             workoutEditorStatusIsError = false,
             workoutEditorHasUnsavedChanges = false,
             workoutEditorShowSaveBeforeApplyPrompt = false,
+            summaryFitExportStatusMessage = null,
+            summaryFitExportStatusIsError = false,
         )
     }
 }
