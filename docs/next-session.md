@@ -4,27 +4,19 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Continue landscape/tablet tuning for `SESSION` screen; `MENU` and `WORKOUT_EDITOR` landscape are accepted baseline.
+- next task: Expand on-device instrumentation coverage for interactive `MENU` picker behavior while keeping smoke runtime fast.
 - DoD:
-  - Shared `AdaptiveLayoutMode` resolver is used by all primary screens.
-  - `MENU` two-pane behavior is validated on-device and accepted (tablet landscape).
-  - `SESSION` uses two-pane structure on medium/expanded windows and keeps compact flow unchanged.
-  - `SUMMARY` uses one-column metrics on compact and two-column metrics on medium/expanded.
-  - `WORKOUT_EDITOR` opens with selected workout data by default (when editor draft is pristine), while preserving existing draft edits.
-  - `WORKOUT_EDITOR` two-pane layout is finalized for tablet landscape:
-    - left pane: preview + editor meta/actions/status (sticky pane)
-    - right pane: step cards (scroll pane)
-    - two-row step action buttons and single-row numeric inputs for Steady/Ramp/Intervals
-  - CI smoke command fix remains active and `Android Build` checks pass for PR `#30`.
-  - Run deferred manual picker verification when multi-HR hardware is available.
+  - `MainActivityContentFlowTest` includes picker-state coverage for scanning and close states.
+  - Local on-device run (`SM-X210`) passes with no instrumentation failures.
+  - Existing flow anchors (`MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY`) remain green.
+  - Keep picker assertions resilient to animated scanning dots (substring-based status assertion).
 - risks:
-  - `WORKOUT_EDITOR` compact labels are optimized for tablet landscape; phone-landscape may still need separate tuning later.
-  - Single-row Intervals inputs are dense; very narrow windows may require fallback or horizontal scroll in future.
-  - Two-pane content density may require spacing tweaks after real-device landscape checks.
-  - Editor right pane can look sparse when no validation or preview content is present.
-  - CI emulator startup remains environment dependent.
+  - Animated scanning status text can be brittle if tests assert full exact text.
+  - Instrumentation suite is still intentionally small; edge BLE interaction paths remain mostly manual.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
+  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+  - `./gradlew connectedDebugAndroidTest --no-daemon`
   - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
   - `./gradlew :app:lintDebug --no-daemon`
   - `gh pr checks 30`
@@ -46,6 +38,11 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- `MENU` picker instrumentation coverage:
+  - Added `menuPickerScanAndCloseStatesRenderExpectedActions` in `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`.
+  - Covers active picker title, scanning status anchor, `Stop scan` action, failed scan status, and `Close picker` action.
+  - Validation:
+    - `./gradlew connectedDebugAndroidTest --no-daemon` on `SM-X210` (3 tests, 0 failures).
 - Workout editor unsaved-state visual cue:
   - `Unsaved changes` indicator now uses an explicit amber accent (theme-aware dark/light variants).
   - Kept indicator static (no blink) to avoid distraction and preserve readability/accessibility.

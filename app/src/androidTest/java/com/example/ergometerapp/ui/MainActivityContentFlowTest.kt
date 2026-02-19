@@ -6,6 +6,7 @@ import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
 import com.example.ergometerapp.AppScreen
+import com.example.ergometerapp.DeviceSelectionKind
 import com.example.ergometerapp.R
 import com.example.ergometerapp.session.SessionPhase
 import com.example.ergometerapp.session.SessionSummary
@@ -79,6 +80,64 @@ class MainActivityContentFlowTest {
             )
         }
         composeRule.onNodeWithText(composeRule.activity.getString(R.string.summary_duration)).assertIsDisplayed()
+    }
+
+    @Test
+    fun menuPickerScanAndCloseStatesRenderExpectedActions() {
+        val modelState = mutableStateOf(baseModel(screen = AppScreen.MENU))
+
+        composeRule.setContent {
+            MainActivityContent(
+                model = modelState.value,
+                onSelectWorkoutFile = {},
+                onFtpInputChanged = {},
+                onSearchFtmsDevices = {},
+                onSearchHrDevices = {},
+                onScannedDeviceSelected = {},
+                onDismissDeviceSelection = {},
+                onDismissConnectionIssue = {},
+                onSearchFtmsDevicesFromConnectionIssue = {},
+                onStartSession = {},
+                onEndSession = {},
+                onBackToMenu = {},
+                onWorkoutEditorAction = {},
+                onRequestWorkoutEditorSave = {},
+                onRequestSummaryFitExport = {},
+            )
+        }
+
+        composeRule.runOnIdle {
+            modelState.value = baseModel(screen = AppScreen.MENU).copy(
+                activeDeviceSelectionKind = DeviceSelectionKind.FTMS,
+                deviceScanInProgress = true,
+                deviceScanStopEnabled = false,
+                deviceScanStatus = composeRule.activity.getString(R.string.menu_device_scan_status_scanning),
+            )
+        }
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.menu_trainer_picker_title)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText("Scanning nearby BLE devices", substring = true).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.menu_cancel_device_scan)
+        ).assertIsDisplayed()
+
+        composeRule.runOnIdle {
+            modelState.value = baseModel(screen = AppScreen.MENU).copy(
+                activeDeviceSelectionKind = DeviceSelectionKind.FTMS,
+                deviceScanInProgress = false,
+                deviceScanStopEnabled = true,
+                deviceScanStatus = composeRule.activity.getString(R.string.menu_device_scan_status_failed),
+            )
+        }
+
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.menu_device_scan_status_failed)
+        ).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            composeRule.activity.getString(R.string.menu_close_device_picker)
+        ).assertIsDisplayed()
     }
 
     private fun baseModel(
