@@ -224,6 +224,7 @@ internal fun WorkoutProfileChart(
                 if (currentTargetWatts != null && currentTargetWatts > 0) {
                     drawCurrentTargetLabel(
                         targetWatts = currentTargetWatts,
+                        ftpWatts = ftpWatts,
                         textColor = targetLabelTextColor,
                         backgroundColor = targetLabelBackgroundColor,
                         cursorX = cursorX,
@@ -438,6 +439,7 @@ private fun DrawScope.drawGuideAxisLabels(
 
 private fun DrawScope.drawCurrentTargetLabel(
     targetWatts: Int,
+    ftpWatts: Int,
     textColor: Color,
     backgroundColor: Color,
     cursorX: Float,
@@ -446,7 +448,9 @@ private fun DrawScope.drawCurrentTargetLabel(
     plotTop: Float,
     plotBottom: Float,
 ) {
-    val label = "$targetWatts W"
+    val targetWattsLabel = "$targetWatts W"
+    val safeFtpWatts = ftpWatts.coerceAtLeast(1)
+    val targetPercentLabel = "${((targetWatts.toDouble() / safeFtpWatts.toDouble()) * 100.0).roundToInt()}%"
     val labelPaint = Paint().apply {
         isAntiAlias = true
         color = textColor.toArgb()
@@ -454,7 +458,8 @@ private fun DrawScope.drawCurrentTargetLabel(
         textAlign = Paint.Align.LEFT
         typeface = android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD)
     }
-    val labelWidth = labelPaint.measureText(label)
+    val targetWattsLabelWidth = labelPaint.measureText(targetWattsLabel)
+    val targetPercentLabelWidth = labelPaint.measureText(targetPercentLabel)
     val fontMetrics = labelPaint.fontMetrics
     val labelHeight = fontMetrics.descent - fontMetrics.ascent
     val horizontalPadding = 6.dp.toPx()
@@ -462,30 +467,55 @@ private fun DrawScope.drawCurrentTargetLabel(
     val margin = 6.dp.toPx()
     val topInset = 4.dp.toPx()
     val corner = 6.dp.toPx()
+    val labelGap = 3.dp.toPx()
     val boxHeight = labelHeight + verticalPadding * 2
-    val boxWidth = labelWidth + horizontalPadding * 2
+    val targetWattsBoxWidth = targetWattsLabelWidth + horizontalPadding * 2
+    val targetPercentBoxWidth = targetPercentLabelWidth + horizontalPadding * 2
+    val stackWidth = maxOf(targetWattsBoxWidth, targetPercentBoxWidth)
+    val stackHeight = boxHeight * 2f + labelGap
 
-    val desiredX = cursorX + margin
-    val maxX = chartRight - boxWidth
-    val boxLeft = desiredX.coerceIn(plotLeft, maxX.coerceAtLeast(plotLeft))
-    val maxTop = plotBottom - boxHeight
-    val boxTop = (plotTop + topInset).coerceIn(plotTop, maxTop.coerceAtLeast(plotTop))
+    val stackDesiredX = cursorX + margin
+    val stackMaxX = chartRight - stackWidth
+    val stackLeft = stackDesiredX.coerceIn(plotLeft, stackMaxX.coerceAtLeast(plotLeft))
+    val maxTop = plotBottom - stackHeight
+    val stackTop = (plotTop + topInset).coerceIn(plotTop, maxTop.coerceAtLeast(plotTop))
+
+    val wattsBoxLeft = stackLeft
+    val wattsBoxTop = stackTop
+    val percentBoxLeft = stackLeft
+    val percentBoxTop = stackTop + boxHeight + labelGap
 
     drawRoundRect(
         color = backgroundColor,
-        topLeft = androidx.compose.ui.geometry.Offset(boxLeft, boxTop),
+        topLeft = androidx.compose.ui.geometry.Offset(wattsBoxLeft, wattsBoxTop),
         size = androidx.compose.ui.geometry.Size(
-            width = boxWidth,
+            width = targetWattsBoxWidth,
+            height = boxHeight,
+        ),
+        cornerRadius = CornerRadius(corner, corner),
+    )
+    drawRoundRect(
+        color = backgroundColor,
+        topLeft = androidx.compose.ui.geometry.Offset(percentBoxLeft, percentBoxTop),
+        size = androidx.compose.ui.geometry.Size(
+            width = targetPercentBoxWidth,
             height = boxHeight,
         ),
         cornerRadius = CornerRadius(corner, corner),
     )
 
-    val textBaseline = boxTop + verticalPadding - fontMetrics.ascent
+    val wattsTextBaseline = wattsBoxTop + verticalPadding - fontMetrics.ascent
+    val percentTextBaseline = percentBoxTop + verticalPadding - fontMetrics.ascent
     drawContext.canvas.nativeCanvas.drawText(
-        label,
-        boxLeft + horizontalPadding,
-        textBaseline,
+        targetWattsLabel,
+        wattsBoxLeft + horizontalPadding,
+        wattsTextBaseline,
+        labelPaint,
+    )
+    drawContext.canvas.nativeCanvas.drawText(
+        targetPercentLabel,
+        percentBoxLeft + horizontalPadding,
+        percentTextBaseline,
         labelPaint,
     )
 }

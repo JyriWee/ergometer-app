@@ -711,3 +711,57 @@
 2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.export.FitExportServiceTest" --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest.timelineCapture_isLimitedToOneSamplePerSecond" --no-daemon`
 3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
 4. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - Session Chart Cursor FTP Label)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added a live FTP percentage label next to the session chart cursor target label.
+- Cursor labels now show:
+  - right side: current target watts (`W`)
+  - left side: current target relative FTP (`%`)
+- Kept label rendering resilient for narrow chart widths by clamping both labels within chart bounds.
+
+### Next Task
+- Practical UI check on device during an active session to confirm readability and non-overlap at low and high target powers.
+
+### Definition of Done
+- Session chart cursor shows watts and FTP% simultaneously at the same vertical level.
+- Existing chart behavior and interactions remain unchanged.
+- Compile and lint pass after the change.
+
+### Risks / Open Questions
+- On extremely narrow layouts, labels may still feel visually dense even though they stay in bounds.
+- If needed, future refinement can hide one label under tight width constraints.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - Cursor Label Placement Adjustment)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Adjusted session chart live cursor labels to reduce overlap risk:
+  - watts label remains on the right side of cursor
+  - FTP percent label is now stacked directly below the watts label on the right side
+- Kept bounds clamping so stacked labels remain inside chart drawing area.
+
+### Next Task
+- Practical readability check during workout execution on tablet and phone portrait.
+
+### Definition of Done
+- Cursor labels show `W` and `%` as a right-side vertical stack.
+- No clipping or overlap regressions in normal session chart sizes.
+- Compile and lint pass.
+
+### Risks / Open Questions
+- In very short chart heights the stacked labels may still feel dense; optional future fallback is hiding `%` label under tight height constraints.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:lintDebug --no-daemon`
