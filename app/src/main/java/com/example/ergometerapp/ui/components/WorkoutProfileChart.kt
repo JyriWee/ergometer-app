@@ -6,10 +6,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -17,6 +19,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -29,6 +32,8 @@ private const val CHART_HEIGHT_DP = 160
 private const val MAX_RELATIVE_POWER_DATA = 2.0
 private const val DEFAULT_RENDER_MAX_RELATIVE_POWER = 1.5
 private const val HIGH_INTENSITY_RENDER_MAX_RELATIVE_POWER = 2.0
+private val CHART_LEFT_AXIS_WIDTH = 42.dp
+private val CHART_RIGHT_AXIS_WIDTH = 58.dp
 private val BASE_GUIDE_RELATIVE_POWERS = listOf(0.5, 0.75, 1.0, 1.25, 1.5)
 
 internal enum class SegmentKind {
@@ -58,11 +63,14 @@ internal fun WorkoutProfileChart(
     modifier: Modifier = Modifier,
     elapsedSec: Int? = null,
     currentTargetWatts: Int? = null,
+    highlightedSegmentIndices: Set<Int> = emptySet(),
+    onSegmentTap: ((Int) -> Unit)? = null,
     chartHeight: Dp = CHART_HEIGHT_DP.dp,
 ) {
     val segments = remember(workout) { buildWorkoutProfileSegments(workout) }
     val guideRelativePowers = remember(segments) { guideRelativePowersForSegments(segments) }
     val renderMaxRelativePower = guideRelativePowers.lastOrNull() ?: DEFAULT_RENDER_MAX_RELATIVE_POWER
+    val totalDurationSec = remember(segments) { segments.sumOf { it.durationSec }.coerceAtLeast(1) }
     val semanticsDescription =
         "Workout profile chart, ${segments.size} segments, ftp ${ftpWatts.coerceAtLeast(1)} watts"
 
@@ -88,10 +96,39 @@ internal fun WorkoutProfileChart(
         val targetLabelTextColor = MaterialTheme.colorScheme.onSurface
         val targetLabelBackgroundColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.82f)
 
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val totalDurationSec = segments.sumOf { it.durationSec }.coerceAtLeast(1)
-            val leftAxisWidth = 42.dp.toPx()
-            val rightAxisWidth = 58.dp.toPx()
+        Canvas(
+            modifier = Modifier
+                .fillMaxSize()
+                .let { canvasModifier ->
+                    if (onSegmentTap == null) {
+                        canvasModifier
+                    } else {
+                        canvasModifier.pointerInput(segments, totalDurationSec) {
+                            detectTapGestures { tapOffset ->
+                                val leftAxisWidth = CHART_LEFT_AXIS_WIDTH.value * density
+                                val rightAxisWidth = CHART_RIGHT_AXIS_WIDTH.value * density
+                                val plotLeft = leftAxisWidth
+                                val plotRight = (size.width - rightAxisWidth).coerceAtLeast(plotLeft + 1f)
+                                val plotWidth = (plotRight - plotLeft).coerceAtLeast(1f)
+                                if (tapOffset.x !in plotLeft..plotRight) return@detectTapGestures
+
+                                val relativeX = ((tapOffset.x - plotLeft) / plotWidth).coerceIn(0f, 1f)
+                                val tapSecond = (relativeX * totalDurationSec.toFloat()).toInt()
+                                    .coerceIn(0, totalDurationSec - 1)
+                                val tappedIndex = segmentIndexAtSecond(
+                                    segments = segments,
+                                    elapsedSec = tapSecond,
+                                )
+                                if (tappedIndex >= 0) {
+                                    onSegmentTap(tappedIndex)
+                                }
+                            }
+                        }
+                    }
+                }
+        ) {
+            val leftAxisWidth = CHART_LEFT_AXIS_WIDTH.toPx()
+            val rightAxisWidth = CHART_RIGHT_AXIS_WIDTH.toPx()
             val topPadding = 8.dp.toPx()
             val bottomPadding = 8.dp.toPx()
             val plotLeft = leftAxisWidth
@@ -110,12 +147,12 @@ internal fun WorkoutProfileChart(
                 plotBottom = plotBottom,
             )
 
-            segments.forEach { segment ->
+            segments.forEachIndexed { segmentIndex, segment ->
                 val startX = plotLeft +
                     (segment.startSec.toFloat() / totalDurationSec.toFloat()) * plotWidth
                 val endX = plotLeft +
                     ((segment.startSec + segment.durationSec).toFloat() / totalDurationSec.toFloat()) * plotWidth
-                if (endX <= startX) return@forEach
+                if (endX <= startX) return@forEachIndexed
 
                 when (segment.kind) {
                     SegmentKind.FREERIDE -> {
@@ -134,8 +171,8 @@ internal fun WorkoutProfileChart(
 
                     SegmentKind.RAMP,
                     SegmentKind.STEADY -> {
-                        val startRel = segment.startPowerRelFtp ?: return@forEach
-                        val endRel = segment.endPowerRelFtp ?: return@forEach
+                        val startRel = segment.startPowerRelFtp ?: return@forEachIndexed
+                        val endRel = segment.endPowerRelFtp ?: return@forEachIndexed
                         val startY = yForPower(
                             relativePower = startRel,
                             renderMaxRelativePower = renderMaxRelativePower,
@@ -159,6 +196,18 @@ internal fun WorkoutProfileChart(
                         }
                         drawPath(path = path, color = color)
                     }
+                }
+
+                if (segmentIndex in highlightedSegmentIndices) {
+                    val highlightColor = cursorColor.copy(alpha = 0.26f)
+                    drawRect(
+                        color = highlightColor,
+                        topLeft = Offset(startX, plotTop),
+                        size = androidx.compose.ui.geometry.Size(
+                            width = endX - startX,
+                            height = plotBottom - plotTop,
+                        ),
+                    )
                 }
             }
 
@@ -198,6 +247,16 @@ internal fun WorkoutProfileChart(
             )
         }
     }
+}
+
+private fun segmentIndexAtSecond(
+    segments: List<WorkoutProfileSegment>,
+    elapsedSec: Int,
+): Int {
+    if (segments.isEmpty()) return -1
+    return segments.indexOfFirst { segment ->
+        elapsedSec >= segment.startSec && elapsedSec < segment.startSec + segment.durationSec
+    }.takeIf { it >= 0 } ?: (segments.lastIndex)
 }
 
 internal fun buildWorkoutProfileSegments(workout: WorkoutFile): List<WorkoutProfileSegment> {

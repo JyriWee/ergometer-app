@@ -34,6 +34,11 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -90,6 +95,51 @@ internal fun WorkoutEditorScreen(
     val plannedTss = previewWorkout?.let {
         WorkoutPlannedTssCalculator.calculate(workout = it, ftpWatts = ftpWatts)
     }
+    var selectedStepId by remember { mutableStateOf<Long?>(null) }
+    var pendingAutoSelectStepCount by remember { mutableStateOf<Int?>(null) }
+    var pendingSelectLastStep by remember { mutableStateOf(false) }
+    var showBackWithUnsavedPrompt by remember { mutableStateOf(false) }
+    LaunchedEffect(draft.steps) {
+        val pendingStepCount = pendingAutoSelectStepCount
+        if (pendingStepCount != null && draft.steps.size >= pendingStepCount && draft.steps.isNotEmpty()) {
+            selectedStepId = draft.steps.last().id
+            pendingAutoSelectStepCount = null
+            return@LaunchedEffect
+        }
+        if (pendingSelectLastStep) {
+            selectedStepId = draft.steps.lastOrNull()?.id
+            pendingSelectLastStep = false
+            return@LaunchedEffect
+        }
+        selectedStepId = when {
+            draft.steps.isEmpty() -> null
+            selectedStepId == null -> draft.steps.first().id
+            draft.steps.any { it.id == selectedStepId } -> selectedStepId
+            else -> draft.steps.first().id
+        }
+    }
+    val selectedStepIndex = remember(draft.steps, selectedStepId) {
+        draft.steps.indexOfFirst { it.id == selectedStepId }
+    }
+    val selectedStep = selectedStepIndex
+        .takeIf { it >= 0 }
+        ?.let { draft.steps[it] }
+    val segmentStepIds = remember(draft.steps, previewWorkout) {
+        if (previewWorkout == null) {
+            emptyList()
+        } else {
+            buildEditorSegmentStepIds(draft)
+        }
+    }
+    val highlightedSegmentIndices = remember(segmentStepIds, selectedStepId) {
+        if (selectedStepId == null) {
+            emptySet()
+        } else {
+            segmentStepIds.mapIndexedNotNull { index, stepId ->
+                index.takeIf { stepId == selectedStepId }
+            }.toSet()
+        }
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -125,7 +175,13 @@ internal fun WorkoutEditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
-                    onClick = { onAction(WorkoutEditorAction.BackToMenu) },
+                    onClick = {
+                        if (hasUnsavedChanges) {
+                            showBackWithUnsavedPrompt = true
+                        } else {
+                            onAction(WorkoutEditorAction.BackToMenu)
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     ActionButtonLabel(
@@ -236,13 +292,62 @@ internal fun WorkoutEditorScreen(
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
-            draft.steps.forEachIndexed { index, step ->
+            if (selectedStep != null && selectedStepIndex >= 0) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Button(
+                        onClick = {
+                            if (selectedStepIndex > 0) {
+                                selectedStepId = draft.steps[selectedStepIndex - 1].id
+                            }
+                        },
+                        enabled = selectedStepIndex > 0,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.workout_editor_prev_step))
+                    }
+                    Text(
+                        text = stringResource(
+                            R.string.workout_editor_selected_step_position,
+                            selectedStepIndex + 1,
+                            draft.steps.size,
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Button(
+                        onClick = {
+                            if (selectedStepIndex < draft.steps.lastIndex) {
+                                selectedStepId = draft.steps[selectedStepIndex + 1].id
+                            }
+                        },
+                        enabled = selectedStepIndex < draft.steps.lastIndex,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        Text(stringResource(R.string.workout_editor_next_step))
+                    }
+                }
+
                 WorkoutEditorStepCard(
-                    step = step,
-                    index = index,
-                    onAction = onAction,
+                    step = selectedStep,
+                    index = selectedStepIndex,
+                    onAction = { action ->
+                        if (action is WorkoutEditorAction.DeleteStep) {
+                            pendingSelectLastStep = true
+                        }
+                        onAction(action)
+                    },
                     useCompactLabels = useCompactActionLabels,
                     useTwoColumnActionLayout = useCompactActionLabels,
+                )
+            } else {
+                Text(
+                    text = stringResource(R.string.workout_editor_no_steps_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
 
@@ -251,19 +356,28 @@ internal fun WorkoutEditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Button(
-                    onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.STEADY)) },
+                    onClick = {
+                        pendingAutoSelectStepCount = draft.steps.size + 1
+                        onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.STEADY))
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(R.string.workout_editor_add_steady))
                 }
                 Button(
-                    onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.RAMP)) },
+                    onClick = {
+                        pendingAutoSelectStepCount = draft.steps.size + 1
+                        onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.RAMP))
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(R.string.workout_editor_add_ramp))
                 }
                 Button(
-                    onClick = { onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.INTERVALS)) },
+                    onClick = {
+                        pendingAutoSelectStepCount = draft.steps.size + 1
+                        onAction(WorkoutEditorAction.AddStep(WorkoutEditorStepType.INTERVALS))
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text(stringResource(R.string.workout_editor_add_intervals))
@@ -305,6 +419,12 @@ internal fun WorkoutEditorScreen(
                         WorkoutProfileChart(
                             workout = previewWorkout,
                             ftpWatts = ftpWatts,
+                            highlightedSegmentIndices = highlightedSegmentIndices,
+                            onSegmentTap = { segmentIndex ->
+                                segmentStepIds.getOrNull(segmentIndex)?.let { tappedStepId ->
+                                    selectedStepId = tappedStepId
+                                }
+                            },
                         )
                     }
                 }
@@ -414,6 +534,43 @@ internal fun WorkoutEditorScreen(
                     onClick = { onAction(WorkoutEditorAction.ConfirmApplyWithoutSaving) },
                 ) {
                     Text(stringResource(R.string.workout_editor_save_prompt_apply_without_save))
+                }
+            },
+        )
+    }
+
+    if (showBackWithUnsavedPrompt) {
+        AlertDialog(
+            onDismissRequest = { showBackWithUnsavedPrompt = false },
+            title = { Text(stringResource(R.string.workout_editor_back_prompt_title)) },
+            text = { Text(stringResource(R.string.workout_editor_back_prompt_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showBackWithUnsavedPrompt = false
+                        onAction(WorkoutEditorAction.ConfirmApplyWithoutSaving)
+                    },
+                ) {
+                    Text(stringResource(R.string.workout_editor_back_prompt_apply_and_back))
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(
+                        onClick = {
+                            showBackWithUnsavedPrompt = false
+                            onAction(WorkoutEditorAction.BackToMenu)
+                        },
+                    ) {
+                        Text(stringResource(R.string.workout_editor_back_prompt_discard))
+                    }
+                    TextButton(
+                        onClick = {
+                            showBackWithUnsavedPrompt = false
+                        },
+                    ) {
+                        Text(stringResource(R.string.workout_editor_back_prompt_keep_editing))
+                    }
                 }
             },
         )
@@ -993,4 +1150,40 @@ private fun workoutEditorPaneWeights(layoutMode: AdaptiveLayoutMode): AdaptivePa
         AdaptiveLayoutMode.SINGLE_PANE_DENSE,
         -> layoutMode.paneWeights()
     }
+}
+
+/**
+ * Builds step-id mapping for rendered chart segments so chart taps can select the source step.
+ *
+ * Interval steps are expanded to ON/OFF segment pairs to match chart rendering semantics.
+ */
+private fun buildEditorSegmentStepIds(draft: WorkoutEditorDraft): List<Long> {
+    val segmentStepIds = mutableListOf<Long>()
+    draft.steps.forEach { step ->
+        when (step) {
+            is WorkoutEditorStepDraft.Steady -> {
+                if (step.durationSecText.toIntOrNull()?.let { it > 0 } == true) {
+                    segmentStepIds += step.id
+                }
+            }
+
+            is WorkoutEditorStepDraft.Ramp -> {
+                if (step.durationSecText.toIntOrNull()?.let { it > 0 } == true) {
+                    segmentStepIds += step.id
+                }
+            }
+
+            is WorkoutEditorStepDraft.Intervals -> {
+                val repeatCount = step.repeatText.toIntOrNull()?.takeIf { it > 0 } ?: return@forEach
+                val onDurationValid = step.onDurationSecText.toIntOrNull()?.let { it > 0 } == true
+                val offDurationValid = step.offDurationSecText.toIntOrNull()?.let { it > 0 } == true
+                if (!onDurationValid || !offDurationValid) return@forEach
+                repeat(repeatCount) {
+                    segmentStepIds += step.id
+                    segmentStepIds += step.id
+                }
+            }
+        }
+    }
+    return segmentStepIds
 }

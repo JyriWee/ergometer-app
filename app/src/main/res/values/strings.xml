@@ -70,6 +70,10 @@
         <string name="workout_editor_author">Author</string>
         <string name="workout_editor_description">Description</string>
         <string name="workout_editor_steps">Steps</string>
+        <string name="workout_editor_prev_step">Prev step</string>
+        <string name="workout_editor_next_step">Next step</string>
+        <string name="workout_editor_selected_step_position">Step %1$d / %2$d</string>
+        <string name="workout_editor_no_steps_hint">Add at least one step to start editing.</string>
         <string name="workout_editor_add_steady">Add steady step</string>
         <string name="workout_editor_add_ramp">Add ramp step</string>
         <string name="workout_editor_add_intervals">Add intervals step</string>
@@ -117,6 +121,11 @@
         <string name="workout_editor_save_prompt_body">This draft has unsaved changes. Do you want to save it before applying to menu?</string>
         <string name="workout_editor_save_prompt_save_and_apply">Save and apply</string>
         <string name="workout_editor_save_prompt_apply_without_save">Apply without save</string>
+        <string name="workout_editor_back_prompt_title">Leave editor?</string>
+        <string name="workout_editor_back_prompt_body">You have unsaved changes. Apply this draft to menu, discard changes, or keep editing.</string>
+        <string name="workout_editor_back_prompt_apply_and_back">Apply and go back</string>
+        <string name="workout_editor_back_prompt_discard">Discard changes</string>
+        <string name="workout_editor_back_prompt_keep_editing">Keep editing</string>
 
         <!-- Session -->
         <string name="session_phase_idle">Idle</string>

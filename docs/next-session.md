@@ -46,6 +46,16 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Workout editor back-navigation unsaved guard:
+  - Added explicit unsaved-changes dialog when pressing editor `Back`.
+  - New options:
+    - `Apply and go back` (applies draft to MENU selection and exits editor)
+    - `Discard changes` (returns to MENU without applying draft)
+    - `Keep editing` (stays in editor)
+  - Behavior aligns back-navigation with user expectation that unsaved edits must be acknowledged explicitly.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - Workout editor file-load flow parity with MENU selector:
   - `Load` action in workout editor now opens the same document picker flow as MENU `Select workout`.
   - When a file is selected while `WORKOUT_EDITOR` is open, import result is immediately reflected in editor draft state.
