@@ -20,7 +20,7 @@ import com.example.ergometerapp.session.SessionOrchestrator
 import com.example.ergometerapp.session.export.FitExportFailureReason
 import com.example.ergometerapp.session.export.FitExportResult
 import com.example.ergometerapp.session.export.FitExportService
-import com.example.ergometerapp.session.SessionSummary
+import com.example.ergometerapp.session.export.SessionExportSnapshot
 import com.example.ergometerapp.workout.editor.WorkoutEditorAction
 import com.example.ergometerapp.workout.editor.WorkoutEditorBuildResult
 import com.example.ergometerapp.workout.editor.WorkoutEditorDraft
@@ -97,7 +97,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private var statusProbeSuppressedUntilElapsedMs: Long = 0L
     private var nextWorkoutEditorStepId: Long = 1L
     private var pendingWorkoutEditorApplyAfterSave = false
-    private var pendingFitExportSummary: SessionSummary? = null
+    private var pendingFitExportSnapshot: SessionExportSnapshot? = null
     private var closed = false
     private val mainHandler = Handler(Looper.getMainLooper())
     private val bleDeviceScanner = BleDeviceScanner(appContext, scannerLabel = "picker")
@@ -324,18 +324,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      * Returns a suggested filename for create-document flows when export can continue.
      */
     fun prepareSessionFitExport(): String? {
-        val summary = uiState.summary.value
-        if (summary == null) {
+        val snapshot = sessionOrchestrator.getSessionExportSnapshot()
+        if (snapshot == null) {
             setSessionFitExportStatus(
                 message = appContext.getString(R.string.summary_fit_export_no_summary),
                 isError = true,
             )
-            pendingFitExportSummary = null
+            pendingFitExportSnapshot = null
             return null
         }
-        pendingFitExportSummary = summary
         clearSessionFitExportStatus()
-        return FitExportService.suggestedFileName(summary)
+        pendingFitExportSnapshot = snapshot
+        return FitExportService.suggestedFileName(snapshot.summary)
     }
 
     /**
@@ -343,12 +343,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
      */
     fun onSessionFitExportTargetSelected(uri: Uri?) {
         if (uri == null) {
-            pendingFitExportSummary = null
+            pendingFitExportSnapshot = null
             return
         }
-        val summary = pendingFitExportSummary ?: uiState.summary.value
-        pendingFitExportSummary = null
-        when (val result = FitExportService.exportToUri(appContext, uri, summary)) {
+        val snapshot = pendingFitExportSnapshot ?: sessionOrchestrator.getSessionExportSnapshot()
+        pendingFitExportSnapshot = null
+        when (val result = FitExportService.exportToUri(appContext, uri, snapshot)) {
             FitExportResult.Success -> {
                 setSessionFitExportStatus(
                     message = appContext.getString(R.string.summary_fit_export_success),
@@ -709,7 +709,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private fun clearSessionFitExportStatus() {
-        pendingFitExportSummary = null
+        pendingFitExportSnapshot = null
         summaryFitExportStatusMessageState.value = null
         summaryFitExportStatusIsErrorState.value = false
     }

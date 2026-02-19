@@ -1,5 +1,6 @@
 package com.example.ergometerapp.session.export
 
+import com.example.ergometerapp.session.SessionSample
 import com.example.ergometerapp.session.SessionSummary
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -22,8 +23,37 @@ class FitExportServiceTest {
             distanceMeters = 2_150,
             totalEnergyKcal = 58,
         )
+        val snapshot = SessionExportSnapshot(
+            summary = summary,
+            timeline = listOf(
+                SessionSample(
+                    timestampMillis = 1_705_000_030_000L,
+                    powerWatts = 180,
+                    cadenceRpm = 82,
+                    heartRateBpm = 136,
+                    distanceMeters = 500,
+                    totalEnergyKcal = 15,
+                ),
+                SessionSample(
+                    timestampMillis = 1_705_000_031_000L,
+                    powerWatts = 185,
+                    cadenceRpm = 83,
+                    heartRateBpm = 137,
+                    distanceMeters = 510,
+                    totalEnergyKcal = 15,
+                ),
+                SessionSample(
+                    timestampMillis = 1_705_000_032_000L,
+                    powerWatts = 190,
+                    cadenceRpm = 84,
+                    heartRateBpm = 138,
+                    distanceMeters = 520,
+                    totalEnergyKcal = 16,
+                ),
+            ),
+        )
 
-        val bytes = FitExportService.buildFitBytes(summary)
+        val bytes = FitExportService.buildFitBytes(snapshot)
 
         assertEquals(14, bytes[0].toInt() and 0xFF)
         assertEquals('.'.code, bytes[8].toInt())
@@ -45,6 +75,8 @@ class FitExportServiceTest {
         val parsedDefinitionMesgNums = parseDefinitionMesgNums(bytes)
         val expected = setOf(0, 20, 19, 18, 34)
         assertTrue(parsedDefinitionMesgNums.containsAll(expected))
+        val dataCounts = parseDataMesgCounts(bytes)
+        assertTrue((dataCounts[20] ?: 0) >= 3)
     }
 
     @Test
@@ -63,10 +95,16 @@ class FitExportServiceTest {
             distanceMeters = null,
             totalEnergyKcal = null,
         )
+        val snapshot = SessionExportSnapshot(
+            summary = summary,
+            timeline = emptyList(),
+        )
 
-        val bytes = FitExportService.buildFitBytes(summary)
+        val bytes = FitExportService.buildFitBytes(snapshot)
         assertTrue(bytes.isNotEmpty())
         assertEquals('.'.code, bytes[8].toInt())
+        val dataCounts = parseDataMesgCounts(bytes)
+        assertTrue((dataCounts[20] ?: 0) >= 1)
     }
 
     private fun parseDefinitionMesgNums(buffer: ByteArray): Set<Int> {
@@ -118,6 +156,58 @@ class FitExportServiceTest {
         return definitionMesgNums
     }
 
+    private fun parseDataMesgCounts(buffer: ByteArray): Map<Int, Int> {
+        val dataSize = readUInt32LittleEndian(buffer, 4)
+        val dataStart = 14
+        val dataEnd = dataStart + dataSize
+        val mesgByLocal = HashMap<Int, Int>()
+        val fieldBytesByLocal = HashMap<Int, Int>()
+        val countsByMesg = HashMap<Int, Int>()
+
+        var offset = dataStart
+        while (offset < dataEnd) {
+            val header = buffer[offset++].toInt() and 0xFF
+            require((header and 0x80) == 0) { "Compressed timestamp headers are not expected" }
+            val local = header and 0x0F
+            val isDefinition = (header and 0x40) != 0
+            if (isDefinition) {
+                offset += 1
+                val architecture = buffer[offset++].toInt() and 0xFF
+                val mesgNum = if (architecture == 1) {
+                    ((buffer[offset].toInt() and 0xFF) shl 8) or
+                        (buffer[offset + 1].toInt() and 0xFF)
+                } else {
+                    ((buffer[offset + 1].toInt() and 0xFF) shl 8) or
+                        (buffer[offset].toInt() and 0xFF)
+                }
+                offset += 2
+                val fieldCount = buffer[offset++].toInt() and 0xFF
+                var fieldByteSize = 0
+                repeat(fieldCount) {
+                    offset += 1
+                    fieldByteSize += buffer[offset++].toInt() and 0xFF
+                    offset += 1
+                }
+                if ((header and 0x20) != 0) {
+                    val developerFieldCount = buffer[offset++].toInt() and 0xFF
+                    offset += developerFieldCount * 3
+                }
+                mesgByLocal[local] = mesgNum
+                fieldBytesByLocal[local] = fieldByteSize
+            } else {
+                val payloadSize = fieldBytesByLocal[local]
+                    ?: error("Missing local message definition for $local")
+                val mesgNum = mesgByLocal[local]
+                    ?: error("Missing global message mapping for local $local")
+                countsByMesg[mesgNum] = (countsByMesg[mesgNum] ?: 0) + 1
+                offset += payloadSize
+            }
+        }
+
+        require(offset == dataEnd) { "Data section parse ended at unexpected offset" }
+        return countsByMesg
+    }
+
     private fun readUInt16LittleEndian(buffer: ByteArray, offset: Int): Int {
         val lo = buffer[offset].toInt() and 0xFF
         val hi = buffer[offset + 1].toInt() and 0xFF
@@ -153,4 +243,3 @@ class FitExportServiceTest {
         return crc and 0xFFFF
     }
 }
-

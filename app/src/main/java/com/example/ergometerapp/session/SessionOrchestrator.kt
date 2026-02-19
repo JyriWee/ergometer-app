@@ -26,6 +26,7 @@ import com.example.ergometerapp.workout.WorkoutExecutionStepCounter
 import com.example.ergometerapp.workout.WorkoutPlannedTssCalculator
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
+import com.example.ergometerapp.session.export.SessionExportSnapshot
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -242,6 +243,11 @@ class SessionOrchestrator(
         releaseControl(resetDevice = true)
         dumpUiState("endSessionAndGoToSummary")
     }
+
+    /**
+     * Returns the latest session export snapshot after session stop.
+     */
+    fun getSessionExportSnapshot(): SessionExportSnapshot? = sessionManager.buildExportSnapshot()
 
     /**
      * Releases owned resources during activity teardown.

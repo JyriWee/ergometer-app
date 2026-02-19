@@ -45,15 +45,16 @@ object FitExportService {
     fun exportToUri(
         context: Context,
         uri: Uri,
-        summary: SessionSummary?,
+        snapshot: SessionExportSnapshot?,
     ): FitExportResult {
-        val resolvedSummary = summary
+        val resolvedSnapshot = snapshot
             ?: return FitExportResult.Failure(FitExportFailureReason.NO_SUMMARY)
+        val resolvedSummary = resolvedSnapshot.summary
         if (resolvedSummary.stopTimestampMillis < resolvedSummary.startTimestampMillis) {
             return FitExportResult.Failure(FitExportFailureReason.INVALID_TIMESTAMPS)
         }
 
-        val payload = runCatching { buildFitBytes(resolvedSummary) }
+        val payload = runCatching { buildFitBytes(resolvedSnapshot) }
             .getOrElse { throwable ->
                 return FitExportResult.Failure(
                     reason = FitExportFailureReason.WRITE_FAILED,
@@ -75,7 +76,8 @@ object FitExportService {
         }
     }
 
-    internal fun buildFitBytes(summary: SessionSummary): ByteArray {
+    internal fun buildFitBytes(snapshot: SessionExportSnapshot): ByteArray {
+        val summary = snapshot.summary
         val startFit = unixMillisToFitSeconds(summary.startTimestampMillis)
         val stopFit = unixMillisToFitSeconds(summary.stopTimestampMillis)
         val elapsedMillis = (summary.durationSeconds.coerceAtLeast(0).toLong() * 1000L).coerceAtMost(maxUInt32)
@@ -135,13 +137,27 @@ object FitExportService {
         fitWriter.writeDefinition(localMessage = 0, globalMessage = 0, fields = fileIdFields)
         fitWriter.writeData(localMessage = 0, fields = fileIdFields)
 
-        val recordFields = listOf(
-            FitField(number = 253, size = 4, baseType = BaseType.UINT32, value = stopFit),
-            FitField(number = 7, size = 2, baseType = BaseType.UINT16, value = avgPower),
-            FitField(number = 5, size = 4, baseType = BaseType.UINT32, value = totalDistanceCm),
+        val recordDefinition = listOf(
+            FitField(number = 253, size = 4, baseType = BaseType.UINT32, value = null),
+            FitField(number = 3, size = 1, baseType = BaseType.UINT8, value = null),
+            FitField(number = 4, size = 1, baseType = BaseType.UINT8, value = null),
+            FitField(number = 5, size = 4, baseType = BaseType.UINT32, value = null),
+            FitField(number = 7, size = 2, baseType = BaseType.UINT16, value = null),
         )
-        fitWriter.writeDefinition(localMessage = 1, globalMessage = 20, fields = recordFields)
-        fitWriter.writeData(localMessage = 1, fields = recordFields)
+        fitWriter.writeDefinition(localMessage = 1, globalMessage = 20, fields = recordDefinition)
+        val recordSamples = timelineOrFallback(snapshot)
+        recordSamples.forEach { sample ->
+            fitWriter.writeData(
+                localMessage = 1,
+                fields = listOf(
+                    FitField(number = 253, size = 4, baseType = BaseType.UINT32, value = sample.fitTimestamp),
+                    FitField(number = 3, size = 1, baseType = BaseType.UINT8, value = sample.heartRateBpm),
+                    FitField(number = 4, size = 1, baseType = BaseType.UINT8, value = sample.cadenceRpm),
+                    FitField(number = 5, size = 4, baseType = BaseType.UINT32, value = sample.distanceCm),
+                    FitField(number = 7, size = 2, baseType = BaseType.UINT16, value = sample.powerWatts),
+                ),
+            )
+        }
 
         val lapFields = listOf(
             FitField(number = 253, size = 4, baseType = BaseType.UINT32, value = stopFit),
@@ -201,7 +217,48 @@ object FitExportService {
         val seconds = (unixMillis - fitEpochOffsetMillis) / 1000L
         return seconds.coerceIn(0L, maxUInt32)
     }
+
+    private fun timelineOrFallback(snapshot: SessionExportSnapshot): List<FitRecordSample> {
+        val summary = snapshot.summary
+        val startMillis = summary.startTimestampMillis
+        val stopMillis = summary.stopTimestampMillis
+        val samples = snapshot.timeline
+            .asSequence()
+            .map { sample ->
+                val timestampMillis = sample.timestampMillis.coerceIn(startMillis, stopMillis)
+                val fitTimestamp = unixMillisToFitSeconds(timestampMillis)
+                FitRecordSample(
+                    fitTimestamp = fitTimestamp,
+                    powerWatts = sample.powerWatts?.toLong()?.coerceIn(0L, maxUInt16),
+                    cadenceRpm = sample.cadenceRpm?.toLong()?.coerceIn(0L, 0xFFL),
+                    heartRateBpm = sample.heartRateBpm?.toLong()?.coerceIn(0L, 0xFFL),
+                    distanceCm = sample.distanceMeters?.toLong()?.coerceAtLeast(0L)?.times(100L)?.coerceAtMost(maxUInt32),
+                )
+            }
+            .sortedBy { it.fitTimestamp }
+            .distinctBy { it.fitTimestamp }
+            .toList()
+        if (samples.isNotEmpty()) return samples
+
+        return listOf(
+            FitRecordSample(
+                fitTimestamp = unixMillisToFitSeconds(summary.stopTimestampMillis),
+                powerWatts = summary.avgPower?.toLong()?.coerceIn(0L, maxUInt16),
+                cadenceRpm = summary.avgCadence?.toLong()?.coerceIn(0L, 0xFFL),
+                heartRateBpm = summary.avgHeartRate?.toLong()?.coerceIn(0L, 0xFFL),
+                distanceCm = summary.distanceMeters?.toLong()?.coerceAtLeast(0L)?.times(100L)?.coerceAtMost(maxUInt32),
+            ),
+        )
+    }
 }
+
+private data class FitRecordSample(
+    val fitTimestamp: Long,
+    val powerWatts: Long?,
+    val cadenceRpm: Long?,
+    val heartRateBpm: Long?,
+    val distanceCm: Long?,
+)
 
 private data class FitField(
     val number: Int,
@@ -249,12 +306,21 @@ private class FitBinaryWriter(
     fun writeData(localMessage: Int, fields: List<FitField>) {
         val definition = localDefinitions[localMessage]
             ?: error("Missing definition for local message $localMessage")
-        check(definition == fields) {
+        check(hasSameFieldLayout(definition, fields)) {
             "Data fields must match the active local message definition"
         }
         messageBytes.write(localMessage and 0x0F)
         fields.forEach { field ->
             writeFieldValue(field)
+        }
+    }
+
+    private fun hasSameFieldLayout(definition: List<FitField>, data: List<FitField>): Boolean {
+        if (definition.size != data.size) return false
+        return definition.zip(data).all { (expected, actual) ->
+            expected.number == actual.number &&
+                expected.size == actual.size &&
+                expected.baseType == actual.baseType
         }
     }
 

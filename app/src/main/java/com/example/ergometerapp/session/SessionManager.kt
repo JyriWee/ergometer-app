@@ -3,6 +3,7 @@ package com.example.ergometerapp.session
 import android.util.Log
 import com.example.ergometerapp.SessionState
 import com.example.ergometerapp.ftms.IndoorBikeData
+import com.example.ergometerapp.session.export.SessionExportSnapshot
 import java.util.concurrent.Executor
 import java.util.concurrent.Executors
 
@@ -44,6 +45,8 @@ class SessionManager(
     private var latestBikeData: IndoorBikeData? = null
     private var latestHeartRate: Int? = null
     private var sessionStartMillis: Long? = null
+    private val timelineSamples = mutableListOf<SessionSample>()
+    private var lastSampleSecond: Long? = null
 
     private var durationAtStopSec: Int? = null
 
@@ -127,6 +130,7 @@ class SessionManager(
                         ?.let { heartRateStats.add(it) }
                 }
                 latestBikeData?.instantaneousCadenceRpm?.let { cadenceStats.add(it.toInt()) }
+                recordSampleIfDue(nowMillis())
             }
             emitState()
         }
@@ -143,6 +147,7 @@ class SessionManager(
             latestHeartRate = hr
             if (sessionPhase == SessionPhase.RUNNING) {
                 hr?.takeIf { it in 30..220 }?.let { heartRateStats.add(it) }
+                recordSampleIfDue(nowMillis())
             }
 
             emitState()
@@ -199,6 +204,8 @@ class SessionManager(
             latestBikeData = null
             latestHeartRate = null
             durationAtStopSec = null
+            timelineSamples.clear()
+            lastSampleSecond = null
             emitState()
         }
     }
@@ -216,6 +223,7 @@ class SessionManager(
             val start = sessionStartMillis ?: return@runOnMainThread
             val stopTimestampMillis = nowMillis()
             val durationSec = ((stopTimestampMillis - start) / 1000).toInt()
+            recordSampleIfDue(stopTimestampMillis)
 
             durationAtStopSec = durationSec
 
@@ -254,6 +262,24 @@ class SessionManager(
     }
 
     /**
+     * Returns a stable snapshot of collected timeline samples for export use.
+     */
+    fun exportTimelineSnapshot(): List<SessionSample> {
+        return timelineSamples.toList()
+    }
+
+    /**
+     * Builds a single immutable export snapshot after session completion.
+     */
+    fun buildExportSnapshot(): SessionExportSnapshot? {
+        val summary = lastSummary ?: return null
+        return SessionExportSnapshot(
+            summary = summary,
+            timeline = exportTimelineSnapshot(),
+        )
+    }
+
+    /**
      * Persists summary off the main thread so stop-flow UI transitions remain smooth.
      *
      * Invariant: summary publication to UI ([lastSummary], phase, emitted state) is
@@ -267,5 +293,24 @@ class SessionManager(
                 Log.w("SESSION", "Summary persistence failed: ${t.message}")
             }
         }
+    }
+
+    private fun recordSampleIfDue(timestampMillis: Long) {
+        if (sessionPhase != SessionPhase.RUNNING) return
+        val sampleSecond = timestampMillis / 1000L
+        val previousSecond = lastSampleSecond
+        if (previousSecond != null && sampleSecond <= previousSecond) return
+
+        val bikeData = latestBikeData
+        val resolvedHeartRate = latestHeartRate ?: bikeData?.heartRateBpm?.takeIf { it in 30..220 }
+        timelineSamples += SessionSample(
+            timestampMillis = timestampMillis,
+            powerWatts = bikeData?.instantaneousPowerW,
+            cadenceRpm = bikeData?.instantaneousCadenceRpm?.toInt(),
+            heartRateBpm = resolvedHeartRate,
+            distanceMeters = lastDistanceMeters,
+            totalEnergyKcal = lastTotalEnergyKcal,
+        )
+        lastSampleSecond = sampleSecond
     }
 }

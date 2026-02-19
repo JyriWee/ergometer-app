@@ -674,3 +674,40 @@
 2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.export.FitExportServiceTest" --no-daemon`
 3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
 4. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - FIT Timeline Export v1.1)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added per-session timeline model with 1 Hz capture gating:
+  - `SessionSample`
+  - `SessionExportSnapshot`
+- Extended `SessionManager` to collect timestamped telemetry samples during active sessions and expose immutable export snapshots.
+- Updated summary export flow to use snapshot payloads (`summary + timeline`) instead of summary-only payloads.
+- Updated FIT writer to emit multiple `record` messages from session timeline samples.
+- Added fallback record generation when timeline is empty to preserve export compatibility.
+- Added and updated unit tests for:
+  - FIT record timeline emission
+  - SessionManager one-sample-per-second capture behavior
+
+### Next Task
+- Run practical import validation of timeline-rich FIT files on target platforms (Intervals.icu, Strava, GoldenCheetah) and verify charts/timestamps look correct.
+
+### Definition of Done
+- Summary export produces FIT files that include multiple time-ordered `record` messages when telemetry exists.
+- FIT export remains valid when no timeline samples are available (fallback record path).
+- Export UI flow remains unchanged for users (same button and save flow).
+- Compile, unit tests, androidTest compile, and lint pass for touched scope.
+
+### Risks / Open Questions
+- Current timeline is sampled at most once per second using app wall-clock and latest known values; platforms may differ in smoothing expectations.
+- Cadence is exported as integer RPM from truncated FTMS cadence; rounding strategy can be revisited if needed.
+- No pause/resume FIT event stream yet; platforms may still infer timer time differently for complex stop flows.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.export.FitExportServiceTest" --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest.timelineCapture_isLimitedToOneSamplePerSecond" --no-daemon`
+3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+4. `./gradlew :app:lintDebug --no-daemon`
