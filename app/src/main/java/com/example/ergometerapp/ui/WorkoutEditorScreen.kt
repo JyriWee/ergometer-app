@@ -99,7 +99,12 @@ internal fun WorkoutEditorScreen(
     ) {
         val layoutMode = resolveAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
         val showTwoPane = layoutMode.isTwoPane()
-        val paneWeights = layoutMode.paneWeights()
+        val useCompactActionLabels = showTwoPane
+        val paneWeights = if (showTwoPane) {
+            workoutEditorPaneWeights(layoutMode)
+        } else {
+            layoutMode.paneWeights()
+        }
         val contentMaxWidth = if (showTwoPane) WorkoutEditorTwoPaneMaxWidth else WorkoutEditorSinglePaneMaxWidth
 
         val headerAndActionsContent: @Composable ColumnScope.() -> Unit = {
@@ -122,19 +127,31 @@ internal fun WorkoutEditorScreen(
                     onClick = { onAction(WorkoutEditorAction.BackToMenu) },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.workout_editor_back_to_menu))
+                    ActionButtonLabel(
+                        if (useCompactActionLabels) {
+                            stringResource(R.string.workout_editor_back_to_menu_compact)
+                        } else {
+                            stringResource(R.string.workout_editor_back_to_menu)
+                        }
+                    )
                 }
                 Button(
                     onClick = { onAction(WorkoutEditorAction.NewDraft) },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.workout_editor_new))
+                    ActionButtonLabel(stringResource(R.string.workout_editor_new))
                 }
                 Button(
                     onClick = { onAction(WorkoutEditorAction.LoadSelectedWorkout) },
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.workout_editor_load_selected))
+                    ActionButtonLabel(
+                        if (useCompactActionLabels) {
+                            stringResource(R.string.workout_editor_load_selected_compact)
+                        } else {
+                            stringResource(R.string.workout_editor_load_selected)
+                        }
+                    )
                 }
             }
 
@@ -147,14 +164,26 @@ internal fun WorkoutEditorScreen(
                     enabled = validationErrors.isEmpty(),
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.workout_editor_save_zwo))
+                    ActionButtonLabel(
+                        if (useCompactActionLabels) {
+                            stringResource(R.string.workout_editor_save_zwo_compact)
+                        } else {
+                            stringResource(R.string.workout_editor_save_zwo)
+                        }
+                    )
                 }
                 Button(
                     onClick = { onAction(WorkoutEditorAction.ApplyToMenuSelection) },
                     enabled = validationErrors.isEmpty(),
                     modifier = Modifier.weight(1f),
                 ) {
-                    Text(stringResource(R.string.workout_editor_apply_to_menu))
+                    ActionButtonLabel(
+                        if (useCompactActionLabels) {
+                            stringResource(R.string.workout_editor_apply_to_menu_compact)
+                        } else {
+                            stringResource(R.string.workout_editor_apply_to_menu)
+                        }
+                    )
                 }
             }
 
@@ -208,6 +237,7 @@ internal fun WorkoutEditorScreen(
                     step = step,
                     index = index,
                     onAction = onAction,
+                    useCompactLabels = useCompactActionLabels,
                 )
             }
 
@@ -385,6 +415,7 @@ private fun WorkoutEditorStepCard(
     step: WorkoutEditorStepDraft,
     index: Int,
     onAction: (WorkoutEditorAction) -> Unit,
+    useCompactLabels: Boolean,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     Card(
@@ -419,7 +450,11 @@ private fun WorkoutEditorStepCard(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.workout_editor_step_up),
+                        text = if (useCompactLabels) {
+                            stringResource(R.string.workout_editor_step_up_compact)
+                        } else {
+                            stringResource(R.string.workout_editor_step_up)
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         softWrap = false,
@@ -432,7 +467,11 @@ private fun WorkoutEditorStepCard(
                     contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
                 ) {
                     Text(
-                        text = stringResource(R.string.workout_editor_step_down),
+                        text = if (useCompactLabels) {
+                            stringResource(R.string.workout_editor_step_down_compact)
+                        } else {
+                            stringResource(R.string.workout_editor_step_down)
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         softWrap = false,
@@ -445,7 +484,11 @@ private fun WorkoutEditorStepCard(
                     contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
                 ) {
                     Text(
-                        text = stringResource(R.string.workout_editor_step_duplicate),
+                        text = if (useCompactLabels) {
+                            stringResource(R.string.workout_editor_step_duplicate_compact)
+                        } else {
+                            stringResource(R.string.workout_editor_step_duplicate)
+                        },
                         style = MaterialTheme.typography.labelSmall,
                         maxLines = 1,
                         softWrap = false,
@@ -687,3 +730,23 @@ private fun workoutEditorTextFieldColors() = OutlinedTextFieldDefaults.colors(
     unfocusedContainerColor = MaterialTheme.colorScheme.surface,
     cursorColor = MaterialTheme.colorScheme.onSurface,
 )
+
+@Composable
+private fun ActionButtonLabel(text: String) {
+    Text(
+        text = text,
+        maxLines = 1,
+        softWrap = false,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+private fun workoutEditorPaneWeights(layoutMode: AdaptiveLayoutMode): AdaptivePaneWeights {
+    return when (layoutMode) {
+        AdaptiveLayoutMode.TWO_PANE_MEDIUM -> AdaptivePaneWeights(left = 0.52f, right = 0.48f)
+        AdaptiveLayoutMode.TWO_PANE_EXPANDED -> AdaptivePaneWeights(left = 0.45f, right = 0.55f)
+        AdaptiveLayoutMode.SINGLE_PANE,
+        AdaptiveLayoutMode.SINGLE_PANE_DENSE,
+        -> layoutMode.paneWeights()
+    }
+}

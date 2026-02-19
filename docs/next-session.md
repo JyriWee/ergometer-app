@@ -4,17 +4,18 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Continue landscape/tablet tuning with `WORKOUT_EDITOR` first, then `SESSION`; keep `MENU` as accepted baseline.
+- next task: Continue landscape/tablet tuning for `SESSION` screen; `MENU` and `WORKOUT_EDITOR` landscape are accepted baseline.
 - DoD:
   - Shared `AdaptiveLayoutMode` resolver is used by all primary screens.
   - `MENU` two-pane behavior is validated on-device and accepted (tablet landscape).
   - `SESSION` uses two-pane structure on medium/expanded windows and keeps compact flow unchanged.
   - `SUMMARY` uses one-column metrics on compact and two-column metrics on medium/expanded.
-  - `WORKOUT_EDITOR` uses two-pane structure on medium/expanded windows (left: edit flow, right: validation/preview).
+  - `WORKOUT_EDITOR` opens with selected workout data by default (when editor draft is pristine), while preserving existing draft edits.
+  - `WORKOUT_EDITOR` uses two-pane structure on medium/expanded windows (left: edit flow, right: validation/preview) with compact action labels for landscape readability.
   - CI smoke command fix remains active and `Android Build` checks pass for PR `#30`.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
-  - `WORKOUT_EDITOR` top action row can still wrap/clamp on some landscape sizes and needs dedicated tuning.
+  - `WORKOUT_EDITOR` compact labels are optimized for tablet landscape; phone-landscape may still need separate tuning later.
   - Two-pane content density may require spacing tweaks after real-device landscape checks.
   - Editor right pane can look sparse when no validation or preview content is present.
   - CI emulator startup remains environment dependent.
@@ -41,6 +42,20 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Workout editor landscape and open-flow fixes:
+  - Improved `WORKOUT_EDITOR` two-pane readability in landscape:
+    - custom pane weights for editor (`left` wider than generic two-pane)
+    - compact action labels in two-pane mode (`Back/Load/Save/Apply`)
+    - compact step-row labels in two-pane mode (`Earlier/Later/Copy/Delete`)
+  - Fixed editor open behavior:
+    - `Open workout editor` now auto-loads the selected workout when editor draft is pristine.
+    - Existing non-pristine draft is preserved (no silent overwrite).
+  - Hardened instrumentation smoke anchor:
+    - `MainActivityContentFlowTest` summary assertion now anchors on `summary_duration` instead of a scroll-dependent button label.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - Menu two-pane landscape tuning pass (tablet):
   - Increased left pane weight to improve readability of setup controls.
   - Refined two-pane subtitle/FTP row into a clearer stacked layout.

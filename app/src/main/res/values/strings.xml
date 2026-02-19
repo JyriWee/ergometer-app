@@ -58,10 +58,14 @@
         <string name="workout_editor_title">Workout editor</string>
         <string name="workout_editor_subtitle">Create, preview and export a workout without leaving the app.</string>
         <string name="workout_editor_back_to_menu">Back to menu</string>
+        <string name="workout_editor_back_to_menu_compact">Back</string>
         <string name="workout_editor_new">New</string>
         <string name="workout_editor_load_selected">Load selected</string>
+        <string name="workout_editor_load_selected_compact">Load</string>
         <string name="workout_editor_save_zwo">Save .zwo</string>
+        <string name="workout_editor_save_zwo_compact">Save</string>
         <string name="workout_editor_apply_to_menu">Apply to menu</string>
+        <string name="workout_editor_apply_to_menu_compact">Apply</string>
         <string name="workout_editor_name">Workout name</string>
         <string name="workout_editor_author">Author</string>
         <string name="workout_editor_description">Description</string>
@@ -74,8 +78,11 @@
         <string name="workout_editor_preview_tss">Planned TSS: %1$.1f</string>
         <string name="workout_editor_step_title">Step %1$d · %2$s</string>
         <string name="workout_editor_step_up">Move step earlier</string>
+        <string name="workout_editor_step_up_compact">Earlier</string>
         <string name="workout_editor_step_down">Move step later</string>
+        <string name="workout_editor_step_down_compact">Later</string>
         <string name="workout_editor_step_duplicate">Duplicate</string>
+        <string name="workout_editor_step_duplicate_compact">Copy</string>
         <string name="workout_editor_step_delete">Delete</string>
         <string name="workout_editor_field_duration_sec">Duration (sec)</string>
         <string name="workout_editor_field_power">FTP percentage (%)</string>

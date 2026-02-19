@@ -300,9 +300,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun onWorkoutEditorAction(action: WorkoutEditorAction) {
         when (action) {
             WorkoutEditorAction.OpenEditor -> {
-                clearWorkoutEditorStatus()
                 workoutEditorShowSaveBeforeApplyPromptState.value = false
                 pendingWorkoutEditorApplyAfterSave = false
+                if (workoutEditorDraftState.value.isPristine() && uiState.selectedWorkout.value != null) {
+                    loadSelectedWorkoutIntoEditor()
+                } else {
+                    clearWorkoutEditorStatus()
+                }
                 uiState.screen.value = AppScreen.WORKOUT_EDITOR
             }
             WorkoutEditorAction.BackToMenu -> {
@@ -705,6 +709,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         pendingDeviceScanKind = null
         startDeviceScan(kind)
+    }
+
+    private fun WorkoutEditorDraft.isPristine(): Boolean {
+        return name.isBlank() && author.isBlank() && description.isBlank() && steps.isEmpty()
     }
 
     private fun startDeviceScan(kind: DeviceSelectionKind, allowRetryOnTooFrequent: Boolean = true) {
