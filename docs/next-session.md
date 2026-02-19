@@ -888,3 +888,35 @@
 1. `bash -n scripts/adb/logcat-ergometer.sh`
 2. `adb shell am start -n com.example.ergometerapp/.MainActivity`
 3. `./scripts/adb/logcat-ergometer.sh --dump --pid-only --serial R92Y40YAZPB`
+
+## Session Update (2026-02-19 - ADB Capture Helper)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added capture helper script:
+  - `scripts/adb/capture.sh`
+- Script captures:
+  - screenshot (`.png`)
+  - screen recording (`.mp4`)
+- Supports:
+  - device serial targeting
+  - configurable output directory
+  - configurable recording duration
+  - optional screenshot-only or record-only modes
+- Updated `docs/adb-cheatsheet.md` with helper usage.
+
+### Next Task
+- Use `capture.sh` together with `logcat-ergometer.sh` during scenario tests to keep reproducible evidence bundles (logs + media).
+
+### Definition of Done
+- One command can produce screenshot and recording artifacts in `.local/captures`.
+- Command works on current test tablet (`SM-X210`).
+
+### Risks / Open Questions
+- Device may fallback to lower recording resolution when codec resources are constrained (`screenrecord` behavior).
+
+### Validation Commands
+1. `bash -n scripts/adb/capture.sh`
+2. `./scripts/adb/capture.sh --serial R92Y40YAZPB --seconds 3`

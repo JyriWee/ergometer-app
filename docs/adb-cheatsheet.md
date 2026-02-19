@@ -119,6 +119,12 @@ adb shell screenrecord --time-limit 30 /sdcard/Download/ergometer-record.mp4
 adb pull /sdcard/Download/ergometer-record.mp4 .
 ```
 
+Use the helper script to capture screenshot + recording in one command:
+
+```bash
+./scripts/adb/capture.sh --serial R92Y40YAZPB --seconds 10
+```
+
 ## Input Automation (Quick Smoke Actions)
 
 Tap at coordinates:
