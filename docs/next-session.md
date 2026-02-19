@@ -765,3 +765,63 @@
 ### Validation Commands
 1. `./gradlew :app:compileDebugKotlin --no-daemon`
 2. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - FIT Export Manual Validation Template)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added a dedicated manual validation template for FIT export compatibility:
+  - `docs/fit-export-manual-validation-template.md`
+- Template covers:
+  - source-of-truth summary values from app
+  - platform-specific comparison tables (GoldenCheetah, Intervals.icu, Strava)
+  - tolerance-based PASS/FAIL rules
+  - timeline quality checks for power/cadence/HR charts
+
+### Next Task
+- Execute one full cross-platform FIT validation run using the new template with the latest 27-minute workout export.
+
+### Definition of Done
+- One exported FIT file is validated in all three target platforms using the template.
+- Any platform mismatch is captured with delta and defect notes.
+- Follow-up fixes are prioritized from real import results.
+
+### Risks / Open Questions
+- Platform-side metric rounding/normalization may differ despite a valid FIT payload.
+- Some platforms may compute derived fields (for example TSS) differently from app summary values.
+
+### Validation Commands
+1. `git status --short --branch`
+
+## Session Update (2026-02-19 - FIT Baseline Values Captured)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Captured baseline expected FIT values from a real exported workout:
+  - `.local/fit-exports/session_2026-02-19_06-48-25.fit`
+- Added pre-filled validation report:
+  - `docs/fit-export-validation-2026-02-19-session_06-48-25.md`
+- Report includes:
+  - structural FIT validity checks (header/CRC/messages)
+  - expected metrics (duration, distance, power, cadence, HR, calories, TSS)
+  - ready-to-fill comparison tables for GoldenCheetah, Intervals.icu, and Strava
+
+### Next Task
+- Keep FIT baseline compatibility by re-running the same cross-platform check after future FIT export changes.
+
+### Definition of Done
+- The same FIT artifact is imported into all target platforms.
+- Platform values are compared against the pre-filled expected baseline.
+- Any out-of-tolerance mismatches are logged as concrete follow-up items.
+- Current baseline status: PASS on GoldenCheetah, Intervals.icu, and Strava.
+
+### Risks / Open Questions
+- Platform-specific rounding and derived metric recalculation may create small deltas.
+- Event/timer semantics may still need refinement if pause/resume handling differs by platform.
+
+### Validation Commands
+1. `git status --short --branch`
