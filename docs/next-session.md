@@ -4,17 +4,21 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Expand on-device instrumentation coverage for interactive `MENU` picker behavior while keeping smoke runtime fast.
+- next task: Expand on-device instrumentation coverage for interactive BLE/menu flows using the new one-command device smoke pipeline.
 - DoD:
   - `MainActivityContentFlowTest` includes picker-state coverage for scanning and close states.
   - Local on-device run (`SM-X210`) passes with no instrumentation failures.
   - Existing flow anchors (`MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY`) remain green.
   - Keep picker assertions resilient to animated scanning dots (substring-based status assertion).
+  - One-command device smoke script is available for repeatable local validation with artifacts.
 - risks:
   - Animated scanning status text can be brittle if tests assert full exact text.
   - Instrumentation suite is still intentionally small; edge BLE interaction paths remain mostly manual.
+  - Device-side smoke currently records a final screenshot by default, which may not capture transient failures unless recording is enabled.
   - Multi-HR picker verification is deferred due current hardware constraints.
 - validation commands:
+  - `scripts/adb/device-smoke.sh`
+  - `scripts/adb/device-smoke.sh --all-tests`
   - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
   - `./gradlew connectedDebugAndroidTest --no-daemon`
   - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
@@ -38,6 +42,17 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- ADB one-command local device smoke pipeline:
+  - Added `scripts/adb/device-smoke.sh` for repeatable local validation:
+    - installs debug + androidTest APKs
+    - clears app data (optional)
+    - runs connected instrumentation tests (class/all-tests mode)
+    - captures logcat and optional screen recording
+    - stores timestamped artifacts under `.local/device-test-runs/`
+  - Updated `docs/adb-cheatsheet.md` with usage examples and artifact layout.
+  - Validation:
+    - `scripts/adb/device-smoke.sh` on `SM-X210` (2 tests, 0 failures)
+    - `bash -n scripts/adb/device-smoke.sh`
 - `MENU` picker instrumentation coverage:
   - Added `menuPickerScanAndCloseStatesRenderExpectedActions` in `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`.
   - Covers active picker title, scanning status anchor, `Stop scan` action, failed scan status, and `Close picker` action.

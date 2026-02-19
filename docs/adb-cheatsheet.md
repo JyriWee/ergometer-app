@@ -51,7 +51,6 @@ Force-stop app:
 adb shell am force-stop com.example.ergometerapp
 ```
 
-Clear app data (fresh state):kiitos. 
 Clear app data (fresh state):
 
 ```bash
@@ -228,3 +227,32 @@ Use specific device serial and custom output path:
   --clear \
   --output .local/logs/ergometer-session.log
 ```
+
+## One-command Device Smoke Pipeline
+
+Run install + clean-state + connected tests + log capture + artifact collection:
+
+```bash
+./scripts/adb/device-smoke.sh
+```
+
+Run all instrumentation tests (not only smoke class):
+
+```bash
+./scripts/adb/device-smoke.sh --all-tests
+```
+
+Run with explicit device and optional short screen recording:
+
+```bash
+./scripts/adb/device-smoke.sh \
+  --serial R92Y40YAZPB \
+  --record-seconds 20
+```
+
+Artifacts are written under `.local/device-test-runs/run-<timestamp>/`:
+- `logcat.log`
+- `run-summary.txt`
+- `androidTest-results/*.xml`
+- `reports/androidTests-connected-debug/`
+- optional `final-screen.png` and `screenrecord.mp4`
