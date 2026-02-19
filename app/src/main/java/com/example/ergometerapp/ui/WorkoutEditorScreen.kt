@@ -112,6 +112,7 @@ internal fun WorkoutEditorScreen(
                 text = stringResource(R.string.workout_editor_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = stringResource(R.string.workout_editor_subtitle),
@@ -207,7 +208,7 @@ internal fun WorkoutEditorScreen(
             }
         }
 
-        val editorDraftContent: @Composable ColumnScope.() -> Unit = {
+        val editorMetaContent: @Composable ColumnScope.() -> Unit = {
             EditorTextField(
                 label = stringResource(R.string.workout_editor_name),
                 value = draft.name,
@@ -226,11 +227,14 @@ internal fun WorkoutEditorScreen(
                 onValueChange = { onAction(WorkoutEditorAction.SetDescription(it)) },
                 singleLine = false,
             )
+        }
 
+        val editorStepsContent: @Composable ColumnScope.() -> Unit = {
             Text(
                 text = stringResource(R.string.workout_editor_steps),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             draft.steps.forEachIndexed { index, step ->
                 WorkoutEditorStepCard(
@@ -238,6 +242,7 @@ internal fun WorkoutEditorScreen(
                     index = index,
                     onAction = onAction,
                     useCompactLabels = useCompactActionLabels,
+                    useTwoColumnActionLayout = useCompactActionLabels,
                 )
             }
 
@@ -266,34 +271,7 @@ internal fun WorkoutEditorScreen(
             }
         }
 
-        val validationAndPreviewContent: @Composable ColumnScope.() -> Unit = {
-            if (validationErrors.isNotEmpty()) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    ),
-                    border = workoutEditorCardBorder(),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        Text(
-                            text = stringResource(R.string.workout_editor_validation_title),
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.SemiBold,
-                        )
-                        validationErrors.forEach { error ->
-                            Text(
-                                text = "• $error",
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                    }
-                }
-            }
-
+        val previewContent: @Composable ColumnScope.() -> Unit = {
             if (previewWorkout != null) {
                 Card(
                     colors = CardDefaults.cardColors(
@@ -333,6 +311,35 @@ internal fun WorkoutEditorScreen(
             }
         }
 
+        val validationContent: @Composable ColumnScope.() -> Unit = {
+            if (validationErrors.isNotEmpty()) {
+                Card(
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.errorContainer,
+                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                    ),
+                    border = workoutEditorCardBorder(),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.workout_editor_validation_title),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                        )
+                        validationErrors.forEach { error ->
+                            Text(
+                                text = "• $error",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -349,12 +356,13 @@ internal fun WorkoutEditorScreen(
                 ) {
                     Column(
                         modifier = Modifier
-                            .weight(paneWeights.left)
-                            .verticalScroll(rememberScrollState()),
+                            .weight(paneWeights.left),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
+                        previewContent()
                         headerAndActionsContent()
-                        editorDraftContent()
+                        editorMetaContent()
+                        validationContent()
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                     Column(
@@ -363,7 +371,7 @@ internal fun WorkoutEditorScreen(
                             .verticalScroll(rememberScrollState()),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        validationAndPreviewContent()
+                        editorStepsContent()
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
@@ -376,8 +384,10 @@ internal fun WorkoutEditorScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
                     headerAndActionsContent()
-                    editorDraftContent()
-                    validationAndPreviewContent()
+                    editorMetaContent()
+                    editorStepsContent()
+                    validationContent()
+                    previewContent()
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
@@ -416,6 +426,7 @@ private fun WorkoutEditorStepCard(
     index: Int,
     onAction: (WorkoutEditorAction) -> Unit,
     useCompactLabels: Boolean,
+    useTwoColumnActionLayout: Boolean,
 ) {
     val colorScheme = MaterialTheme.colorScheme
     Card(
@@ -440,223 +451,456 @@ private fun WorkoutEditorStepCard(
                 fontWeight = FontWeight.SemiBold,
             )
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                Button(
-                    onClick = { onAction(WorkoutEditorAction.MoveStepUp(step.id)) },
-                    modifier = Modifier.weight(1.45f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+            if (useTwoColumnActionLayout) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = if (useCompactLabels) {
-                            stringResource(R.string.workout_editor_step_up_compact)
-                        } else {
-                            stringResource(R.string.workout_editor_step_up)
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.MoveStepUp(step.id)) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.workout_editor_step_up_compact),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.MoveStepDown(step.id)) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.workout_editor_step_down_compact),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-                Button(
-                    onClick = { onAction(WorkoutEditorAction.MoveStepDown(step.id)) },
-                    modifier = Modifier.weight(1.45f),
-                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = if (useCompactLabels) {
-                            stringResource(R.string.workout_editor_step_down_compact)
-                        } else {
-                            stringResource(R.string.workout_editor_step_down)
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.DuplicateStep(step.id)) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.workout_editor_step_duplicate_compact),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.DeleteStep(step.id)) },
+                        modifier = Modifier.weight(1f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.workout_editor_step_delete_compact),
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
-                Button(
-                    onClick = { onAction(WorkoutEditorAction.DuplicateStep(step.id)) },
-                    modifier = Modifier.weight(0.9f),
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+            } else {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(
-                        text = if (useCompactLabels) {
-                            stringResource(R.string.workout_editor_step_duplicate_compact)
-                        } else {
-                            stringResource(R.string.workout_editor_step_duplicate)
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                }
-                Button(
-                    onClick = { onAction(WorkoutEditorAction.DeleteStep(step.id)) },
-                    modifier = Modifier.weight(0.9f),
-                    contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
-                ) {
-                    Text(
-                        text = stringResource(R.string.workout_editor_step_delete),
-                        style = MaterialTheme.typography.labelSmall,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.MoveStepUp(step.id)) },
+                        modifier = Modifier.weight(1.45f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = if (useCompactLabels) {
+                                stringResource(R.string.workout_editor_step_up_compact)
+                            } else {
+                                stringResource(R.string.workout_editor_step_up)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.MoveStepDown(step.id)) },
+                        modifier = Modifier.weight(1.45f),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 10.dp),
+                    ) {
+                        Text(
+                            text = if (useCompactLabels) {
+                                stringResource(R.string.workout_editor_step_down_compact)
+                            } else {
+                                stringResource(R.string.workout_editor_step_down)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.DuplicateStep(step.id)) },
+                        modifier = Modifier.weight(0.9f),
+                        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                    ) {
+                        Text(
+                            text = if (useCompactLabels) {
+                                stringResource(R.string.workout_editor_step_duplicate_compact)
+                            } else {
+                                stringResource(R.string.workout_editor_step_duplicate)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                    Button(
+                        onClick = { onAction(WorkoutEditorAction.DeleteStep(step.id)) },
+                        modifier = Modifier.weight(0.9f),
+                        contentPadding = ButtonDefaults.ButtonWithIconContentPadding,
+                    ) {
+                        Text(
+                            text = if (useCompactLabels) {
+                                stringResource(R.string.workout_editor_step_delete_compact)
+                            } else {
+                                stringResource(R.string.workout_editor_step_delete)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
                 }
             }
 
             when (step) {
                 is WorkoutEditorStepDraft.Steady -> {
-                    StepNumberField(
-                        label = stringResource(R.string.workout_editor_field_duration_sec),
-                        value = step.durationSecText,
-                        onValueChange = {
-                            onAction(
-                                WorkoutEditorAction.ChangeStepField(
-                                    stepId = step.id,
-                                    field = WorkoutEditorStepField.DURATION_SEC,
-                                    value = it,
-                                ),
+                    if (useTwoColumnActionLayout) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            StepNumberField(
+                                label = stringResource(R.string.workout_editor_field_duration_sec_compact),
+                                value = step.durationSecText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.DURATION_SEC,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
                             )
-                        },
-                    )
-                    StepDecimalField(
-                        label = stringResource(R.string.workout_editor_field_power),
-                        value = step.powerText,
-                        onValueChange = {
-                            onAction(
-                                WorkoutEditorAction.ChangeStepField(
-                                    stepId = step.id,
-                                    field = WorkoutEditorStepField.POWER,
-                                    value = it,
-                                ),
+                            StepDecimalField(
+                                label = stringResource(R.string.workout_editor_field_power_compact),
+                                value = step.powerText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.POWER,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
                             )
-                        },
-                    )
-                }
-                is WorkoutEditorStepDraft.Ramp -> {
-                    StepNumberField(
-                        label = stringResource(R.string.workout_editor_field_duration_sec),
-                        value = step.durationSecText,
-                        onValueChange = {
-                            onAction(
-                                WorkoutEditorAction.ChangeStepField(
-                                    stepId = step.id,
-                                    field = WorkoutEditorStepField.DURATION_SEC,
-                                    value = it,
-                                ),
-                            )
-                        },
-                    )
-                    StepDecimalField(
-                        label = stringResource(R.string.workout_editor_field_start_power),
-                        value = step.startPowerText,
-                        onValueChange = {
-                            onAction(
-                                WorkoutEditorAction.ChangeStepField(
-                                    stepId = step.id,
-                                    field = WorkoutEditorStepField.START_POWER,
-                                    value = it,
-                                ),
-                            )
-                        },
-                    )
-                    StepDecimalField(
-                        label = stringResource(R.string.workout_editor_field_end_power),
-                        value = step.endPowerText,
-                        onValueChange = {
-                            onAction(
-                                WorkoutEditorAction.ChangeStepField(
-                                    stepId = step.id,
-                                    field = WorkoutEditorStepField.END_POWER,
-                                    value = it,
-                                ),
-                            )
-                        },
-                    )
-                }
-                is WorkoutEditorStepDraft.Intervals -> {
-                    StepNumberField(
-                        label = stringResource(R.string.workout_editor_field_repeat),
-                        value = step.repeatText,
-                        onValueChange = {
-                            onAction(
-                                WorkoutEditorAction.ChangeStepField(
-                                    stepId = step.id,
-                                    field = WorkoutEditorStepField.REPEAT,
-                                    value = it,
-                                ),
-                            )
-                        },
-                    )
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
+                        }
+                    } else {
                         StepNumberField(
-                            label = stringResource(R.string.workout_editor_field_on_duration_sec),
-                            value = step.onDurationSecText,
+                            label = stringResource(R.string.workout_editor_field_duration_sec),
+                            value = step.durationSecText,
                             onValueChange = {
                                 onAction(
                                     WorkoutEditorAction.ChangeStepField(
                                         stepId = step.id,
-                                        field = WorkoutEditorStepField.ON_DURATION_SEC,
+                                        field = WorkoutEditorStepField.DURATION_SEC,
                                         value = it,
                                     ),
                                 )
                             },
-                            modifier = Modifier.weight(1f),
                         )
-                        StepNumberField(
-                            label = stringResource(R.string.workout_editor_field_off_duration_sec),
-                            value = step.offDurationSecText,
+                        StepDecimalField(
+                            label = stringResource(R.string.workout_editor_field_power),
+                            value = step.powerText,
                             onValueChange = {
                                 onAction(
                                     WorkoutEditorAction.ChangeStepField(
                                         stepId = step.id,
-                                        field = WorkoutEditorStepField.OFF_DURATION_SEC,
+                                        field = WorkoutEditorStepField.POWER,
                                         value = it,
                                     ),
                                 )
                             },
-                            modifier = Modifier.weight(1f),
                         )
                     }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        StepDecimalField(
-                            label = stringResource(R.string.workout_editor_field_on_power),
-                            value = step.onPowerText,
+                }
+                is WorkoutEditorStepDraft.Ramp -> {
+                    if (useTwoColumnActionLayout) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            StepNumberField(
+                                label = stringResource(R.string.workout_editor_field_duration_sec),
+                                value = step.durationSecText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.DURATION_SEC,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                            StepDecimalField(
+                                label = stringResource(R.string.workout_editor_field_start_power),
+                                value = step.startPowerText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.START_POWER,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                            StepDecimalField(
+                                label = stringResource(R.string.workout_editor_field_end_power),
+                                value = step.endPowerText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.END_POWER,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                    } else {
+                        StepNumberField(
+                            label = stringResource(R.string.workout_editor_field_duration_sec),
+                            value = step.durationSecText,
                             onValueChange = {
                                 onAction(
                                     WorkoutEditorAction.ChangeStepField(
                                         stepId = step.id,
-                                        field = WorkoutEditorStepField.ON_POWER,
+                                        field = WorkoutEditorStepField.DURATION_SEC,
                                         value = it,
                                     ),
                                 )
                             },
-                            modifier = Modifier.weight(1f),
                         )
                         StepDecimalField(
-                            label = stringResource(R.string.workout_editor_field_off_power),
-                            value = step.offPowerText,
+                            label = stringResource(R.string.workout_editor_field_start_power),
+                            value = step.startPowerText,
                             onValueChange = {
                                 onAction(
                                     WorkoutEditorAction.ChangeStepField(
                                         stepId = step.id,
-                                        field = WorkoutEditorStepField.OFF_POWER,
+                                        field = WorkoutEditorStepField.START_POWER,
                                         value = it,
                                     ),
                                 )
                             },
-                            modifier = Modifier.weight(1f),
                         )
+                        StepDecimalField(
+                            label = stringResource(R.string.workout_editor_field_end_power),
+                            value = step.endPowerText,
+                            onValueChange = {
+                                onAction(
+                                    WorkoutEditorAction.ChangeStepField(
+                                        stepId = step.id,
+                                        field = WorkoutEditorStepField.END_POWER,
+                                        value = it,
+                                    ),
+                                )
+                            },
+                        )
+                    }
+                }
+                is WorkoutEditorStepDraft.Intervals -> {
+                    if (useTwoColumnActionLayout) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            StepNumberField(
+                                label = stringResource(R.string.workout_editor_field_repeat_compact),
+                                value = step.repeatText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.REPEAT,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1.4f),
+                            )
+                            StepNumberField(
+                                label = stringResource(R.string.workout_editor_field_on_duration_sec_compact),
+                                value = step.onDurationSecText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.ON_DURATION_SEC,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(0.9f),
+                            )
+                            StepNumberField(
+                                label = stringResource(R.string.workout_editor_field_off_duration_sec_compact),
+                                value = step.offDurationSecText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.OFF_DURATION_SEC,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(0.9f),
+                            )
+                            StepDecimalField(
+                                label = stringResource(R.string.workout_editor_field_on_power_compact),
+                                value = step.onPowerText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.ON_POWER,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(0.9f),
+                            )
+                            StepDecimalField(
+                                label = stringResource(R.string.workout_editor_field_off_power_compact),
+                                value = step.offPowerText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.OFF_POWER,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(0.9f),
+                            )
+                        }
+                    } else {
+                        StepNumberField(
+                            label = stringResource(R.string.workout_editor_field_repeat),
+                            value = step.repeatText,
+                            onValueChange = {
+                                onAction(
+                                    WorkoutEditorAction.ChangeStepField(
+                                        stepId = step.id,
+                                        field = WorkoutEditorStepField.REPEAT,
+                                        value = it,
+                                    ),
+                                )
+                            },
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            StepNumberField(
+                                label = stringResource(R.string.workout_editor_field_on_duration_sec),
+                                value = step.onDurationSecText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.ON_DURATION_SEC,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                            StepNumberField(
+                                label = stringResource(R.string.workout_editor_field_off_duration_sec),
+                                value = step.offDurationSecText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.OFF_DURATION_SEC,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            StepDecimalField(
+                                label = stringResource(R.string.workout_editor_field_on_power),
+                                value = step.onPowerText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.ON_POWER,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                            StepDecimalField(
+                                label = stringResource(R.string.workout_editor_field_off_power),
+                                value = step.offPowerText,
+                                onValueChange = {
+                                    onAction(
+                                        WorkoutEditorAction.ChangeStepField(
+                                            stepId = step.id,
+                                            field = WorkoutEditorStepField.OFF_POWER,
+                                            value = it,
+                                        ),
+                                    )
+                                },
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
                     }
                 }
             }
@@ -743,8 +987,8 @@ private fun ActionButtonLabel(text: String) {
 
 private fun workoutEditorPaneWeights(layoutMode: AdaptiveLayoutMode): AdaptivePaneWeights {
     return when (layoutMode) {
-        AdaptiveLayoutMode.TWO_PANE_MEDIUM -> AdaptivePaneWeights(left = 0.52f, right = 0.48f)
-        AdaptiveLayoutMode.TWO_PANE_EXPANDED -> AdaptivePaneWeights(left = 0.45f, right = 0.55f)
+        AdaptiveLayoutMode.TWO_PANE_MEDIUM -> AdaptivePaneWeights(left = 0.44f, right = 0.56f)
+        AdaptiveLayoutMode.TWO_PANE_EXPANDED -> AdaptivePaneWeights(left = 0.42f, right = 0.58f)
         AdaptiveLayoutMode.SINGLE_PANE,
         AdaptiveLayoutMode.SINGLE_PANE_DENSE,
         -> layoutMode.paneWeights()

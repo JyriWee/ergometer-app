@@ -11,11 +11,15 @@
   - `SESSION` uses two-pane structure on medium/expanded windows and keeps compact flow unchanged.
   - `SUMMARY` uses one-column metrics on compact and two-column metrics on medium/expanded.
   - `WORKOUT_EDITOR` opens with selected workout data by default (when editor draft is pristine), while preserving existing draft edits.
-  - `WORKOUT_EDITOR` uses two-pane structure on medium/expanded windows (left: edit flow, right: validation/preview) with compact action labels for landscape readability.
+  - `WORKOUT_EDITOR` two-pane layout is finalized for tablet landscape:
+    - left pane: preview + editor meta/actions/status (sticky pane)
+    - right pane: step cards (scroll pane)
+    - two-row step action buttons and single-row numeric inputs for Steady/Ramp/Intervals
   - CI smoke command fix remains active and `Android Build` checks pass for PR `#30`.
   - Run deferred manual picker verification when multi-HR hardware is available.
 - risks:
   - `WORKOUT_EDITOR` compact labels are optimized for tablet landscape; phone-landscape may still need separate tuning later.
+  - Single-row Intervals inputs are dense; very narrow windows may require fallback or horizontal scroll in future.
   - Two-pane content density may require spacing tweaks after real-device landscape checks.
   - Editor right pane can look sparse when no validation or preview content is present.
   - CI emulator startup remains environment dependent.
@@ -42,6 +46,21 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Workout editor landscape finalization:
+  - Moved editor pre-step content (title/actions/status/unsaved/meta fields) to left pane under preview.
+  - Kept right pane dedicated to steps for continuous editing flow.
+  - Converted step action row to two rows in two-pane mode:
+    - `Move earlier` / `Move later`
+    - `Copy step` / `Delete step`
+  - Converted numeric step fields to single-row layout in two-pane mode:
+    - Steady: duration + FTP %
+    - Ramp: duration + start FTP % + end FTP %
+    - Intervals: repeat + on/off duration + on/off %
+  - Tuned Intervals field widths so `Repeat` label is fully visible.
+  - Explicitly themed `Steps` header color (`onSurface`) to avoid dark-mode black text.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - Workout editor landscape and open-flow fixes:
   - Improved `WORKOUT_EDITOR` two-pane readability in landscape:
     - custom pane weights for editor (`left` wider than generic two-pane)
