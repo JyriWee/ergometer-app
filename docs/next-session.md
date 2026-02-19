@@ -46,6 +46,15 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Workout editor file-load flow parity with MENU selector:
+  - `Load` action in workout editor now opens the same document picker flow as MENU `Select workout`.
+  - When a file is selected while `WORKOUT_EDITOR` is open, import result is immediately reflected in editor draft state.
+  - `Open workout editor` now always initializes editor draft from current MENU selection when a workout is selected, so menu/editor cannot drift apart.
+  - Import failure while in editor now surfaces as an editor status error instead of silently doing nothing.
+  - Updated button label from `Load selected` to `Load file` to match behavior.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - Workout editor landscape finalization:
   - Moved editor pre-step content (title/actions/status/unsaved/meta fields) to left pane under preview.
   - Kept right pane dedicated to steps for continuous editing flow.

@@ -60,7 +60,7 @@
         <string name="workout_editor_back_to_menu">Back to menu</string>
         <string name="workout_editor_back_to_menu_compact">Back</string>
         <string name="workout_editor_new">New</string>
-        <string name="workout_editor_load_selected">Load selected</string>
+        <string name="workout_editor_load_selected">Load file</string>
         <string name="workout_editor_load_selected_compact">Load</string>
         <string name="workout_editor_save_zwo">Save .zwo</string>
         <string name="workout_editor_save_zwo_compact">Save</string>

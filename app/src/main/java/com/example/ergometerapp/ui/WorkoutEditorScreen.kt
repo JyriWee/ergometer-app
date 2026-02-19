@@ -97,7 +97,7 @@ internal fun WorkoutEditorScreen(
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        val layoutMode = resolveAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
+        val layoutMode = rememberImeStableAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
         val showTwoPane = layoutMode.isTwoPane()
         val useCompactActionLabels = showTwoPane
         val paneWeights = if (showTwoPane) {

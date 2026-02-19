@@ -280,7 +280,7 @@ internal fun MenuScreen(
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        val layoutMode = resolveAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
+        val layoutMode = rememberImeStableAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
         val showTwoPane = layoutMode.isTwoPane()
         val paneWeights = layoutMode.paneWeights()
         val contentMaxWidth = if (showTwoPane) MenuTwoPaneMaxContentWidth else MenuMaxContentWidth

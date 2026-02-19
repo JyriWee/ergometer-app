@@ -271,6 +271,21 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun onWorkoutFileSelected(uri: Uri?) {
         sessionOrchestrator.onWorkoutFileSelected(uri)
+        if (uiState.screen.value != AppScreen.WORKOUT_EDITOR || uri == null) {
+            return
+        }
+
+        if (uiState.selectedWorkout.value != null) {
+            loadSelectedWorkoutIntoEditor()
+            return
+        }
+
+        val importError = uiState.selectedWorkoutImportError.value
+        setWorkoutEditorStatus(
+            message = importError
+                ?: appContext.getString(R.string.workout_editor_status_no_selected_workout),
+            isError = true,
+        )
     }
 
     fun onStartSession() {
@@ -302,7 +317,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             WorkoutEditorAction.OpenEditor -> {
                 workoutEditorShowSaveBeforeApplyPromptState.value = false
                 pendingWorkoutEditorApplyAfterSave = false
-                if (workoutEditorDraftState.value.isPristine() && uiState.selectedWorkout.value != null) {
+                if (uiState.selectedWorkout.value != null) {
                     loadSelectedWorkoutIntoEditor()
                 } else {
                     clearWorkoutEditorStatus()
@@ -709,10 +724,6 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
         pendingDeviceScanKind = null
         startDeviceScan(kind)
-    }
-
-    private fun WorkoutEditorDraft.isPristine(): Boolean {
-        return name.isBlank() && author.isBlank() && description.isBlank() && steps.isEmpty()
     }
 
     private fun startDeviceScan(kind: DeviceSelectionKind, allowRetryOnTooFrequent: Boolean = true) {

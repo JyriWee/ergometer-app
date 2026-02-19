@@ -110,7 +110,10 @@ class MainActivity : ComponentActivity() {
                 onEndSession = { viewModel.onEndSessionAndGoToSummary() },
                 onBackToMenu = { viewModel.onBackToMenu() },
                 onWorkoutEditorAction = { action: WorkoutEditorAction ->
-                    viewModel.onWorkoutEditorAction(action)
+                    when (action) {
+                        WorkoutEditorAction.LoadSelectedWorkout -> selectWorkoutFile.launch(arrayOf("*/*"))
+                        else -> viewModel.onWorkoutEditorAction(action)
+                    }
                 },
                 onRequestWorkoutEditorSave = { suggestedFileName ->
                     exportWorkoutFile.launch(suggestedFileName)
