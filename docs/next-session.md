@@ -825,3 +825,33 @@
 
 ### Validation Commands
 1. `git status --short --branch`
+
+## Session Update (2026-02-19 - ADB Daily Ops Cheatsheet)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added practical device-debug command reference:
+  - `docs/adb-cheatsheet.md`
+- Covers:
+  - install/start/stop/clear app
+  - logcat filtering
+  - file pull/push patterns
+  - screenshots and screenrecord
+  - instrumentation test commands
+  - key diagnostics (`dumpsys` battery/activity/bluetooth)
+  - multi-device serial targeting
+
+### Next Task
+- Use cheatsheet commands in real debugging sessions and refine only if gaps are found.
+
+### Definition of Done
+- Core adb workflows for this project are documented in one place and ready for daily use.
+
+### Risks / Open Questions
+- Some `run-as` file commands depend on build type/debuggability and may not work in release contexts.
+
+### Validation Commands
+1. `adb devices -l`
+2. `adb shell am start -n com.example.ergometerapp/.MainActivity`
