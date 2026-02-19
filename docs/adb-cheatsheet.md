@@ -51,6 +51,7 @@ Force-stop app:
 adb shell am force-stop com.example.ergometerapp
 ```
 
+Clear app data (fresh state):kiitos. 
 Clear app data (fresh state):
 
 ```bash
@@ -193,3 +194,31 @@ Example:
 adb -s R92Y40YAZPB shell getprop ro.product.model
 ```
 
+## Project Helper Script (Recommended)
+
+Use the included helper for filtered ErgometerApp logs:
+
+```bash
+./scripts/adb/logcat-ergometer.sh --clear
+```
+
+Use app-process-only logging (best signal/noise during active app testing):
+
+```bash
+./scripts/adb/logcat-ergometer.sh --pid-only --clear
+```
+
+Dump current filtered logs to file and exit:
+
+```bash
+./scripts/adb/logcat-ergometer.sh --dump
+```
+
+Use specific device serial and custom output path:
+
+```bash
+./scripts/adb/logcat-ergometer.sh \
+  --serial R92Y40YAZPB \
+  --clear \
+  --output .local/logs/ergometer-session.log
+```

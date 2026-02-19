@@ -855,3 +855,36 @@
 ### Validation Commands
 1. `adb devices -l`
 2. `adb shell am start -n com.example.ergometerapp/.MainActivity`
+
+## Session Update (2026-02-19 - ADB Log Harness Improvements)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added helper script:
+  - `scripts/adb/logcat-ergometer.sh`
+- Script capabilities:
+  - filtered ErgometerApp-focused log capture
+  - optional log buffer clear
+  - dump or live follow modes
+  - serial-targeted capture
+  - output file capture to `.local/logs/...`
+  - `--pid-only` mode for low-noise app-process-only logs
+- Updated `docs/adb-cheatsheet.md` with helper script usage examples.
+
+### Next Task
+- Use `--pid-only` mode during practical workout and BLE scenario tests to collect reproducible low-noise logs.
+
+### Definition of Done
+- One command is enough to capture useful app logs during device testing.
+- Developers can switch between broad filtered capture and strict app-PID capture as needed.
+
+### Risks / Open Questions
+- `--pid-only` requires the app process to be running before capture starts.
+- If app restarts during a long run, a new process PID requires restarting capture.
+
+### Validation Commands
+1. `bash -n scripts/adb/logcat-ergometer.sh`
+2. `adb shell am start -n com.example.ergometerapp/.MainActivity`
+3. `./scripts/adb/logcat-ergometer.sh --dump --pid-only --serial R92Y40YAZPB`
