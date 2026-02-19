@@ -41,9 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.R
@@ -149,6 +151,7 @@ internal fun WorkoutEditorScreen(
     ) {
         val layoutMode = rememberImeStableAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
         val showTwoPane = layoutMode.isTwoPane()
+        val isPortrait = maxHeight > maxWidth
         val useCompactActionLabels = showTwoPane
         val paneWeights = if (showTwoPane) {
             workoutEditorPaneWeights(layoutMode)
@@ -158,18 +161,6 @@ internal fun WorkoutEditorScreen(
         val contentMaxWidth = if (showTwoPane) WorkoutEditorTwoPaneMaxWidth else WorkoutEditorSinglePaneMaxWidth
 
         val headerAndActionsContent: @Composable ColumnScope.() -> Unit = {
-            Text(
-                text = stringResource(R.string.workout_editor_title),
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface,
-            )
-            Text(
-                text = stringResource(R.string.workout_editor_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -244,27 +235,32 @@ internal fun WorkoutEditorScreen(
                 }
             }
 
-            if (!statusMessage.isNullOrBlank()) {
+            if (statusIsError && !statusMessage.isNullOrBlank()) {
                 Text(
                     text = statusMessage,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = if (statusIsError) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
+                    color = MaterialTheme.colorScheme.error,
                 )
             }
             if (hasUnsavedChanges) {
                 Text(
                     text = stringResource(R.string.workout_editor_unsaved_changes),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = workoutEditorUnsavedIndicatorColor(),
                 )
             }
         }
 
         val editorMetaContent: @Composable ColumnScope.() -> Unit = {
+            EditorTextField(
+                label = stringResource(R.string.workout_editor_description),
+                value = draft.description,
+                onValueChange = { onAction(WorkoutEditorAction.SetDescription(it)) },
+                singleLine = false,
+                maxLines = 3,
+            )
+        }
+        val editorAuthorContent: @Composable ColumnScope.() -> Unit = {
             EditorTextField(
                 label = stringResource(R.string.workout_editor_name),
                 value = draft.name,
@@ -276,12 +272,6 @@ internal fun WorkoutEditorScreen(
                 value = draft.author,
                 onValueChange = { onAction(WorkoutEditorAction.SetAuthor(it)) },
                 singleLine = true,
-            )
-            EditorTextField(
-                label = stringResource(R.string.workout_editor_description),
-                value = draft.description,
-                onValueChange = { onAction(WorkoutEditorAction.SetDescription(it)) },
-                singleLine = false,
             )
         }
 
@@ -315,7 +305,10 @@ internal fun WorkoutEditorScreen(
                             selectedStepIndex + 1,
                             draft.steps.size,
                         ),
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Medium,
+                        textAlign = TextAlign.Center,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f),
                     )
                     Button(
@@ -395,8 +388,8 @@ internal fun WorkoutEditorScreen(
                     border = workoutEditorCardBorder(),
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.padding(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp),
                     ) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -441,7 +434,7 @@ internal fun WorkoutEditorScreen(
                     border = workoutEditorCardBorder(),
                 ) {
                     Column(
-                        modifier = Modifier.padding(12.dp),
+                        modifier = Modifier.padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Text(
@@ -463,7 +456,7 @@ internal fun WorkoutEditorScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 16.dp, vertical = 16.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             contentAlignment = Alignment.TopCenter,
         ) {
             if (showTwoPane) {
@@ -471,28 +464,34 @@ internal fun WorkoutEditorScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .widthIn(max = contentMaxWidth),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
                     Column(
                         modifier = Modifier
                             .weight(paneWeights.left),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
-                        previewContent()
+                        if (!isPortrait) {
+                            previewContent()
+                        }
                         headerAndActionsContent()
-                        editorMetaContent()
                         validationContent()
-                        Spacer(modifier = Modifier.height(12.dp))
+                        editorAuthorContent()
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                     Column(
                         modifier = Modifier
                             .weight(paneWeights.right)
                             .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
+                        if (isPortrait) {
+                            previewContent()
+                        }
+                        editorMetaContent()
                         editorStepsContent()
-                        Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             } else {
@@ -501,14 +500,15 @@ internal fun WorkoutEditorScreen(
                         .fillMaxWidth()
                         .widthIn(max = contentMaxWidth)
                         .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
                     headerAndActionsContent()
+                    editorAuthorContent()
                     editorMetaContent()
                     editorStepsContent()
                     validationContent()
                     previewContent()
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(8.dp))
                 }
             }
         }
@@ -575,6 +575,11 @@ internal fun WorkoutEditorScreen(
             },
         )
     }
+}
+
+@Composable
+private fun workoutEditorUnsavedIndicatorColor(): Color {
+    return if (isSystemInDarkTheme()) Color(0xFFFFD54F) else Color(0xFF8A6D00)
 }
 
 @Composable
@@ -1071,6 +1076,7 @@ private fun EditorTextField(
     value: String,
     onValueChange: (String) -> Unit,
     singleLine: Boolean,
+    maxLines: Int = if (singleLine) 1 else 4,
 ) {
     OutlinedTextField(
         value = value,
@@ -1078,7 +1084,7 @@ private fun EditorTextField(
         label = { Text(label) },
         modifier = Modifier.fillMaxWidth(),
         singleLine = singleLine,
-        maxLines = if (singleLine) 1 else 4,
+        maxLines = maxLines,
         colors = workoutEditorTextFieldColors(),
     )
 }

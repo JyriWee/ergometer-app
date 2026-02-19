@@ -46,6 +46,29 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Workout editor unsaved-state visual cue:
+  - `Unsaved changes` indicator now uses an explicit amber accent (theme-aware dark/light variants).
+  - Kept indicator static (no blink) to avoid distraction and preserve readability/accessibility.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Workout editor polish follow-up:
+  - Fixed step position label color (`Step X / Y`) to use themed `onSurface` for reliable dark-mode contrast.
+  - Corrected unsaved-changes semantics:
+    - editor no longer starts in unsaved state by default,
+    - loading selected workout into editor now marks draft as saved baseline,
+    - `Unsaved changes` now appears only after actual draft edits.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Workout editor density/layout cleanup:
+  - Removed always-visible editor heading/subtitle to free vertical space.
+  - Success status text is now suppressed in-line; only error status remains visible.
+  - In two-pane mode:
+    - `Name` + `Description` are shown in the right pane before step editing.
+    - `Author` is moved to the left pane lower section.
+  - Tightened spacing/padding for better no-scroll fit in constrained landscape heights.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
 - Workout editor back-navigation unsaved guard:
   - Added explicit unsaved-changes dialog when pressing editor `Back`.
   - New options:

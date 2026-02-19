@@ -74,7 +74,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val workoutEditorValidationErrorsState = mutableStateOf(WorkoutEditorMapper.validate(WorkoutEditorDraft.empty()))
     val workoutEditorStatusMessageState = mutableStateOf<String?>(null)
     val workoutEditorStatusIsErrorState = mutableStateOf(false)
-    val workoutEditorHasUnsavedChangesState = mutableStateOf(true)
+    val workoutEditorHasUnsavedChangesState = mutableStateOf(false)
     val workoutEditorShowSaveBeforeApplyPromptState = mutableStateOf(false)
     private val selectedFtmsDeviceMacState = mutableStateOf<String?>(null)
     private val selectedHrDeviceMacState = mutableStateOf<String?>(null)
@@ -558,7 +558,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val empty = WorkoutEditorDraft.empty()
         workoutEditorDraftState.value = empty
         workoutEditorValidationErrorsState.value = WorkoutEditorMapper.validate(empty)
-        workoutEditorHasUnsavedChangesState.value = true
+        workoutEditorHasUnsavedChangesState.value = false
         workoutEditorShowSaveBeforeApplyPromptState.value = false
         pendingWorkoutEditorApplyAfterSave = false
         nextWorkoutEditorStepId = (empty.steps.maxOfOrNull { it.id } ?: 0L) + 1L
@@ -574,7 +574,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             return
         }
         val importResult = WorkoutEditorMapper.fromWorkout(selectedWorkout)
-        updateWorkoutEditorDraft(importResult.draft)
+        updateWorkoutEditorDraft(importResult.draft, markUnsavedChanges = false)
         nextWorkoutEditorStepId = (importResult.draft.steps.maxOfOrNull { it.id } ?: 0L) + 1L
         if (importResult.skippedStepCount > 0) {
             setWorkoutEditorStatus(
@@ -620,10 +620,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    private fun updateWorkoutEditorDraft(updated: WorkoutEditorDraft) {
+    private fun updateWorkoutEditorDraft(
+        updated: WorkoutEditorDraft,
+        markUnsavedChanges: Boolean = true,
+    ) {
         workoutEditorDraftState.value = updated
         workoutEditorValidationErrorsState.value = WorkoutEditorMapper.validate(updated)
-        workoutEditorHasUnsavedChangesState.value = true
+        workoutEditorHasUnsavedChangesState.value = markUnsavedChanges
     }
 
     private fun setWorkoutEditorStatus(message: String, isError: Boolean) {
