@@ -4,29 +4,22 @@
 - current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Expand on-device instrumentation coverage for interactive BLE/menu flows using the new one-command device smoke pipeline.
+- next task: Implement P1 strict-by-default workout execution policy, with explicit fallback only for debug/dev usage.
 - DoD:
-  - `MainActivityContentFlowTest` includes picker-state coverage for scanning and close states.
-  - Local on-device run (`SM-X210`) passes with no instrumentation failures.
-  - Existing flow anchors (`MENU -> CONNECTING -> SESSION -> STOPPING -> SUMMARY`) remain green.
-  - Keep picker assertions resilient to animated scanning dots (substring-based status assertion).
-  - One-command device smoke script is available for repeatable local validation with artifacts.
+  - Release configuration resolves `ALLOW_LEGACY_WORKOUT_FALLBACK=false`.
+  - Debug/dev can still opt in to fallback via explicit flag.
+  - MENU execution-state messaging clearly indicates when fallback mode is active.
+  - Unit tests cover strict-blocked vs fallback-allowed mapping behavior.
 - risks:
-  - Animated scanning status text can be brittle if tests assert full exact text.
-  - Instrumentation suite is still intentionally small; edge BLE interaction paths remain mostly manual.
-  - Device-side smoke currently records a final screenshot by default, which may not capture transient failures unless recording is enabled.
-  - Multi-HR picker verification is deferred due current hardware constraints.
+  - Existing user workouts that relied on degraded fallback may now be blocked in release mode.
+  - Build-type/property wiring can drift if debug and release constants are not validated side-by-side.
+  - Messaging regressions could make strict-vs-fallback behavior unclear in MENU.
 - validation commands:
-  - `scripts/adb/device-smoke.sh`
-  - `scripts/adb/device-smoke.sh --all-tests`
+  - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
   - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-  - `./gradlew connectedDebugAndroidTest --no-daemon`
-  - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
-  - `./gradlew :app:lintDebug --no-daemon`
-  - `gh pr checks 30`
-  - `gh run view <run-id> --json jobs,status,conclusion`
-  - `gh run view <run-id> --job <job-id> --log | tail -n 80`
-  - manual: validate portrait + landscape on tablet for `MENU/SESSION/SUMMARY/WORKOUT_EDITOR`
+  - manual: with an unsupported workout file in strict mode, verify `Start session` stays disabled and reason messaging is explicit.
+  - manual (ADB + USB tablet): verify debug/dev fallback opt-in path still allows start when fallback is explicitly enabled.
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -42,6 +35,53 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- P0 regression coverage closure for start/stop transitions:
+  - Added `startAndStopFlowTransitionCompletesToSummaryOnAcknowledgement` to `SessionOrchestratorFlowTest`.
+  - Added `stopFlowTimeoutCompletesToSummaryWithoutAcknowledgement` to cover timeout finalization from `STOPPING_AWAIT_ACK`.
+  - Extended test `ManualHandler` with deterministic `advanceBy(...)` to drive delayed stop-timeout callbacks without wall-clock waits.
+  - Validation:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
+- Start-blocked reason attention pulse:
+  - Added subtle pulsing animation for the disabled `Start session` reason text so setup blockers are easier to notice on tablet UI.
+  - Kept copy and gating logic unchanged; only visual emphasis was added.
+  - Validation:
+    - `./gradlew --stop`
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- Start-button disabled reason messaging:
+  - MENU now shows explicit reason text under `Start session` when start preconditions are not met.
+  - Reason text is dynamic and reports missing setup directly (`workout`, `trainer`, import issue, execution issue) instead of leaving disabled state unexplained.
+  - `MainViewModel.onStartSession()` is guarded by `canStartSession()` so runtime behavior matches UI gating.
+  - Added instrumentation assertion to keep disabled+reason UX stable:
+    - `startSessionButtonRemainsDisabledWhenStartEnabledIsFalse` now also verifies reason text rendering.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- Start gating and disabled-visibility hardening:
+  - `MainViewModel.onStartSession()` now requires full `canStartSession()` preconditions (valid workout + trainer), not just trainer selection.
+  - MENU `Start session` button disabled colors were adjusted to `surfaceVariant/onSurfaceVariant` to increase visual separation in dark mode.
+  - Added instrumentation regression `startSessionButtonRemainsDisabledWhenStartEnabledIsFalse` in `MainActivityContentFlowTest`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- BT connect-permission denial recovery hardening:
+  - Added explicit in-app recovery mode for denied `BLUETOOTH_CONNECT` during session start:
+    - show connection issue prompt with `Open settings` CTA,
+    - clear stale prompt on explicit retry,
+    - keep legacy trainer failure mode on `Search again`.
+  - Added app settings deep-link callback from menu connection issue dialog to `ACTION_APPLICATION_DETAILS_SETTINGS`.
+  - Extended tests:
+    - `MainActivityContentFlowTest`: added `menuConnectionIssueDialogSupportsOpenSettingsRecoveryAction`.
+    - `SessionOrchestratorFlowTest`: asserts denied-permission path sets settings-recovery prompt and clears on explicit retry.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 8 tests, 0 failures)
 - ADB one-command local device smoke pipeline:
   - Added `scripts/adb/device-smoke.sh` for repeatable local validation:
     - installs debug + androidTest APKs
@@ -932,3 +972,191 @@
 ### Validation Commands
 1. `bash -n scripts/adb/capture.sh`
 2. `./scripts/adb/capture.sh --serial R92Y40YAZPB --seconds 3`
+
+## Session Update (2026-02-20 - Menu Connection-Issue Instrumentation Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Expanded `MainActivityContentFlowTest` instrumentation coverage for interactive MENU/BLE recovery states:
+  - Added `menuConnectionIssueDialogShowsRecoveryActionsAndRoutesCallbacks`.
+  - Verifies connection-issue dialog title/message rendering.
+  - Verifies both CTA labels (`Search again`, `Dismiss`) and callback routing.
+- Tightened picker scan-state assertions in existing test:
+  - While scanning with stop-lock active, `Stop scan` is now asserted as disabled.
+  - After scan completes, `Close picker` is now asserted as enabled.
+- Practical on-device validation:
+  - First smoke run failed with `No compose hierarchies found` while device state was likely in sleep/keyguard mode.
+  - Re-ran after explicit wake/unlock; smoke passed (`3/3` tests) on `SM-X210`.
+
+### Next Task
+- Continue instrumentation expansion for lifecycle-sensitive UI paths:
+  - Add rotation continuity coverage for `MENU` and `SESSION`.
+  - Add permission deny/grant continuity coverage for BLE scan/connect paths.
+
+### Definition of Done
+- `MainActivityContentFlowTest` keeps existing flow anchors green and adds connection-issue recovery coverage.
+- New test coverage is stable on connected tablet (`SM-X210`) using one-command smoke.
+- Test execution checklist includes explicit pre-run device wake step to avoid false negatives.
+
+### Risks / Open Questions
+- Tablet sleep/keyguard can cause false instrumentation failures (`No compose hierarchies found`) if not woken before run.
+- Current smoke scope still focuses on a single test class; broader regressions still depend on manual checks.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+2. `scripts/adb/device-smoke.sh`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - Rotation Continuity Instrumentation Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Expanded `MainActivityContentFlowTest` with rotation continuity coverage:
+  - Added `menuAndSessionAnchorsRemainVisibleAcrossRotation`.
+  - Verifies `MENU` title anchor remains visible after landscape rotation.
+  - Verifies `SESSION` quit-action anchor remains visible after portrait rotation.
+  - Resets requested orientation to `UNSPECIFIED` in a `finally` block to avoid cross-test orientation leakage.
+- Existing instrumentation tests remain green with the new rotation case (`4` total tests in class).
+
+### Next Task
+- Add BLE permission deny/grant continuity instrumentation coverage:
+  - ensure UI state continuity for scan/connect flows when permissions are denied then granted
+  - keep assertions robust to existing animated scan-status text behavior
+
+### Definition of Done
+- Rotation continuity is regression-protected for core `MENU` and `SESSION` anchors.
+- `MainActivityContentFlowTest` passes on-device with the added rotation test.
+- Session handoff is updated with concrete commands and risks.
+
+### Risks / Open Questions
+- Tablet keyguard/sleep state can still produce false negatives if not dismissed before instrumentation launch.
+- BLE-dependent tests require manual wake of the Tunturi ergometer before attempting trainer connection.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+2. `adb devices -l`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - BLE Scan Permission Continuity Instrumentation Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added deny/grant continuity instrumentation coverage for BLE scan permission flow in:
+  - `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`
+- New test:
+  - `menuPickerFlowStaysConsistentAcrossScanPermissionDenyThenGrant`
+  - Covers sequence:
+    - picker open + `menu_device_scan_permission_required`
+    - scanning state after grant (`menu_device_scan_status_scanning`)
+    - completed state with discovered device row and done status
+  - Asserts picker action semantics remain usable across the sequence (`Stop scan` lock while scanning, `Close picker` enabled after scan).
+- Stabilized final picker action assertion with `performScrollTo()` to avoid viewport-only false negatives on tablet layouts.
+- Existing instrumentation suite in this class now runs 5 tests green on device smoke.
+
+### Next Task
+- Add connect-flow continuity coverage around permission-gated start behavior:
+  - verify start-session UI continuity when connect permission is denied and later granted
+  - keep assertions anchored to stable visible strings/state transitions
+
+### Definition of Done
+- BLE scan permission deny/grant continuity is regression-protected by instrumentation.
+- `MainActivityContentFlowTest` passes on device with the new coverage (`5/5`).
+- Session handoff includes practical device pre-check notes.
+
+### Risks / Open Questions
+- Test environment stability still depends on dismissing tablet keyguard before instrumentation launch.
+- BLE connection scenarios require manual wake of Tunturi ergometer before connection attempts.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+2. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+3. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+4. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - Connect Permission Continuity Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added connect-permission continuity instrumentation coverage in:
+  - `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`
+- New instrumentation test:
+  - `startSessionAnchorsStayConsistentAcrossConnectPermissionDenyThenGrant`
+  - Verifies MENU start CTA remains actionable after a denied-path return to MENU.
+  - Verifies transition anchors to CONNECTING remain stable once granted-path flow continues.
+- Added orchestrator unit coverage for denied-then-granted callback behavior:
+  - `app/src/test/java/com/example/ergometerapp/session/SessionOrchestratorFlowTest.kt`
+  - New test: `connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry`
+  - Verifies pending-start is cleared on deny and later grant does not auto-resume without explicit retry.
+- Expanded instrumentation class total to 6 tests and verified on device smoke.
+
+### Next Task
+- Expand permission continuity coverage to include BLE scan/connect permission matrix edges:
+  - connect permission denied while pending start is active and user retries explicitly
+  - scan permission denied while picker is active and user restarts search
+
+### Definition of Done
+- Connect-permission continuity is covered in both UI instrumentation anchors and orchestrator state logic.
+- On-device instrumentation smoke passes with all `MainActivityContentFlowTest` cases green.
+- Session handoff includes required pre-run device checks.
+
+### Risks / Open Questions
+- Tablet sleep/keyguard still causes false negatives if not dismissed before instrumentation run.
+- Tunturi ergometer must be woken manually before BLE connection attempts.
+
+### Validation Commands
+1. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest.connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry" --no-daemon`
+2. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - Permission Matrix Edge Retries)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added connect-permission retry edge coverage in orchestrator unit tests:
+  - `connectPermissionDeniedAllowsPendingStartToBeReArmedOnExplicitRetry`
+  - Location: `app/src/test/java/com/example/ergometerapp/session/SessionOrchestratorFlowTest.kt`
+  - Verifies denied permission clears pending start, and explicit user retry re-arms pending start deterministically.
+- Added active-picker scan-permission retry edge coverage in instrumentation:
+  - `activePickerPermissionDeniedStateSupportsExplicitSearchRetry`
+  - Location: `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`
+  - Verifies active picker can recover from permission-required state via explicit `Search trainer` retry and return to scanning state.
+- Existing connect continuity and scan continuity cases remain green.
+- Instrumentation class now contains `7` passing tests on on-device smoke.
+
+### Next Task
+- Extend permission continuity beyond model-driven anchors into practical runtime-flow confidence:
+  - run targeted manual permission toggling pass (deny -> grant) on device for both scan and connect
+  - capture logs/screenshots for reproducible evidence bundle
+
+### Definition of Done
+- Permission matrix retry edges are covered by deterministic tests in both orchestrator and instrumentation layers.
+- On-device smoke run passes all `MainActivityContentFlowTest` cases (`7/7`).
+- Session handoff reflects latest edge coverage and validation commands.
+
+### Risks / Open Questions
+- Compose instrumentation remains model-driven and does not operate Android system permission dialogs directly.
+- Device keyguard/sleep still needs explicit wake/unlock pre-check to avoid false negatives.
+- BLE connect behavior depends on manual wake state of Tunturi ergometer before connection attempts.
+
+### Validation Commands
+1. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest.connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest.connectPermissionDeniedAllowsPendingStartToBeReArmedOnExplicitRetry" --no-daemon`
+2. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`

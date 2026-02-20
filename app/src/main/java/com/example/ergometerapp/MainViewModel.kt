@@ -296,7 +296,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun onStartSession() {
-        if (!hasValidTrainerSelection()) {
+        if (!canStartSession()) {
             return
         }
         cancelTrainerStatusProbeScan()
@@ -574,6 +574,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun clearConnectionIssuePrompt() {
         uiState.connectionIssueMessage.value = null
         uiState.suggestTrainerSearchAfterConnectionIssue.value = false
+        uiState.suggestOpenSettingsAfterConnectionIssue.value = false
     }
 
     /**

@@ -128,6 +128,14 @@ private fun menuStartCtaColor() = MaterialTheme.colorScheme.primary
 private fun menuStartCtaContentColor() = MaterialTheme.colorScheme.onPrimary
 
 @Composable
+private fun menuStartButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = menuStartCtaColor(),
+    contentColor = menuStartCtaContentColor(),
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+)
+
+@Composable
 private fun menuDeviceConnectedColor() = MaterialTheme.colorScheme.primary
 
 @Composable
@@ -194,6 +202,7 @@ internal fun MenuScreen(
     workoutExecutionModeIsError: Boolean,
     connectionIssueMessage: String?,
     suggestTrainerSearchAfterConnectionIssue: Boolean,
+    suggestOpenSettingsAfterConnectionIssue: Boolean,
     activeDeviceSelectionKind: DeviceSelectionKind?,
     scannedDevices: List<ScannedBleDevice>,
     deviceScanInProgress: Boolean,
@@ -209,6 +218,7 @@ internal fun MenuScreen(
     onDismissDeviceSelection: () -> Unit,
     onDismissConnectionIssue: () -> Unit,
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
+    onOpenAppSettingsFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit
 ) {
     val normalTextColor = menuNormalTextColor()
@@ -216,8 +226,6 @@ internal fun MenuScreen(
     val pickerStatusColor = menuPickerStatusColor()
     val pickerWarningColor = menuPickerWarningColor()
     val pickerNeutralColor = menuPickerNeutralColor()
-    val startCtaColor = menuStartCtaColor()
-    val startCtaContentColor = menuStartCtaContentColor()
     val showWorkoutFileDialog = remember { mutableStateOf(false) }
     val showWorkoutNameDialog = remember { mutableStateOf(false) }
     val showWorkoutDescriptionDialog = remember { mutableStateOf(false) }
@@ -243,6 +251,27 @@ internal fun MenuScreen(
             else -> null
         }
     val statusTextColor = if (selectedWorkoutImportError != null) errorTextColor else normalTextColor
+    val startBlockedReasonText = if (!startEnabled) {
+        val reasons = mutableListOf<String>()
+        if (selectedWorkoutImportError != null) {
+            reasons += stringResource(R.string.menu_start_blocked_fix_workout)
+        } else if (selectedWorkout == null) {
+            reasons += stringResource(R.string.menu_start_blocked_select_workout)
+        }
+        if (!ftmsSelected) {
+            reasons += stringResource(R.string.menu_start_blocked_select_trainer)
+        }
+        if (workoutExecutionModeIsError) {
+            reasons += stringResource(R.string.menu_start_blocked_execution)
+        }
+        if (reasons.isEmpty()) {
+            stringResource(R.string.menu_start_blocked_generic)
+        } else {
+            reasons.joinToString(separator = " ")
+        }
+    } else {
+        null
+    }
     val workoutFileDisplayName = selectedWorkoutFileName
         ?.substringAfterLast('/')
         ?.trim()
@@ -261,7 +290,8 @@ internal fun MenuScreen(
     val trainerIndicatorState = when {
         ftmsConnected -> DeviceConnectionIndicatorState.CONNECTED
         ftmsSelected && ftmsConnectionKnown -> DeviceConnectionIndicatorState.ISSUE
-        suggestTrainerSearchAfterConnectionIssue && !connectionIssueMessage.isNullOrBlank() -> {
+        (suggestTrainerSearchAfterConnectionIssue || suggestOpenSettingsAfterConnectionIssue) &&
+            !connectionIssueMessage.isNullOrBlank() -> {
             DeviceConnectionIndicatorState.ISSUE
         }
         else -> DeviceConnectionIndicatorState.IDLE
@@ -667,12 +697,7 @@ internal fun MenuScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = startCtaColor,
-                        contentColor = startCtaContentColor,
-                        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    colors = menuStartButtonColors(),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
@@ -682,6 +707,28 @@ internal fun MenuScreen(
                     Text(
                         text = stringResource(R.string.menu_start_session),
                         fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (startBlockedReasonText != null) {
+                    val blockedReasonPulseTransition =
+                        rememberInfiniteTransition(label = "menuStartBlockedReasonPulse")
+                    val blockedReasonAlpha = blockedReasonPulseTransition.animateFloat(
+                        initialValue = 0.45f,
+                        targetValue = 1.0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(
+                                durationMillis = 900,
+                                easing = LinearEasing,
+                            ),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "menuStartBlockedReasonAlpha",
+                    ).value
+                    Text(
+                        text = startBlockedReasonText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = blockedReasonAlpha),
                     )
                 }
             }
@@ -727,14 +774,27 @@ internal fun MenuScreen(
         )
     }
 
-    if (suggestTrainerSearchAfterConnectionIssue && connectionIssueMessage != null) {
+    val showConnectionIssueDialog =
+        connectionIssueMessage != null &&
+            (suggestTrainerSearchAfterConnectionIssue || suggestOpenSettingsAfterConnectionIssue)
+    if (showConnectionIssueDialog) {
         AlertDialog(
             onDismissRequest = onDismissConnectionIssue,
             title = { Text(stringResource(R.string.menu_connection_issue_title)) },
             text = { Text(connectionIssueMessage) },
             confirmButton = {
-                TextButton(onClick = onSearchFtmsDevicesFromConnectionIssue) {
-                    Text(stringResource(R.string.menu_connection_issue_search_again))
+                val confirmLabel = if (suggestOpenSettingsAfterConnectionIssue) {
+                    stringResource(R.string.menu_connection_issue_open_settings)
+                } else {
+                    stringResource(R.string.menu_connection_issue_search_again)
+                }
+                val confirmAction = if (suggestOpenSettingsAfterConnectionIssue) {
+                    onOpenAppSettingsFromConnectionIssue
+                } else {
+                    onSearchFtmsDevicesFromConnectionIssue
+                }
+                TextButton(onClick = confirmAction) {
+                    Text(confirmLabel)
                 }
             },
             dismissButton = {

@@ -1,8 +1,11 @@
 package com.example.ergometerapp
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -90,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     workoutExecutionModeIsError = viewModel.uiState.workoutExecutionModeIsError.value,
                     connectionIssueMessage = viewModel.uiState.connectionIssueMessage.value,
                     suggestTrainerSearchAfterConnectionIssue = viewModel.uiState.suggestTrainerSearchAfterConnectionIssue.value,
+                    suggestOpenSettingsAfterConnectionIssue = viewModel.uiState.suggestOpenSettingsAfterConnectionIssue.value,
                     activeDeviceSelectionKind = viewModel.activeDeviceSelectionKindState.value,
                     scannedDevices = viewModel.scannedDevicesState.toList(),
                     deviceScanInProgress = viewModel.deviceScanInProgressState.value,
@@ -112,6 +116,10 @@ class MainActivity : ComponentActivity() {
                 onDismissDeviceSelection = { viewModel.onDismissDeviceSelection() },
                 onDismissConnectionIssue = { viewModel.clearConnectionIssuePrompt() },
                 onSearchFtmsDevicesFromConnectionIssue = { viewModel.onSearchFtmsDevicesFromConnectionIssue() },
+                onOpenAppSettingsFromConnectionIssue = {
+                    viewModel.clearConnectionIssuePrompt()
+                    openAppSettings()
+                },
                 onStartSession = { viewModel.onStartSession() },
                 onEndSession = { viewModel.onEndSessionAndGoToSummary() },
                 onBackToMenu = { viewModel.onBackToMenu() },
@@ -157,6 +165,17 @@ class MainActivity : ComponentActivity() {
             return false
         }
         return true
+    }
+
+    /**
+     * Opens this app's Android settings page for runtime permission recovery.
+     */
+    private fun openAppSettings() {
+        val settingsIntent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null),
+        )
+        startActivity(settingsIntent)
     }
 
     /**
