@@ -137,6 +137,46 @@ class SessionOrchestratorFlowTest {
     }
 
     @Test
+    fun connectFlowTimeoutRollsBackToMenuWithRecoveryPrompt() {
+        val manualHandler = ManualHandler()
+        val harness = createHarness(mainHandler = manualHandler)
+        harness.orchestrator.initialize()
+
+        harness.orchestrator.beginConnectFlowForTest()
+        assertEquals(AppScreen.CONNECTING, harness.uiState.screen.value)
+
+        manualHandler.advanceBy(14_999L)
+        assertEquals(AppScreen.CONNECTING, harness.uiState.screen.value)
+
+        manualHandler.advanceBy(1L)
+        assertEquals(AppScreen.MENU, harness.uiState.screen.value)
+        assertEquals(StopFlowState.IDLE, harness.uiState.stopFlowState.value)
+        assertTrue(harness.uiState.suggestTrainerSearchAfterConnectionIssue.value)
+        assertFalse(harness.uiState.suggestOpenSettingsAfterConnectionIssue.value)
+        assertNotNull(harness.uiState.connectionIssueMessage.value)
+        assertEquals(1, harness.currentAllowScreenOffCalls)
+    }
+
+    @Test
+    fun connectFlowTimeoutIsCancelledAfterRequestControlGranted() {
+        val manualHandler = ManualHandler()
+        val harness = createHarness(mainHandler = manualHandler)
+        harness.orchestrator.initialize()
+
+        harness.orchestrator.beginConnectFlowForTest()
+        assertEquals(AppScreen.CONNECTING, harness.uiState.screen.value)
+
+        harness.orchestrator.simulateRequestControlGrantedForTest()
+        assertEquals(AppScreen.SESSION, harness.uiState.screen.value)
+        assertEquals(SessionPhase.RUNNING, harness.sessionManager.getPhase())
+
+        manualHandler.advanceBy(15_000L)
+        assertEquals(AppScreen.SESSION, harness.uiState.screen.value)
+        assertEquals(0, harness.currentAllowScreenOffCalls)
+        assertNull(harness.uiState.connectionIssueMessage.value)
+    }
+
+    @Test
     fun connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry() {
         var connectPermissionGranted = false
         val harness = createHarness(

@@ -61,6 +61,8 @@ class SessionOrchestrator(
     private var ftmsClientGeneration: Int = 0
     private var activeFtmsClientGeneration: Int = 0
     private var lastExecutionFailureSignalKey: String? = null
+    private val connectFlowTimeoutMs = 15000L
+    private var connectFlowTimeoutRunnable: Runnable? = null
     private val stopFlowTimeoutMs = 4000L
     private var stopFlowTimeoutRunnable: Runnable? = null
     private val indoorBikeParseExecutor: ExecutorService = Executors.newSingleThreadExecutor { runnable ->
@@ -106,6 +108,7 @@ class SessionOrchestrator(
             return
         }
 
+        cancelConnectFlowTimeout()
         cancelStopFlowTimeout()
         uiState.connectionIssueMessage.value = null
         uiState.suggestTrainerSearchAfterConnectionIssue.value = false
@@ -123,8 +126,9 @@ class SessionOrchestrator(
         if (connectInitiated) {
             uiState.pendingSessionStartAfterPermission = false
             if (connectBleClients()) {
-                uiState.screen.value = AppScreen.CONNECTING
+                enterConnectingState()
             } else {
+                cancelConnectFlowTimeout()
                 uiState.screen.value = AppScreen.MENU
             }
         }
@@ -140,8 +144,9 @@ class SessionOrchestrator(
             if (uiState.pendingSessionStartAfterPermission) {
                 uiState.pendingSessionStartAfterPermission = false
                 if (connectBleClients()) {
-                    uiState.screen.value = AppScreen.CONNECTING
+                    enterConnectingState()
                 } else {
+                    cancelConnectFlowTimeout()
                     uiState.screen.value = AppScreen.MENU
                 }
             } else {
@@ -154,6 +159,7 @@ class SessionOrchestrator(
         val pendingStartWasActive = uiState.pendingSessionStartAfterPermission
         uiState.pendingSessionStartAfterPermission = false
         if (pendingStartWasActive) {
+            cancelConnectFlowTimeout()
             uiState.connectionIssueMessage.value =
                 safeString(
                     resId = R.string.menu_connect_permission_denied_open_settings,
@@ -265,6 +271,7 @@ class SessionOrchestrator(
      * Releases owned resources during activity teardown.
      */
     fun stopAndClose() {
+        cancelConnectFlowTimeout()
         cancelStopFlowTimeout()
         uiState.stopFlowState.value = StopFlowState.IDLE
         dumpUiState("onDestroy")
@@ -484,14 +491,7 @@ class SessionOrchestrator(
                 // Session enters active mode only after Request Control is acknowledged.
                 if (requestOpcode == requestControlOpcode) {
                     if (resultCode == controlResponseSuccessCode) {
-                        if (uiState.screen.value == AppScreen.CONNECTING) {
-                            sessionManager.startSession(ftpWatts = currentFtpWatts())
-                            uiState.pendingCadenceStartAfterControlGranted = true
-                            uiState.autoPausedByZeroCadence = false
-                            keepScreenOn()
-                            uiState.screen.value = AppScreen.SESSION
-                            applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
-                        }
+                        transitionFromConnectingToSessionAfterControlGranted()
                     } else {
                         handleRequestControlFailure(
                             message = context.getString(
@@ -514,6 +514,7 @@ class SessionOrchestrator(
                     Log.d("FTMS", "Ignoring stale onDisconnected callback (generation=$generation)")
                     return@FtmsBleClient
                 }
+                cancelConnectFlowTimeout()
                 val stopFlowInProgress = uiState.stopFlowState.value == StopFlowState.STOPPING_AWAIT_ACK
                 val wasConnecting = uiState.screen.value == AppScreen.CONNECTING
                 val wasSessionFlowActive =
@@ -585,6 +586,44 @@ class SessionOrchestrator(
         uiState.screen.value = AppScreen.SUMMARY
         dumpUiState("completeStopFlowToSummary(reason=$reason)")
         return true
+    }
+
+    private fun enterConnectingState() {
+        uiState.screen.value = AppScreen.CONNECTING
+        startConnectFlowTimeout()
+    }
+
+    private fun transitionFromConnectingToSessionAfterControlGranted() {
+        if (uiState.screen.value != AppScreen.CONNECTING) return
+        cancelConnectFlowTimeout()
+        sessionManager.startSession(ftpWatts = currentFtpWatts())
+        uiState.pendingCadenceStartAfterControlGranted = true
+        uiState.autoPausedByZeroCadence = false
+        keepScreenOn()
+        uiState.screen.value = AppScreen.SESSION
+        applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
+    }
+
+    private fun startConnectFlowTimeout() {
+        cancelConnectFlowTimeout()
+        connectFlowTimeoutRunnable = Runnable {
+            connectFlowTimeoutRunnable = null
+            if (uiState.screen.value != AppScreen.CONNECTING) return@Runnable
+            Log.w("FTMS", "Connect-flow timeout reached; returning to menu with recovery prompt")
+            handleRequestControlFailure(
+                message = safeString(
+                    resId = R.string.menu_saved_trainer_connect_failed,
+                    fallback = "Could not connect to the saved trainer. Confirm the trainer is powered on. Do you want to search for devices again?",
+                ),
+                reason = "connectFlowTimeout",
+            )
+        }
+        mainThreadHandler.postDelayed(connectFlowTimeoutRunnable!!, connectFlowTimeoutMs)
+    }
+
+    private fun cancelConnectFlowTimeout() {
+        connectFlowTimeoutRunnable?.let { mainThreadHandler.removeCallbacks(it) }
+        connectFlowTimeoutRunnable = null
     }
 
     private fun startStopFlowTimeout() {
@@ -879,6 +918,7 @@ class SessionOrchestrator(
             return
         }
 
+        cancelConnectFlowTimeout()
         stopWorkout()
         workoutRunner = null
         sessionManager.stopSession()
@@ -905,14 +945,7 @@ class SessionOrchestrator(
             requestOpcode = requestControlOpcode,
             resultCode = controlResponseSuccessCode,
         )
-        if (uiState.screen.value == AppScreen.CONNECTING) {
-            sessionManager.startSession(ftpWatts = currentFtpWatts())
-            uiState.pendingCadenceStartAfterControlGranted = true
-            uiState.autoPausedByZeroCadence = false
-            keepScreenOn()
-            uiState.screen.value = AppScreen.SESSION
-            applyCadenceDrivenRunnerControl(uiState.bikeData.value?.instantaneousCadenceRpm)
-        }
+        transitionFromConnectingToSessionAfterControlGranted()
     }
 
     /**
@@ -937,6 +970,13 @@ class SessionOrchestrator(
             message = "Request control timeout.",
             reason = "requestControlTimeout",
         )
+    }
+
+    /**
+     * Test hook that enters CONNECTING and arms the connect-phase watchdog.
+     */
+    internal fun beginConnectFlowForTest() {
+        enterConnectingState()
     }
 
     /**
