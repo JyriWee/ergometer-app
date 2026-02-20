@@ -1,7 +1,7 @@
 # Next Session
 
 ## Branch
-- current: `feature/ci-workflow-concurrency`
+- current: `feature/p1-strict-workout-fallback`
 
 ## Session Handoff
 - next task: Implement P1 strict-by-default workout execution policy, with explicit fallback only for debug/dev usage.
