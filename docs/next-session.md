@@ -5,6 +5,7 @@
 
 ## Session Handoff
 - next task: Persist Session portrait preset across app restarts (not only recomposition) and validate the final tablet information hierarchy during an active workout.
+- next task: Persist Session portrait preset across app restarts (not only recomposition) and add coverage for setup-vs-running preset visibility to prevent regressions.
 - DoD:
   - Selected portrait preset survives process restart and app relaunch.
   - Compact preset row (`Preset: ... | Change`) remains stable after rotation/background-foreground.
@@ -19,6 +20,7 @@
   - `./gradlew :app:installDebug --no-daemon`
   - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
   - manual (USB tablet): verify preset card collapses immediately after selection and expands via `Change`.
+  - manual (USB tablet): verify preset card is visible in waiting-start phase and hidden after ride is actively running.
   - manual (USB tablet): verify portrait hierarchy in Session during active workout.
   - manual (USB tablet): rotate to landscape and verify two-pane layout remains usable.
 
@@ -36,6 +38,14 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Session preset visibility bug fix (`waiting start` vs active ride):
+  - Fixed regression where preset selector disappeared for the entire Session.
+  - Updated visibility condition to keep preset visible during waiting-start and hide it only after ride is actively running.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:installDebug --no-daemon`
+    - manual (USB tablet): waiting-start shows preset, active ride hides preset (`PASS`).
+    - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
+    - screenshot: `.local/captures/session-layout-check/screenshot-20260220-044546.png`
 - Session portrait preset selector and telemetry hierarchy refinements:
   - Added portrait-only layout presets in Session: `Balanced`, `Power first`, `Workout first`.
   - Added compact-after-selection preset UI (`Preset: ...` + `Change`) to reclaim vertical space immediately after choosing a preset.
