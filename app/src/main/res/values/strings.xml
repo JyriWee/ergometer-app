@@ -165,6 +165,12 @@
 
         <string name="session_kcal_label">Kcal</string>
         <string name="session_kcal_value">%1$s kcal</string>
+        <string name="session_layout_preset_title">Layout preset</string>
+        <string name="session_layout_preset_balanced">Balanced</string>
+        <string name="session_layout_preset_power_first">Power first</string>
+        <string name="session_layout_preset_workout_first">Workout first</string>
+        <string name="session_layout_preset_selected_value">Preset: %1$s</string>
+        <string name="session_layout_preset_change">Change</string>
 
         <!-- Machine status -->
         <string name="session_target_label">Target power</string>

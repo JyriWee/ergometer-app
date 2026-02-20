@@ -45,6 +45,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -95,6 +96,12 @@ private enum class DeviceConnectionIndicatorState {
     CONNECTED,
     IDLE,
     ISSUE,
+}
+
+private enum class SessionPortraitPreset {
+    BALANCED,
+    POWER_FIRST,
+    WORKOUT_FIRST,
 }
 
 @Composable
@@ -1113,6 +1120,9 @@ internal fun SessionScreen(
             add(stringResource(R.string.session_issue_control_missing))
         }
     }
+    val portraitPresetState = rememberSaveable {
+        mutableStateOf(SessionPortraitPreset.BALANCED)
+    }
 
     BoxWithConstraints(
         modifier = Modifier
@@ -1159,7 +1169,7 @@ internal fun SessionScreen(
                                 TopTelemetrySection(
                                     compactLayout = compactTopMetrics,
                                     speedValue = speedValue,
-                                    cadenceTargetValue = cadenceTargetValue,
+                                    kcalValue = kcalValue,
                                     distanceValue = distanceValue,
                                     workoutRemainingValue = remainingText,
                                     elapsedOfTotalValue = elapsedOfTotalText,
@@ -1167,7 +1177,7 @@ internal fun SessionScreen(
                                 PrimaryTelemetrySection(
                                     heartRateValue = heartRateValue,
                                     powerTargetValue = powerTargetValue,
-                                    kcalValue = kcalValue,
+                                    cadenceTargetValue = cadenceTargetValue,
                                 )
                                 if (sessionIssues.isNotEmpty()) {
                                     SessionIssuesSection(messages = sessionIssues)
@@ -1197,38 +1207,117 @@ internal fun SessionScreen(
                             }
                         }
                     } else {
-                        TopTelemetrySection(
-                            compactLayout = compactTopMetrics,
-                            speedValue = speedValue,
-                            cadenceTargetValue = cadenceTargetValue,
-                            distanceValue = distanceValue,
-                            workoutRemainingValue = remainingText,
-                            elapsedOfTotalValue = elapsedOfTotalText,
+                        SessionPresetSelector(
+                            selectedPreset = portraitPresetState.value,
+                            onPresetSelected = { selected -> portraitPresetState.value = selected },
                         )
 
-                        PrimaryTelemetrySection(
-                            heartRateValue = heartRateValue,
-                            powerTargetValue = powerTargetValue,
-                            kcalValue = kcalValue,
-                        )
+                        when (portraitPresetState.value) {
+                            SessionPortraitPreset.BALANCED -> {
+                                TopTelemetrySection(
+                                    compactLayout = compactTopMetrics,
+                                    speedValue = speedValue,
+                                    kcalValue = kcalValue,
+                                    distanceValue = distanceValue,
+                                    workoutRemainingValue = remainingText,
+                                    elapsedOfTotalValue = elapsedOfTotalText,
+                                )
 
-                        WorkoutProgressSection(
-                            selectedWorkout = selectedWorkout,
-                            workoutName = workoutName,
-                            workoutSegments = workoutSegments,
-                            ftpWatts = ftpWatts,
-                            runnerState = runnerState,
-                            phase = phase,
-                            cadenceRpm = cadenceRpm,
-                            remainingText = remainingText,
-                            elapsedOfTotalText = elapsedOfTotalText,
-                            unknown = unknown,
-                            lastTargetPower = lastTargetPower,
-                            workoutComplete = workoutComplete,
-                            workoutExecutionModeMessage = workoutExecutionModeMessage,
-                            workoutExecutionModeIsError = workoutExecutionModeIsError,
-                            showTimingMetrics = false,
-                        )
+                                PrimaryTelemetrySection(
+                                    heartRateValue = heartRateValue,
+                                    powerTargetValue = powerTargetValue,
+                                    cadenceTargetValue = cadenceTargetValue,
+                                )
+
+                                WorkoutProgressSection(
+                                    selectedWorkout = selectedWorkout,
+                                    workoutName = workoutName,
+                                    workoutSegments = workoutSegments,
+                                    ftpWatts = ftpWatts,
+                                    runnerState = runnerState,
+                                    phase = phase,
+                                    cadenceRpm = cadenceRpm,
+                                    remainingText = remainingText,
+                                    elapsedOfTotalText = elapsedOfTotalText,
+                                    unknown = unknown,
+                                    lastTargetPower = lastTargetPower,
+                                    workoutComplete = workoutComplete,
+                                    workoutExecutionModeMessage = workoutExecutionModeMessage,
+                                    workoutExecutionModeIsError = workoutExecutionModeIsError,
+                                    showTimingMetrics = false,
+                                )
+                            }
+
+                            SessionPortraitPreset.POWER_FIRST -> {
+                                PrimaryTelemetrySection(
+                                    heartRateValue = heartRateValue,
+                                    powerTargetValue = powerTargetValue,
+                                    cadenceTargetValue = cadenceTargetValue,
+                                )
+
+                                TopTelemetrySection(
+                                    compactLayout = compactTopMetrics,
+                                    speedValue = speedValue,
+                                    kcalValue = kcalValue,
+                                    distanceValue = distanceValue,
+                                    workoutRemainingValue = remainingText,
+                                    elapsedOfTotalValue = elapsedOfTotalText,
+                                )
+
+                                WorkoutProgressSection(
+                                    selectedWorkout = selectedWorkout,
+                                    workoutName = workoutName,
+                                    workoutSegments = workoutSegments,
+                                    ftpWatts = ftpWatts,
+                                    runnerState = runnerState,
+                                    phase = phase,
+                                    cadenceRpm = cadenceRpm,
+                                    remainingText = remainingText,
+                                    elapsedOfTotalText = elapsedOfTotalText,
+                                    unknown = unknown,
+                                    lastTargetPower = lastTargetPower,
+                                    workoutComplete = workoutComplete,
+                                    workoutExecutionModeMessage = workoutExecutionModeMessage,
+                                    workoutExecutionModeIsError = workoutExecutionModeIsError,
+                                    showTimingMetrics = false,
+                                )
+                            }
+
+                            SessionPortraitPreset.WORKOUT_FIRST -> {
+                                WorkoutProgressSection(
+                                    selectedWorkout = selectedWorkout,
+                                    workoutName = workoutName,
+                                    workoutSegments = workoutSegments,
+                                    ftpWatts = ftpWatts,
+                                    runnerState = runnerState,
+                                    phase = phase,
+                                    cadenceRpm = cadenceRpm,
+                                    remainingText = remainingText,
+                                    elapsedOfTotalText = elapsedOfTotalText,
+                                    unknown = unknown,
+                                    lastTargetPower = lastTargetPower,
+                                    workoutComplete = workoutComplete,
+                                    workoutExecutionModeMessage = workoutExecutionModeMessage,
+                                    workoutExecutionModeIsError = workoutExecutionModeIsError,
+                                    showTimingMetrics = false,
+                                )
+
+                                TopTelemetrySection(
+                                    compactLayout = compactTopMetrics,
+                                    speedValue = speedValue,
+                                    kcalValue = kcalValue,
+                                    distanceValue = distanceValue,
+                                    workoutRemainingValue = remainingText,
+                                    elapsedOfTotalValue = elapsedOfTotalText,
+                                )
+
+                                PrimaryTelemetrySection(
+                                    heartRateValue = heartRateValue,
+                                    powerTargetValue = powerTargetValue,
+                                    cadenceTargetValue = cadenceTargetValue,
+                                )
+                            }
+                        }
 
                         if (sessionIssues.isNotEmpty()) {
                             SessionIssuesSection(messages = sessionIssues)
@@ -1253,10 +1342,112 @@ internal fun SessionScreen(
 }
 
 @Composable
+private fun SessionPresetSelector(
+    selectedPreset: SessionPortraitPreset,
+    onPresetSelected: (SessionPortraitPreset) -> Unit,
+) {
+    val hasUserSelectedPreset = rememberSaveable { mutableStateOf(false) }
+    val expanded = rememberSaveable { mutableStateOf(true) }
+    val cardBorder = sessionCardBorder()
+    val balancedLabel = stringResource(R.string.session_layout_preset_balanced)
+    val powerFirstLabel = stringResource(R.string.session_layout_preset_power_first)
+    val workoutFirstLabel = stringResource(R.string.session_layout_preset_workout_first)
+    val selectedPresetLabel = when (selectedPreset) {
+        SessionPortraitPreset.BALANCED -> balancedLabel
+        SessionPortraitPreset.POWER_FIRST -> powerFirstLabel
+        SessionPortraitPreset.WORKOUT_FIRST -> workoutFirstLabel
+    }
+    val onPresetClick: (SessionPortraitPreset) -> Unit = { preset ->
+        onPresetSelected(preset)
+        hasUserSelectedPreset.value = true
+        expanded.value = false
+    }
+    val showCompactSelector = hasUserSelectedPreset.value && !expanded.value
+
+    if (showCompactSelector) {
+        SectionCard(title = null, border = cardBorder) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(
+                        R.string.session_layout_preset_selected_value,
+                        selectedPresetLabel,
+                    ),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.weight(1f),
+                )
+                OutlinedButton(onClick = { expanded.value = true }) {
+                    Text(text = stringResource(R.string.session_layout_preset_change))
+                }
+            }
+        }
+        return
+    }
+
+    SectionCard(
+        title = stringResource(R.string.session_layout_preset_title),
+        border = cardBorder,
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SessionPresetButton(
+                label = balancedLabel,
+                selected = selectedPreset == SessionPortraitPreset.BALANCED,
+                onClick = { onPresetClick(SessionPortraitPreset.BALANCED) },
+                modifier = Modifier.weight(1f),
+            )
+            SessionPresetButton(
+                label = powerFirstLabel,
+                selected = selectedPreset == SessionPortraitPreset.POWER_FIRST,
+                onClick = { onPresetClick(SessionPortraitPreset.POWER_FIRST) },
+                modifier = Modifier.weight(1f),
+            )
+            SessionPresetButton(
+                label = workoutFirstLabel,
+                selected = selectedPreset == SessionPortraitPreset.WORKOUT_FIRST,
+                onClick = { onPresetClick(SessionPortraitPreset.WORKOUT_FIRST) },
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SessionPresetButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (selected) {
+        Button(
+            onClick = onClick,
+            modifier = modifier,
+        ) {
+            Text(text = label, maxLines = 1)
+        }
+        return
+    }
+
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier,
+    ) {
+        Text(text = label, maxLines = 1)
+    }
+}
+
+@Composable
 private fun TopTelemetrySection(
     compactLayout: Boolean,
     speedValue: String,
-    cadenceTargetValue: String,
+    kcalValue: String,
     distanceValue: String,
     workoutRemainingValue: String,
     elapsedOfTotalValue: String,
@@ -1275,8 +1466,8 @@ private fun TopTelemetrySection(
                 border = cardBorder,
             )
             TopMetricCard(
-                label = stringResource(R.string.session_cadence_target_label),
-                value = cadenceTargetValue,
+                label = stringResource(R.string.session_kcal_label),
+                value = kcalValue,
                 modifier = Modifier.weight(1f),
                 border = cardBorder,
             )
@@ -1311,7 +1502,7 @@ private fun TopTelemetrySection(
 private fun PrimaryTelemetrySection(
     heartRateValue: String,
     powerTargetValue: String,
-    kcalValue: String,
+    cadenceTargetValue: String,
 ) {
     val cardBorder = sessionCardBorder()
     SectionCard(title = null, border = cardBorder) {
@@ -1334,8 +1525,8 @@ private fun PrimaryTelemetrySection(
                 emphasized = true,
             )
             TopMetricCard(
-                label = stringResource(R.string.session_kcal_label),
-                value = kcalValue,
+                label = stringResource(R.string.session_cadence_target_label),
+                value = cadenceTargetValue,
                 modifier = Modifier.weight(1f),
                 border = cardBorder,
                 emphasized = true,
