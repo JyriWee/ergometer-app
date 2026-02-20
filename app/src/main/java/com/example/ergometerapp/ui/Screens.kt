@@ -181,6 +181,70 @@ private fun menuInfoCardColors() = CardDefaults.elevatedCardColors(
     contentColor = MaterialTheme.colorScheme.onSurface,
 )
 
+@Composable
+private fun WaitingStatusText(
+    baseText: String,
+    animateDots: Boolean,
+    style: TextStyle,
+    color: Color,
+    fontWeight: FontWeight = FontWeight.Normal,
+) {
+    val normalizedBase = baseText.trimEnd().trimEnd('.', '…')
+    if (!animateDots) {
+        Text(
+            text = normalizedBase,
+            style = style,
+            color = color,
+            fontWeight = fontWeight,
+        )
+        return
+    }
+
+    val dotsTransition = rememberInfiniteTransition(label = "waitingLabelDots")
+    val dotsProgress = dotsTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 3f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(
+                durationMillis = 1200,
+                easing = LinearEasing,
+            ),
+            repeatMode = RepeatMode.Restart,
+        ),
+        label = "waitingLabelDotsProgress",
+    ).value
+    val dotsCount = dotsProgress.toInt().coerceIn(0, 2) + 1
+    val activeDotColor = color
+    val inactiveDotColor = color.copy(alpha = color.alpha * 0.2f)
+
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = normalizedBase,
+            style = style,
+            color = color,
+            fontWeight = fontWeight,
+        )
+        Text(
+            text = ".",
+            style = style,
+            color = if (dotsCount >= 1) activeDotColor else inactiveDotColor,
+            fontWeight = fontWeight,
+        )
+        Text(
+            text = ".",
+            style = style,
+            color = if (dotsCount >= 2) activeDotColor else inactiveDotColor,
+            fontWeight = fontWeight,
+        )
+        Text(
+            text = ".",
+            style = style,
+            color = if (dotsCount >= 3) activeDotColor else inactiveDotColor,
+            fontWeight = fontWeight,
+        )
+    }
+}
+
 /**
  * Entry screen for starting a session.
  *
@@ -821,6 +885,7 @@ internal fun ConnectingScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing),
         contentAlignment = Alignment.Center
     ) {
@@ -828,9 +893,11 @@ internal fun ConnectingScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = stringResource(R.string.status_connecting),
-                style = MaterialTheme.typography.headlineSmall
+            WaitingStatusText(
+                baseText = stringResource(R.string.status_connecting),
+                animateDots = true,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = stringResource(R.string.menu_connection_hint),
@@ -1012,6 +1079,7 @@ internal fun StoppingScreen() {
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing),
         contentAlignment = Alignment.Center
     ) {
@@ -1019,9 +1087,11 @@ internal fun StoppingScreen() {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(
-                text = stringResource(R.string.status_stopping),
-                style = MaterialTheme.typography.headlineSmall
+            WaitingStatusText(
+                baseText = stringResource(R.string.status_stopping),
+                animateDots = true,
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             Text(
                 text = stringResource(R.string.status_stopping_hint),
@@ -1127,6 +1197,7 @@ internal fun SessionScreen(
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
         val layoutMode = resolveAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
@@ -1699,6 +1770,11 @@ private fun WorkoutProgressSection(
             runnerState = runnerState,
             cadenceRpm = cadenceRpm,
         )
+        val waitingForUserAction = isSessionWaitingForUserActionState(
+            phase = phase,
+            runnerState = runnerState,
+            cadenceRpm = cadenceRpm,
+        )
         val intervalMessage = runnerState.intervalPart?.let { intervalPart ->
             intervalCountdownLabel(
                 phase = intervalPart.phase,
@@ -1724,8 +1800,9 @@ private fun WorkoutProgressSection(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Text(
-                text = stateMessage,
+            WaitingStatusText(
+                baseText = stateMessage,
+                animateDots = waitingForUserAction,
                 style = MaterialTheme.typography.bodyLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 fontWeight = FontWeight.SemiBold,
@@ -2082,6 +2159,19 @@ private fun isWaitingStartState(
     return !runnerState.running &&
         (cadenceRpm ?: 0.0) <= 0.0 &&
         elapsedSec == 0
+}
+
+private fun isSessionWaitingForUserActionState(
+    phase: SessionPhase,
+    runnerState: RunnerState,
+    cadenceRpm: Double?,
+): Boolean {
+    if (isWaitingStartState(phase = phase, runnerState = runnerState, cadenceRpm = cadenceRpm)) {
+        return true
+    }
+    return phase == SessionPhase.RUNNING &&
+        runnerState.running &&
+        runnerState.paused
 }
 
 @Composable

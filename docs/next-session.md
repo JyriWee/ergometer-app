@@ -21,6 +21,10 @@
   - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
   - manual (USB tablet): verify preset card collapses immediately after selection and expands via `Change`.
   - manual (USB tablet): verify preset card is visible in waiting-start phase and hidden after ride is actively running.
+  - manual (USB tablet): verify `Connecting` headline shows animated trailing dots while connection is in progress.
+  - manual (USB tablet): verify Session waiting states (`waiting start`, `paused`) show animated trailing dots.
+  - manual (USB tablet): verify `Stopping` headline shows animated trailing dots while stop-finalization is in progress.
+  - manual (USB tablet): verify Session screen background follows theme in dark mode (no bright side gutters).
   - manual (USB tablet): verify portrait hierarchy in Session during active workout.
   - manual (USB tablet): rotate to landscape and verify two-pane layout remains usable.
 
@@ -38,6 +42,22 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Session dark-mode consistency + stopping feedback polish:
+  - Added themed background to `SessionScreen` root container to remove bright side gutters in dark mode.
+  - Added themed background to `Connecting` and `Stopping` transitional screens for consistent dark-mode rendering.
+  - Added animated trailing dots to `Stopping` headline to match ongoing-operation feedback style.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:installDebug --no-daemon`
+    - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
+    - screenshot: `.local/captures/session-layout-check/screenshot-20260220-050647.png`
+- Waiting-state feedback polish for Session and Connecting:
+  - Added shared animated trailing-dot label helper for active waiting feedback.
+  - `Connecting` screen now shows animated dots to indicate ongoing connection attempts.
+  - Session state message now shows animated dots when waiting for user action:
+    - `waiting start`
+    - `paused`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:installDebug --no-daemon`
 - Session preset visibility bug fix (`waiting start` vs active ride):
   - Fixed regression where preset selector disappeared for the entire Session.
   - Updated visibility condition to keep preset visible during waiting-start and hide it only after ride is actively running.
