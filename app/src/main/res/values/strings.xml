@@ -151,6 +151,8 @@
         <!-- Telemetry labels -->
         <string name="session_power_value">%1$s W</string>
         <string name="session_instant_power_label">Instant power</string>
+        <string name="session_power_target_label">Power / target</string>
+        <string name="session_power_target_value">%1$s / %2$s W</string>
 
         <string name="session_cadence_target_label">Cadence / target</string>
         <string name="session_cadence_target_value">%1$s / %2$s rpm</string>

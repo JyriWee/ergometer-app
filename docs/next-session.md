@@ -1,29 +1,24 @@
 # Next Session
 
 ## Branch
-- current: `feature/p1-strict-workout-fallback`
+- current: `feature/ui-session-tablet`
 
 ## Session Handoff
-- next task: Implement P1 strict-by-default workout execution policy, with explicit fallback only for debug/dev usage.
+- next task: Continue Session screen tablet polish with portrait-first readability, then run on-device visual verification in both portrait and landscape.
 - DoD:
-  - Release configuration resolves `ALLOW_LEGACY_WORKOUT_FALLBACK=false`.
-  - Debug/dev can still opt in to fallback via explicit flag.
-  - MENU execution-state messaging clearly indicates when fallback mode is active.
-  - Unit tests cover strict-blocked vs fallback-allowed mapping behavior.
+  - Session screen stays single-column in portrait, including large tablets.
+  - Top telemetry row order remains `HR | Power / target | Kcal`.
+  - Second telemetry row order remains `Speed | Cadence / target | Distance`.
+  - Landscape still supports two-pane session layout for wider displays.
 - risks:
-  - Existing user workouts that relied on degraded fallback may now be blocked in release mode.
-  - Build-type/property wiring can drift if debug and release constants are not validated side-by-side.
-  - Messaging regressions could make strict-vs-fallback behavior unclear in MENU.
+  - Long metric labels can wrap aggressively on narrow cards, reducing readability.
+  - Portrait-forced single-column increases vertical scrolling pressure on smaller heights.
+  - Landscape/portrait logic can regress if adaptive layout thresholds change later.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
   - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-  - `bash -n scripts/adb/emulator-smoke.sh`
-  - `scripts/adb/emulator-smoke.sh --help`
-  - `scripts/adb/emulator-smoke.sh`
-  - optional: `scripts/adb/emulator-smoke.sh --include-flaky`
-  - manual: with an unsupported workout file in strict mode, verify `Start session` stays disabled and reason messaging is explicit.
-  - manual (ADB + USB tablet): verify debug/dev fallback opt-in path still allows start when fallback is explicitly enabled.
+  - manual (USB tablet): open Session screen in portrait and verify one-column page flow.
+  - manual (USB tablet): rotate to landscape and verify two-pane layout remains usable.
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -39,6 +34,11 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Session screen portrait column behavior update:
+  - Forced `SessionScreen` to single-column content flow in portrait orientation, including tablet portrait widths.
+  - Kept two-pane behavior available in landscape by gating two-pane rendering with orientation check.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
 - Emulator smoke hardening after real run feedback:
   - Fixed license acceptance handling in `scripts/adb/emulator-smoke.sh` under `set -o pipefail` so `yes | sdkmanager --licenses` no longer fails on benign broken pipe.
   - Added known Compose startup flake auto-retry (`--retries`, default `1`) for emulator instrumentation runs.
