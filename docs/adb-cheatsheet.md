@@ -256,3 +256,50 @@ Artifacts are written under `.local/device-test-runs/run-<timestamp>/`:
 - `androidTest-results/*.xml`
 - `reports/androidTests-connected-debug/`
 - optional `final-screen.png` and `screenrecord.mp4`
+
+## One-command Emulator Smoke Pipeline (Fast Regression)
+
+Use the local emulator helper when you want fast UI/state regression checks without using the USB tablet:
+
+```bash
+./scripts/adb/emulator-smoke.sh
+```
+
+Create/verify the default AVD only (no boot, no tests):
+
+```bash
+./scripts/adb/emulator-smoke.sh --create-only
+```
+
+Run full instrumentation suite on emulator:
+
+```bash
+./scripts/adb/emulator-smoke.sh --all-tests
+```
+
+Run emulator smoke including tests marked `@FlakyTest`:
+
+```bash
+./scripts/adb/emulator-smoke.sh --include-flaky
+```
+
+Keep emulator process alive after the run (useful when iterating repeatedly):
+
+```bash
+./scripts/adb/emulator-smoke.sh --keep-running
+```
+
+Artifacts are written under `.local/emulator-test-runs/run-<timestamp>/`:
+- `emulator.log`
+- `logcat.log`
+- `run-summary.txt`
+- `androidTest-results/*.xml`
+- `reports/androidTests-connected-debug/`
+- `final-screen.png`
+
+Notes:
+- This emulator pipeline is for UI/Compose/instrumentation regressions.
+- By default, emulator smoke excludes tests annotated with `@FlakyTest`; use `--include-flaky` when needed.
+- BLE trainer behavior (FTMS/Tunturi) must still be validated on real hardware with `./scripts/adb/device-smoke.sh`.
+- If both USB device and emulator are connected, emulator runs stay deterministic because the script pins test execution via `ANDROID_SERIAL=emulator-<port>`.
+- If you see `avdmanager` or `sdkmanager` missing errors, install **Android SDK Command-line Tools** from Android Studio: `Settings > Android SDK > SDK Tools`.

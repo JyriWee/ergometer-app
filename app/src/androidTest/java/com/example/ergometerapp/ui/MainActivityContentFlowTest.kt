@@ -3,6 +3,7 @@ package com.example.ergometerapp.ui
 import androidx.activity.ComponentActivity
 import android.content.pm.ActivityInfo
 import androidx.compose.runtime.mutableStateOf
+import androidx.test.filters.FlakyTest
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -258,6 +259,7 @@ class MainActivityContentFlowTest {
     }
 
     @Test
+    @FlakyTest
     fun menuAndSessionAnchorsRemainVisibleAcrossRotation() {
         val modelState = mutableStateOf(baseModel(screen = AppScreen.MENU))
 

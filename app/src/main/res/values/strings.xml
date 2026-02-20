@@ -151,6 +151,8 @@
         <!-- Telemetry labels -->
         <string name="session_power_value">%1$s W</string>
         <string name="session_instant_power_label">Instant power</string>
+        <string name="session_power_target_label">Power / target</string>
+        <string name="session_power_target_value">%1$s / %2$s W</string>
 
         <string name="session_cadence_target_label">Cadence / target</string>
         <string name="session_cadence_target_value">%1$s / %2$s rpm</string>
@@ -163,6 +165,12 @@
 
         <string name="session_kcal_label">Kcal</string>
         <string name="session_kcal_value">%1$s kcal</string>
+        <string name="session_layout_preset_title">Layout preset</string>
+        <string name="session_layout_preset_balanced">Balanced</string>
+        <string name="session_layout_preset_power_first">Power first</string>
+        <string name="session_layout_preset_workout_first">Workout first</string>
+        <string name="session_layout_preset_selected_value">Preset: %1$s</string>
+        <string name="session_layout_preset_change">Change</string>
 
         <!-- Machine status -->
         <string name="session_target_label">Target power</string>
