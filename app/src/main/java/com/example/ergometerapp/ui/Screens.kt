@@ -1125,6 +1125,7 @@ internal fun SessionScreen(
         val showTwoPane = layoutMode.isTwoPane() && !isPortrait
         val paneWeights = layoutMode.paneWeights()
         val compactTopMetrics = !showTwoPane && maxWidth < SessionTopMetricsCompactWidth
+        val sessionTopPadding = if (isPortrait) 28.dp else 16.dp
 
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1140,7 +1141,8 @@ internal fun SessionScreen(
                     modifier = Modifier
                         .weight(1f)
                         .verticalScroll(rememberScrollState())
-                        .padding(horizontal = 20.dp, vertical = 16.dp)
+                        .padding(horizontal = 20.dp)
+                        .padding(top = sessionTopPadding, bottom = 16.dp)
                         .padding(bottom = SessionStickyActionBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -1156,11 +1158,15 @@ internal fun SessionScreen(
                             ) {
                                 TopTelemetrySection(
                                     compactLayout = compactTopMetrics,
-                                    heartRateValue = heartRateValue,
                                     speedValue = speedValue,
-                                    powerTargetValue = powerTargetValue,
                                     cadenceTargetValue = cadenceTargetValue,
                                     distanceValue = distanceValue,
+                                    workoutRemainingValue = remainingText,
+                                    elapsedOfTotalValue = elapsedOfTotalText,
+                                )
+                                PrimaryTelemetrySection(
+                                    heartRateValue = heartRateValue,
+                                    powerTargetValue = powerTargetValue,
                                     kcalValue = kcalValue,
                                 )
                                 if (sessionIssues.isNotEmpty()) {
@@ -1186,17 +1192,23 @@ internal fun SessionScreen(
                                     workoutComplete = workoutComplete,
                                     workoutExecutionModeMessage = workoutExecutionModeMessage,
                                     workoutExecutionModeIsError = workoutExecutionModeIsError,
+                                    showTimingMetrics = false,
                                 )
                             }
                         }
                     } else {
                         TopTelemetrySection(
                             compactLayout = compactTopMetrics,
-                            heartRateValue = heartRateValue,
                             speedValue = speedValue,
-                            powerTargetValue = powerTargetValue,
                             cadenceTargetValue = cadenceTargetValue,
                             distanceValue = distanceValue,
+                            workoutRemainingValue = remainingText,
+                            elapsedOfTotalValue = elapsedOfTotalText,
+                        )
+
+                        PrimaryTelemetrySection(
+                            heartRateValue = heartRateValue,
+                            powerTargetValue = powerTargetValue,
                             kcalValue = kcalValue,
                         )
 
@@ -1215,6 +1227,7 @@ internal fun SessionScreen(
                             workoutComplete = workoutComplete,
                             workoutExecutionModeMessage = workoutExecutionModeMessage,
                             workoutExecutionModeIsError = workoutExecutionModeIsError,
+                            showTimingMetrics = false,
                         )
 
                         if (sessionIssues.isNotEmpty()) {
@@ -1242,42 +1255,15 @@ internal fun SessionScreen(
 @Composable
 private fun TopTelemetrySection(
     compactLayout: Boolean,
-    heartRateValue: String,
     speedValue: String,
-    powerTargetValue: String,
     cadenceTargetValue: String,
     distanceValue: String,
-    kcalValue: String,
+    workoutRemainingValue: String,
+    elapsedOfTotalValue: String,
 ) {
     val cardBorder = sessionCardBorder()
     val metricSpacing = if (compactLayout) 8.dp else 10.dp
     SectionCard(title = null, border = cardBorder) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(metricSpacing),
-        ) {
-            TopMetricCard(
-                label = stringResource(R.string.session_hr_short_label),
-                value = heartRateValue,
-                modifier = Modifier.weight(1f),
-                border = cardBorder,
-                emphasized = true,
-            )
-            TopMetricCard(
-                label = stringResource(R.string.session_power_target_label),
-                value = powerTargetValue,
-                modifier = Modifier.weight(1f),
-                border = cardBorder,
-                emphasized = true,
-            )
-            TopMetricCard(
-                label = stringResource(R.string.session_kcal_label),
-                value = kcalValue,
-                modifier = Modifier.weight(1f),
-                border = cardBorder,
-                emphasized = true,
-            )
-        }
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(metricSpacing),
@@ -1301,6 +1287,60 @@ private fun TopTelemetrySection(
                 border = cardBorder,
             )
         }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(metricSpacing),
+        ) {
+            TopMetricCard(
+                label = stringResource(R.string.session_workout_remaining),
+                value = workoutRemainingValue,
+                modifier = Modifier.weight(1f),
+                border = cardBorder,
+            )
+            TopMetricCard(
+                label = stringResource(R.string.session_elapsed_of_total),
+                value = elapsedOfTotalValue,
+                modifier = Modifier.weight(1f),
+                border = cardBorder,
+            )
+        }
+    }
+}
+
+@Composable
+private fun PrimaryTelemetrySection(
+    heartRateValue: String,
+    powerTargetValue: String,
+    kcalValue: String,
+) {
+    val cardBorder = sessionCardBorder()
+    SectionCard(title = null, border = cardBorder) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            TopMetricCard(
+                label = stringResource(R.string.session_hr_short_label),
+                value = heartRateValue,
+                modifier = Modifier.weight(1f),
+                border = cardBorder,
+                emphasized = true,
+            )
+            TopMetricCard(
+                label = stringResource(R.string.session_power_target_label),
+                value = powerTargetValue,
+                modifier = Modifier.weight(1f),
+                border = cardBorder,
+                emphasized = true,
+            )
+            TopMetricCard(
+                label = stringResource(R.string.session_kcal_label),
+                value = kcalValue,
+                modifier = Modifier.weight(1f),
+                border = cardBorder,
+                emphasized = true,
+            )
+        }
     }
 }
 
@@ -1319,7 +1359,7 @@ private fun TopMetricCard(
             lineHeight = MaterialTheme.typography.titleSmall.lineHeight * emphasizedScale,
         )
     } else {
-        MaterialTheme.typography.labelSmall
+        MaterialTheme.typography.labelMedium
     }
     val valueStyle = if (emphasized) {
         MaterialTheme.typography.headlineSmall.copy(
@@ -1327,7 +1367,7 @@ private fun TopMetricCard(
             lineHeight = MaterialTheme.typography.headlineSmall.lineHeight * emphasizedScale,
         )
     } else {
-        MaterialTheme.typography.titleSmall
+        MaterialTheme.typography.titleMedium
     }
     val labelColor = if (emphasized) {
         MaterialTheme.colorScheme.onSurface
@@ -1335,7 +1375,7 @@ private fun TopMetricCard(
         MaterialTheme.colorScheme.onSurfaceVariant
     }
     val valueWeight = if (emphasized) FontWeight.Bold else FontWeight.SemiBold
-    val verticalPadding = if (emphasized) 14.dp else 7.dp
+    val verticalPadding = if (emphasized) 14.dp else 9.dp
 
     Card(
         modifier = modifier,
@@ -1379,6 +1419,7 @@ private fun WorkoutProgressSection(
     workoutComplete: Boolean,
     workoutExecutionModeMessage: String?,
     workoutExecutionModeIsError: Boolean,
+    showTimingMetrics: Boolean = true,
 ) {
     val cardBorder = sessionCardBorder()
     val activeSegment = remember(workoutSegments, runnerState.workoutElapsedSec, workoutComplete) {
@@ -1395,24 +1436,26 @@ private fun WorkoutProgressSection(
             fontWeight = FontWeight.SemiBold,
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            MetricCard(
-                label = stringResource(R.string.session_workout_remaining),
-                value = remainingText,
-                modifier = Modifier.weight(1f),
-                border = cardBorder,
-            )
-            MetricCard(
-                label = stringResource(R.string.session_elapsed_of_total),
-                value = elapsedOfTotalText,
-                modifier = Modifier.weight(1f),
-                valueStyle = MaterialTheme.typography.titleMedium,
-                valueMaxLines = 1,
-                border = cardBorder,
-            )
+        if (showTimingMetrics) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                MetricCard(
+                    label = stringResource(R.string.session_workout_remaining),
+                    value = remainingText,
+                    modifier = Modifier.weight(1f),
+                    border = cardBorder,
+                )
+                MetricCard(
+                    label = stringResource(R.string.session_elapsed_of_total),
+                    value = elapsedOfTotalText,
+                    modifier = Modifier.weight(1f),
+                    valueStyle = MaterialTheme.typography.titleMedium,
+                    valueMaxLines = 1,
+                    border = cardBorder,
+                )
+            }
         }
 
         Row(
