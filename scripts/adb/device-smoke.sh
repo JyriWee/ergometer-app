@@ -18,6 +18,7 @@ LOGCAT_PID=""
 RECORD_PID=""
 RUN_DIR=""
 LOG_PATH=""
+LOG_CAPTURE_PATH=""
 REMOTE_RECORDING_PATH=""
 
 print_help() {
@@ -120,7 +121,27 @@ fi
 cleanup() {
   if [[ -n "$LOGCAT_PID" ]] && kill -0 "$LOGCAT_PID" >/dev/null 2>&1; then
     kill "$LOGCAT_PID" >/dev/null 2>&1 || true
+    for _ in {1..20}; do
+      if ! kill -0 "$LOGCAT_PID" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$LOGCAT_PID" >/dev/null 2>&1; then
+      kill -9 "$LOGCAT_PID" >/dev/null 2>&1 || true
+    fi
     wait "$LOGCAT_PID" 2>/dev/null || true
+  fi
+
+  if [[ -n "$RUN_DIR" ]] && [[ -n "$LOG_CAPTURE_PATH" ]] && [[ -f "$LOG_CAPTURE_PATH" ]]; then
+    if [[ "$RAW_LOGCAT" == true ]]; then
+      if [[ "$LOG_CAPTURE_PATH" != "$LOG_PATH" ]]; then
+        mv -f "$LOG_CAPTURE_PATH" "$LOG_PATH" 2>/dev/null || true
+      fi
+    else
+      awk -v re="$FILTER_REGEX" '$0 ~ re' "$LOG_CAPTURE_PATH" > "$LOG_PATH" 2>/dev/null || true
+      rm -f "$LOG_CAPTURE_PATH" 2>/dev/null || true
+    fi
   fi
 
   if [[ -n "$RECORD_PID" ]] && kill -0 "$RECORD_PID" >/dev/null 2>&1; then
@@ -149,6 +170,11 @@ TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="${OUT_BASE}/run-${TIMESTAMP}"
 mkdir -p "$RUN_DIR"
 LOG_PATH="${RUN_DIR}/logcat.log"
+if [[ "$RAW_LOGCAT" == true ]]; then
+  LOG_CAPTURE_PATH="$LOG_PATH"
+else
+  LOG_CAPTURE_PATH="${RUN_DIR}/logcat.raw.log"
+fi
 
 run_gradle_on_selected_device() {
   ANDROID_SERIAL="$DEVICE_SERIAL" ./gradlew "$@"
@@ -160,11 +186,7 @@ echo "==> Gradle target serial: ${DEVICE_SERIAL}"
 
 echo "==> Starting log capture..."
 "${ADB_CMD[@]}" logcat -c
-if [[ "$RAW_LOGCAT" == true ]]; then
-  "${ADB_CMD[@]}" logcat -v time > "$LOG_PATH" &
-else
-  "${ADB_CMD[@]}" logcat -v time | awk -v re="$FILTER_REGEX" '$0 ~ re' > "$LOG_PATH" &
-fi
+"${ADB_CMD[@]}" logcat -v time > "$LOG_CAPTURE_PATH" &
 LOGCAT_PID=$!
 
 if [[ "$RECORD_SECONDS" -gt 0 ]]; then

@@ -4,25 +4,20 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Run one manual GitHub smoke dispatch for PR `#33` (`run_instrumentation_smoke=true`, `include_flaky_tests=true`) and verify artifacts/policy output end-to-end.
+- next task: Fix `MainActivityContentFlowTest` failures caused by missing `Connecting…` anchor after connect-timeout flow updates.
 - DoD:
-  - PR description covers: connect timeout watchdog, CI smoke trigger changes, serial pinning, and flaky policy visibility.
-  - Manual dispatch creates `android-instrumentation-smoke-*` artifact bundle including `smoke-policy.txt` with `include_flaky=true`.
-  - Required PR checks remain fast/stable (no default emulator smoke gate on PR event).
+  - `criticalFlowScreensRenderExpectedAnchors` passes on tablet (`SM-X210`).
+  - `startSessionAnchorsStayConsistentAcrossConnectPermissionDenyThenGrant` passes on tablet (`SM-X210`).
+  - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB` exits cleanly without lingering `adb logcat` processes on both pass and fail paths.
 - risks:
-  - Manual dispatch input mistakes can produce false confidence (smoke job not run when toggle is off).
-  - Nightly can still fail for infrastructure reasons unrelated to app regressions.
-  - Non-blocking smoke requires explicit monitoring discipline to stay useful.
+  - UI copy/state transitions for `CONNECTING` may have drifted from instrumentation test assumptions.
+  - Tests can remain timing-sensitive on real hardware if anchor assertions are too strict.
+  - CI smoke signal may still be noisy until these anchors are stabilized.
 - validation commands:
-  - `git diff -- .github/workflows/android-build.yml`
-  - `git diff -- scripts/adb/emulator-smoke.sh`
-  - `git diff -- scripts/adb/device-smoke.sh`
-  - `git diff -- docs/adb-cheatsheet.md`
+  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+  - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
   - `bash -n scripts/adb/device-smoke.sh`
-  - `bash -n scripts/adb/emulator-smoke.sh`
-  - `scripts/adb/device-smoke.sh --help`
-  - `scripts/adb/emulator-smoke.sh --help`
-  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+  - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -38,6 +33,13 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Device smoke cleanup hardening for failure-path exit:
+  - Reworked `scripts/adb/device-smoke.sh` logcat capture to avoid background pipeline orphaning (`adb logcat` is now tracked as a single process).
+  - Added forced shutdown fallback for lingering logcat PID and post-capture filtering step, preserving default filtered `logcat.log`.
+  - Confirmed failure-path exit no longer leaves `device-smoke.sh` or `adb logcat` processes running.
+  - Validation:
+    - `bash -n scripts/adb/device-smoke.sh`
+    - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB` (expected test failure due existing UI anchor assertions, script exits cleanly)
 - Opened PR `#33` (`feature/pr32-connect-timeout-watchdog` -> `main`) with session connect-timeout + smoke/CI policy changes.
 - Flaky-test visibility policy finalized across local + GitHub smoke lanes:
   - `android-build.yml` now supports manual flaky inclusion input (`include_flaky_tests`) and resolves explicit smoke policy per trigger.
