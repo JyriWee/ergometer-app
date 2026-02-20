@@ -26,6 +26,7 @@ import com.example.ergometerapp.workout.WorkoutExecutionStepCounter
 import com.example.ergometerapp.workout.WorkoutPlannedTssCalculator
 import com.example.ergometerapp.workout.runner.WorkoutRunner
 import com.example.ergometerapp.workout.runner.WorkoutStepper
+import com.example.ergometerapp.session.export.SessionExportSnapshot
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.RejectedExecutionException
@@ -108,6 +109,7 @@ class SessionOrchestrator(
         cancelStopFlowTimeout()
         uiState.connectionIssueMessage.value = null
         uiState.suggestTrainerSearchAfterConnectionIssue.value = false
+        uiState.suggestOpenSettingsAfterConnectionIssue.value = false
         uiState.stopFlowState.value = StopFlowState.IDLE
         resetFtmsUiState(clearReady = true)
         uiState.pendingSessionStartAfterPermission = true
@@ -149,7 +151,18 @@ class SessionOrchestrator(
             return
         }
 
+        val pendingStartWasActive = uiState.pendingSessionStartAfterPermission
         uiState.pendingSessionStartAfterPermission = false
+        if (pendingStartWasActive) {
+            uiState.connectionIssueMessage.value =
+                safeString(
+                    resId = R.string.menu_connect_permission_denied_open_settings,
+                    fallback = "Bluetooth permission is required to start a session. Open app settings and allow Nearby devices permission.",
+                )
+            uiState.suggestTrainerSearchAfterConnectionIssue.value = false
+            uiState.suggestOpenSettingsAfterConnectionIssue.value = true
+            uiState.screen.value = AppScreen.MENU
+        }
         Log.d("BLE", "BLUETOOTH_CONNECT denied")
         dumpUiState("permissionResult(granted=false)")
     }
@@ -242,6 +255,11 @@ class SessionOrchestrator(
         releaseControl(resetDevice = true)
         dumpUiState("endSessionAndGoToSummary")
     }
+
+    /**
+     * Returns the latest session export snapshot after session stop.
+     */
+    fun getSessionExportSnapshot(): SessionExportSnapshot? = sessionManager.buildExportSnapshot()
 
     /**
      * Releases owned resources during activity teardown.
@@ -382,6 +400,14 @@ class SessionOrchestrator(
         return "Unable to read file content.\nDetails: $readFailureDetails"
     }
 
+    private fun safeString(resId: Int, fallback: String): String {
+        return try {
+            context.getString(resId)
+        } catch (_: RuntimeException) {
+            fallback
+        }
+    }
+
     /**
      * Keeps parser diagnostics visible in the same message shown to the user.
      */
@@ -506,6 +532,7 @@ class SessionOrchestrator(
                         uiState.connectionIssueMessage.value =
                             context.getString(R.string.menu_saved_trainer_connect_failed)
                         uiState.suggestTrainerSearchAfterConnectionIssue.value = true
+                        uiState.suggestOpenSettingsAfterConnectionIssue.value = false
                     }
                     allowScreenOff()
                     uiState.screen.value = AppScreen.MENU
@@ -862,6 +889,7 @@ class SessionOrchestrator(
         uiState.autoPausedByZeroCadence = false
         uiState.connectionIssueMessage.value = message
         uiState.suggestTrainerSearchAfterConnectionIssue.value = true
+        uiState.suggestOpenSettingsAfterConnectionIssue.value = false
         uiState.screen.value = AppScreen.MENU
         allowScreenOff()
         bleClient?.close()

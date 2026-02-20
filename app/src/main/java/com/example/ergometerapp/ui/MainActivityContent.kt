@@ -47,6 +47,7 @@ internal data class MainActivityUiModel(
     val workoutExecutionModeIsError: Boolean,
     val connectionIssueMessage: String?,
     val suggestTrainerSearchAfterConnectionIssue: Boolean,
+    val suggestOpenSettingsAfterConnectionIssue: Boolean,
     val activeDeviceSelectionKind: DeviceSelectionKind?,
     val scannedDevices: List<ScannedBleDevice>,
     val deviceScanInProgress: Boolean,
@@ -58,6 +59,8 @@ internal data class MainActivityUiModel(
     val workoutEditorStatusIsError: Boolean,
     val workoutEditorHasUnsavedChanges: Boolean,
     val workoutEditorShowSaveBeforeApplyPrompt: Boolean,
+    val summaryFitExportStatusMessage: String?,
+    val summaryFitExportStatusIsError: Boolean,
 )
 
 /**
@@ -74,11 +77,13 @@ internal fun MainActivityContent(
     onDismissDeviceSelection: () -> Unit,
     onDismissConnectionIssue: () -> Unit,
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
+    onOpenAppSettingsFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit,
     onWorkoutEditorAction: (WorkoutEditorAction) -> Unit,
     onRequestWorkoutEditorSave: (String) -> Unit,
+    onRequestSummaryFitExport: () -> Unit,
 ) {
     ErgometerAppTheme {
         MainDestinationContent(
@@ -91,11 +96,13 @@ internal fun MainActivityContent(
             onDismissDeviceSelection = onDismissDeviceSelection,
             onDismissConnectionIssue = onDismissConnectionIssue,
             onSearchFtmsDevicesFromConnectionIssue = onSearchFtmsDevicesFromConnectionIssue,
+            onOpenAppSettingsFromConnectionIssue = onOpenAppSettingsFromConnectionIssue,
             onStartSession = onStartSession,
             onEndSession = onEndSession,
             onBackToMenu = onBackToMenu,
             onWorkoutEditorAction = onWorkoutEditorAction,
             onRequestWorkoutEditorSave = onRequestWorkoutEditorSave,
+            onRequestSummaryFitExport = onRequestSummaryFitExport,
         )
     }
 }
@@ -111,11 +118,13 @@ private fun MainDestinationContent(
     onDismissDeviceSelection: () -> Unit,
     onDismissConnectionIssue: () -> Unit,
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
+    onOpenAppSettingsFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit,
     onEndSession: () -> Unit,
     onBackToMenu: () -> Unit,
     onWorkoutEditorAction: (WorkoutEditorAction) -> Unit,
     onRequestWorkoutEditorSave: (String) -> Unit,
+    onRequestSummaryFitExport: () -> Unit,
 ) {
     when (model.screen) {
         AppScreen.MENU -> {
@@ -140,6 +149,7 @@ private fun MainDestinationContent(
                 workoutExecutionModeIsError = model.workoutExecutionModeIsError,
                 connectionIssueMessage = model.connectionIssueMessage,
                 suggestTrainerSearchAfterConnectionIssue = model.suggestTrainerSearchAfterConnectionIssue,
+                suggestOpenSettingsAfterConnectionIssue = model.suggestOpenSettingsAfterConnectionIssue,
                 activeDeviceSelectionKind = model.activeDeviceSelectionKind,
                 scannedDevices = model.scannedDevices,
                 deviceScanInProgress = model.deviceScanInProgress,
@@ -154,6 +164,7 @@ private fun MainDestinationContent(
                 onDismissDeviceSelection = onDismissDeviceSelection,
                 onDismissConnectionIssue = onDismissConnectionIssue,
                 onSearchFtmsDevicesFromConnectionIssue = onSearchFtmsDevicesFromConnectionIssue,
+                onOpenAppSettingsFromConnectionIssue = onOpenAppSettingsFromConnectionIssue,
                 onStartSession = onStartSession,
                 onOpenWorkoutEditor = { onWorkoutEditorAction(WorkoutEditorAction.OpenEditor) },
             )
@@ -202,7 +213,10 @@ private fun MainDestinationContent(
         AppScreen.SUMMARY -> {
             SummaryScreen(
                 summary = model.summary,
-                onBackToMenu = onBackToMenu
+                fitExportStatusMessage = model.summaryFitExportStatusMessage,
+                fitExportStatusIsError = model.summaryFitExportStatusIsError,
+                onRequestFitExport = onRequestSummaryFitExport,
+                onBackToMenu = onBackToMenu,
             )
         }
     }

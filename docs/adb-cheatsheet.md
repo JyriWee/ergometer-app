@@ -1,0 +1,258 @@
+# ADB Cheatsheet (ErgometerApp)
+
+This file contains practical `adb` commands for daily development and debugging on a USB-connected Android device.
+
+## Prerequisites
+- USB debugging enabled on device.
+- Device is authorized for this host.
+- Check connection:
+
+```bash
+adb devices -l
+```
+
+Expected: device listed with state `device`.
+
+## Project Constants
+- App package: `com.example.ergometerapp`
+- Main activity: `com.example.ergometerapp.MainActivity`
+
+## Build + Install
+
+Build debug APK:
+
+```bash
+./gradlew :app:assembleDebug
+```
+
+Install (replace existing):
+
+```bash
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+```
+
+Install preserving app data (usually same as `-r`):
+
+```bash
+adb install -r -d app/build/outputs/apk/debug/app-debug.apk
+```
+
+## Launch / Stop App
+
+Start app:
+
+```bash
+adb shell am start -n com.example.ergometerapp/.MainActivity
+```
+
+Force-stop app:
+
+```bash
+adb shell am force-stop com.example.ergometerapp
+```
+
+Clear app data (fresh state):
+
+```bash
+adb shell pm clear com.example.ergometerapp
+```
+
+## Logs (Logcat)
+
+Clear old logs:
+
+```bash
+adb logcat -c
+```
+
+Show live logs:
+
+```bash
+adb logcat
+```
+
+Show app process logs only:
+
+```bash
+adb logcat --pid "$(adb shell pidof -s com.example.ergometerapp)"
+```
+
+Show useful BLE tags (example):
+
+```bash
+adb logcat | rg "FTMS|BluetoothGatt|BluetoothLeScanner|SESSION|WORKOUT"
+```
+
+## Files and Exported FIT Artifacts
+
+List app files (debuggable build context-dependent):
+
+```bash
+adb shell run-as com.example.ergometerapp ls -la files
+```
+
+Pull one internal app file:
+
+```bash
+adb exec-out run-as com.example.ergometerapp cat files/<filename> > ./<filename>
+```
+
+Pull from public storage path (if export target is public):
+
+```bash
+adb pull /sdcard/Download/<filename> .
+```
+
+## Screenshots and Screen Recording
+
+Take screenshot:
+
+```bash
+adb exec-out screencap -p > screenshot.png
+```
+
+Record screen (30 sec max in this example):
+
+```bash
+adb shell screenrecord --time-limit 30 /sdcard/Download/ergometer-record.mp4
+adb pull /sdcard/Download/ergometer-record.mp4 .
+```
+
+Use the helper script to capture screenshot + recording in one command:
+
+```bash
+./scripts/adb/capture.sh --serial R92Y40YAZPB --seconds 10
+```
+
+## Input Automation (Quick Smoke Actions)
+
+Tap at coordinates:
+
+```bash
+adb shell input tap 500 1200
+```
+
+Swipe:
+
+```bash
+adb shell input swipe 500 1600 500 600 300
+```
+
+Type text:
+
+```bash
+adb shell input text "140"
+```
+
+Back key:
+
+```bash
+adb shell input keyevent 4
+```
+
+## Instrumentation Tests
+
+Run all androidTests:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest --no-daemon
+```
+
+Run one instrumentation test class:
+
+```bash
+./gradlew :app:connectedDebugAndroidTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest \
+  --no-daemon
+```
+
+## Device Diagnostics
+
+Battery status:
+
+```bash
+adb shell dumpsys battery
+```
+
+Current foreground activity:
+
+```bash
+adb shell dumpsys activity activities | rg "mResumedActivity|topResumedActivity"
+```
+
+Bluetooth manager state:
+
+```bash
+adb shell dumpsys bluetooth_manager
+```
+
+## Multi-Device Tip
+If multiple devices are connected, target one serial explicitly:
+
+```bash
+adb -s <serial> <command>
+```
+
+Example:
+
+```bash
+adb -s R92Y40YAZPB shell getprop ro.product.model
+```
+
+## Project Helper Script (Recommended)
+
+Use the included helper for filtered ErgometerApp logs:
+
+```bash
+./scripts/adb/logcat-ergometer.sh --clear
+```
+
+Use app-process-only logging (best signal/noise during active app testing):
+
+```bash
+./scripts/adb/logcat-ergometer.sh --pid-only --clear
+```
+
+Dump current filtered logs to file and exit:
+
+```bash
+./scripts/adb/logcat-ergometer.sh --dump
+```
+
+Use specific device serial and custom output path:
+
+```bash
+./scripts/adb/logcat-ergometer.sh \
+  --serial R92Y40YAZPB \
+  --clear \
+  --output .local/logs/ergometer-session.log
+```
+
+## One-command Device Smoke Pipeline
+
+Run install + clean-state + connected tests + log capture + artifact collection:
+
+```bash
+./scripts/adb/device-smoke.sh
+```
+
+Run all instrumentation tests (not only smoke class):
+
+```bash
+./scripts/adb/device-smoke.sh --all-tests
+```
+
+Run with explicit device and optional short screen recording:
+
+```bash
+./scripts/adb/device-smoke.sh \
+  --serial R92Y40YAZPB \
+  --record-seconds 20
+```
+
+Artifacts are written under `.local/device-test-runs/run-<timestamp>/`:
+- `logcat.log`
+- `run-summary.txt`
+- `androidTest-results/*.xml`
+- `reports/androidTests-connected-debug/`
+- optional `final-screen.png` and `screenrecord.mp4`

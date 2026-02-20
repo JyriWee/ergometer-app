@@ -4,6 +4,8 @@ import android.content.ContextWrapper
 import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.AppUiState
 import com.example.ergometerapp.StopFlowState
+import com.example.ergometerapp.workout.Step
+import com.example.ergometerapp.workout.WorkoutFile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
@@ -28,6 +30,7 @@ class SessionOrchestratorFlowTest {
         assertFalse(harness.uiState.ftmsReady.value)
         assertFalse(harness.uiState.ftmsControlGranted.value)
         assertTrue(harness.uiState.suggestTrainerSearchAfterConnectionIssue.value)
+        assertFalse(harness.uiState.suggestOpenSettingsAfterConnectionIssue.value)
         assertNotNull(harness.uiState.connectionIssueMessage.value)
         assertEquals(1, harness.currentAllowScreenOffCalls)
     }
@@ -47,6 +50,7 @@ class SessionOrchestratorFlowTest {
         assertFalse(harness.uiState.ftmsReady.value)
         assertFalse(harness.uiState.ftmsControlGranted.value)
         assertTrue(harness.uiState.suggestTrainerSearchAfterConnectionIssue.value)
+        assertFalse(harness.uiState.suggestOpenSettingsAfterConnectionIssue.value)
         assertNotNull(harness.uiState.connectionIssueMessage.value)
         assertEquals(1, harness.currentAllowScreenOffCalls)
     }
@@ -85,7 +89,113 @@ class SessionOrchestratorFlowTest {
         assertEquals(1, harness.currentAllowScreenOffCalls)
     }
 
-    private fun createHarness(mainHandler: android.os.Handler = ManualHandler()): Harness {
+    @Test
+    fun startAndStopFlowTransitionCompletesToSummaryOnAcknowledgement() {
+        val manualHandler = ManualHandler()
+        val harness = createHarness(mainHandler = manualHandler)
+        harness.orchestrator.initialize()
+        harness.uiState.screen.value = AppScreen.CONNECTING
+
+        harness.orchestrator.simulateRequestControlGrantedForTest()
+
+        assertEquals(AppScreen.SESSION, harness.uiState.screen.value)
+        assertEquals(SessionPhase.RUNNING, harness.sessionManager.getPhase())
+        assertEquals(1, harness.currentKeepScreenOnCalls)
+
+        harness.orchestrator.endSessionAndGoToSummary()
+        assertEquals(AppScreen.STOPPING, harness.uiState.screen.value)
+        assertEquals(StopFlowState.STOPPING_AWAIT_ACK, harness.uiState.stopFlowState.value)
+
+        harness.orchestrator.simulateStopAcknowledgedForTest()
+
+        assertEquals(AppScreen.SUMMARY, harness.uiState.screen.value)
+        assertEquals(StopFlowState.IDLE, harness.uiState.stopFlowState.value)
+        assertEquals(1, harness.currentAllowScreenOffCalls)
+        assertNotNull(harness.uiState.summary.value)
+    }
+
+    @Test
+    fun stopFlowTimeoutCompletesToSummaryWithoutAcknowledgement() {
+        val manualHandler = ManualHandler()
+        val harness = createHarness(mainHandler = manualHandler)
+        harness.orchestrator.initialize()
+        harness.uiState.screen.value = AppScreen.SESSION
+
+        harness.orchestrator.endSessionAndGoToSummary()
+
+        assertEquals(AppScreen.STOPPING, harness.uiState.screen.value)
+        assertEquals(StopFlowState.STOPPING_AWAIT_ACK, harness.uiState.stopFlowState.value)
+
+        manualHandler.advanceBy(3999L)
+        assertEquals(AppScreen.STOPPING, harness.uiState.screen.value)
+        assertEquals(StopFlowState.STOPPING_AWAIT_ACK, harness.uiState.stopFlowState.value)
+
+        manualHandler.advanceBy(1L)
+        assertEquals(AppScreen.SUMMARY, harness.uiState.screen.value)
+        assertEquals(StopFlowState.IDLE, harness.uiState.stopFlowState.value)
+        assertEquals(1, harness.currentAllowScreenOffCalls)
+    }
+
+    @Test
+    fun connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry() {
+        var connectPermissionGranted = false
+        val harness = createHarness(
+            ensureBluetoothPermission = { connectPermissionGranted },
+        )
+        harness.orchestrator.initialize()
+        harness.uiState.selectedWorkout.value = readyWorkout()
+        harness.uiState.workoutReady.value = true
+
+        harness.orchestrator.startSessionConnection()
+
+        assertTrue(harness.uiState.pendingSessionStartAfterPermission)
+        assertEquals(AppScreen.MENU, harness.uiState.screen.value)
+
+        harness.orchestrator.onBluetoothPermissionResult(granted = false)
+        assertFalse(harness.uiState.pendingSessionStartAfterPermission)
+        assertEquals(AppScreen.MENU, harness.uiState.screen.value)
+        assertTrue(harness.uiState.suggestOpenSettingsAfterConnectionIssue.value)
+        assertFalse(harness.uiState.suggestTrainerSearchAfterConnectionIssue.value)
+        assertNotNull(harness.uiState.connectionIssueMessage.value)
+
+        connectPermissionGranted = true
+        harness.orchestrator.onBluetoothPermissionResult(granted = true)
+        assertFalse(harness.uiState.pendingSessionStartAfterPermission)
+        assertEquals(AppScreen.MENU, harness.uiState.screen.value)
+        assertTrue(harness.uiState.suggestOpenSettingsAfterConnectionIssue.value)
+    }
+
+    @Test
+    fun connectPermissionDeniedAllowsPendingStartToBeReArmedOnExplicitRetry() {
+        val harness = createHarness(
+            ensureBluetoothPermission = { false },
+        )
+        harness.orchestrator.initialize()
+        harness.uiState.selectedWorkout.value = readyWorkout()
+        harness.uiState.workoutReady.value = true
+
+        harness.orchestrator.startSessionConnection()
+        assertTrue(harness.uiState.pendingSessionStartAfterPermission)
+        assertEquals(AppScreen.MENU, harness.uiState.screen.value)
+
+        harness.orchestrator.onBluetoothPermissionResult(granted = false)
+        assertFalse(harness.uiState.pendingSessionStartAfterPermission)
+        assertEquals(AppScreen.MENU, harness.uiState.screen.value)
+        assertTrue(harness.uiState.suggestOpenSettingsAfterConnectionIssue.value)
+        assertFalse(harness.uiState.suggestTrainerSearchAfterConnectionIssue.value)
+
+        harness.orchestrator.startSessionConnection()
+        assertTrue(harness.uiState.pendingSessionStartAfterPermission)
+        assertEquals(AppScreen.MENU, harness.uiState.screen.value)
+        assertFalse(harness.uiState.suggestOpenSettingsAfterConnectionIssue.value)
+        assertFalse(harness.uiState.suggestTrainerSearchAfterConnectionIssue.value)
+        assertNull(harness.uiState.connectionIssueMessage.value)
+    }
+
+    private fun createHarness(
+        mainHandler: android.os.Handler = ManualHandler(),
+        ensureBluetoothPermission: () -> Boolean = { true },
+    ): Harness {
         val uiState = AppUiState()
         val context = ContextWrapper(null)
 
@@ -101,7 +211,7 @@ class SessionOrchestratorFlowTest {
             context = context,
             uiState = uiState,
             sessionManager = sessionManager,
-            ensureBluetoothPermission = { true },
+            ensureBluetoothPermission = ensureBluetoothPermission,
             connectHeartRate = {},
             closeHeartRate = {},
             keepScreenOn = { keepScreenOnCalls += 1 },
@@ -132,6 +242,22 @@ class SessionOrchestratorFlowTest {
 
         val currentAllowScreenOffCalls: Int
             get() = allowScreenOffCounter()
+    }
+
+    private fun readyWorkout(): WorkoutFile {
+        return WorkoutFile(
+            name = "Permission Flow Workout",
+            description = null,
+            author = null,
+            tags = emptyList(),
+            steps = listOf(
+                Step.SteadyState(
+                    durationSec = 180,
+                    power = 0.75,
+                    cadence = 90,
+                )
+            ),
+        )
     }
 
     private class ManualHandler : android.os.Handler(android.os.Looper.getMainLooper()) {
@@ -166,5 +292,21 @@ class SessionOrchestratorFlowTest {
         override fun removeCallbacks(runnable: Runnable) {
             queue.removeAll { it.runnable === runnable }
         }
+
+        fun advanceBy(deltaMs: Long) {
+            require(deltaMs >= 0L) { "Delta must be non-negative." }
+            val targetMs = nowMs + deltaMs
+            while (true) {
+                val next = queue
+                    .filter { it.runAtMs <= targetMs }
+                    .minWithOrNull(compareBy<ScheduledRunnable> { it.runAtMs }.thenBy { it.order })
+                    ?: break
+                queue.remove(next)
+                nowMs = next.runAtMs
+                next.runnable.run()
+            }
+            nowMs = targetMs
+        }
     }
+
 }

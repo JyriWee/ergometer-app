@@ -79,8 +79,10 @@ import java.util.Locale
 
 private val SessionTopMetricsCompactWidth = 700.dp
 private val MenuMaxContentWidth = 560.dp
+private val MenuTwoPaneMaxContentWidth = 1200.dp
 private val SessionMaxContentWidth = 1200.dp
 private val SummaryMaxContentWidth = 920.dp
+private val SummaryTwoPaneMaxContentWidth = 1200.dp
 private val SessionStickyActionBottomPadding = 96.dp
 private val SessionWorkoutChartHeight = 220.dp
 
@@ -124,6 +126,14 @@ private fun menuStartCtaColor() = MaterialTheme.colorScheme.primary
 
 @Composable
 private fun menuStartCtaContentColor() = MaterialTheme.colorScheme.onPrimary
+
+@Composable
+private fun menuStartButtonColors() = ButtonDefaults.buttonColors(
+    containerColor = menuStartCtaColor(),
+    contentColor = menuStartCtaContentColor(),
+    disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f),
+)
 
 @Composable
 private fun menuDeviceConnectedColor() = MaterialTheme.colorScheme.primary
@@ -192,6 +202,7 @@ internal fun MenuScreen(
     workoutExecutionModeIsError: Boolean,
     connectionIssueMessage: String?,
     suggestTrainerSearchAfterConnectionIssue: Boolean,
+    suggestOpenSettingsAfterConnectionIssue: Boolean,
     activeDeviceSelectionKind: DeviceSelectionKind?,
     scannedDevices: List<ScannedBleDevice>,
     deviceScanInProgress: Boolean,
@@ -207,6 +218,7 @@ internal fun MenuScreen(
     onDismissDeviceSelection: () -> Unit,
     onDismissConnectionIssue: () -> Unit,
     onSearchFtmsDevicesFromConnectionIssue: () -> Unit,
+    onOpenAppSettingsFromConnectionIssue: () -> Unit,
     onStartSession: () -> Unit
 ) {
     val normalTextColor = menuNormalTextColor()
@@ -214,8 +226,6 @@ internal fun MenuScreen(
     val pickerStatusColor = menuPickerStatusColor()
     val pickerWarningColor = menuPickerWarningColor()
     val pickerNeutralColor = menuPickerNeutralColor()
-    val startCtaColor = menuStartCtaColor()
-    val startCtaContentColor = menuStartCtaContentColor()
     val showWorkoutFileDialog = remember { mutableStateOf(false) }
     val showWorkoutNameDialog = remember { mutableStateOf(false) }
     val showWorkoutDescriptionDialog = remember { mutableStateOf(false) }
@@ -241,6 +251,27 @@ internal fun MenuScreen(
             else -> null
         }
     val statusTextColor = if (selectedWorkoutImportError != null) errorTextColor else normalTextColor
+    val startBlockedReasonText = if (!startEnabled) {
+        val reasons = mutableListOf<String>()
+        if (selectedWorkoutImportError != null) {
+            reasons += stringResource(R.string.menu_start_blocked_fix_workout)
+        } else if (selectedWorkout == null) {
+            reasons += stringResource(R.string.menu_start_blocked_select_workout)
+        }
+        if (!ftmsSelected) {
+            reasons += stringResource(R.string.menu_start_blocked_select_trainer)
+        }
+        if (workoutExecutionModeIsError) {
+            reasons += stringResource(R.string.menu_start_blocked_execution)
+        }
+        if (reasons.isEmpty()) {
+            stringResource(R.string.menu_start_blocked_generic)
+        } else {
+            reasons.joinToString(separator = " ")
+        }
+    } else {
+        null
+    }
     val workoutFileDisplayName = selectedWorkoutFileName
         ?.substringAfterLast('/')
         ?.trim()
@@ -259,7 +290,8 @@ internal fun MenuScreen(
     val trainerIndicatorState = when {
         ftmsConnected -> DeviceConnectionIndicatorState.CONNECTED
         ftmsSelected && ftmsConnectionKnown -> DeviceConnectionIndicatorState.ISSUE
-        suggestTrainerSearchAfterConnectionIssue && !connectionIssueMessage.isNullOrBlank() -> {
+        (suggestTrainerSearchAfterConnectionIssue || suggestOpenSettingsAfterConnectionIssue) &&
+            !connectionIssueMessage.isNullOrBlank() -> {
             DeviceConnectionIndicatorState.ISSUE
         }
         else -> DeviceConnectionIndicatorState.IDLE
@@ -272,33 +304,58 @@ internal fun MenuScreen(
         DeviceConnectionIndicatorState.IDLE
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            contentAlignment = Alignment.TopCenter
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .widthIn(max = MenuMaxContentWidth)
-                    .verticalScroll(rememberScrollState())
-                    .padding(bottom = 24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.menu_title),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = normalTextColor
-                )
+        val layoutMode = rememberImeStableAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
+        val showTwoPane = layoutMode.isTwoPane()
+        val paneWeights = layoutMode.paneWeights()
+        val contentMaxWidth = if (showTwoPane) MenuTwoPaneMaxContentWidth else MenuMaxContentWidth
 
+        val leftPaneContent: @Composable ColumnScope.() -> Unit = {
+            Text(
+                text = stringResource(R.string.menu_title),
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = normalTextColor
+            )
+
+            if (showTwoPane) {
+                Text(
+                    text = stringResource(R.string.menu_subtitle),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = normalTextColor,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = ftpInputText,
+                        onValueChange = onFtpInputChanged,
+                        modifier = Modifier.widthIn(min = 72.dp, max = 96.dp),
+                        placeholder = { Text("FTP") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = ftpInputError != null,
+                        colors = menuTextFieldColors(),
+                    )
+                    Text(
+                        text = stringResource(R.string.menu_ftp_hint, ftpWatts),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = normalTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f),
+                    )
+                }
+            } else {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -333,268 +390,305 @@ internal fun MenuScreen(
                         modifier = Modifier.weight(0.33333334f),
                     )
                 }
+            }
 
-                if (ftpInputError != null) {
-                    Text(
-                        text = ftpInputError,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = errorTextColor,
-                    )
+            if (ftpInputError != null) {
+                Text(
+                    text = ftpInputError,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = errorTextColor,
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top,
+            ) {
+                DeviceSelectionInfoCard(
+                    label = stringResource(R.string.menu_trainer_device_label),
+                    value = trainerDisplayName,
+                    indicatorState = trainerIndicatorState,
+                    compactLabel = showTwoPane,
+                    modifier = Modifier.weight(1f),
+                )
+                DeviceSelectionInfoCard(
+                    label = stringResource(R.string.menu_hr_device_label),
+                    value = hrDisplayName,
+                    indicatorState = hrIndicatorState,
+                    compactLabel = showTwoPane,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Button(
+                    onClick = onSearchFtmsDevices,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    colors = menuSecondaryButtonColors()
+                ) {
+                    Text(stringResource(R.string.menu_search_trainer_devices_short))
                 }
 
+                Button(
+                    onClick = onSearchHrDevices,
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp),
+                    colors = menuSecondaryButtonColors()
+                ) {
+                    Text(stringResource(R.string.menu_search_hr_devices_short))
+                }
+            }
+
+            if (activeDeviceSelectionKind != null) {
+                val unknownDeviceName = stringResource(R.string.menu_device_unknown_name)
+                val title = when (activeDeviceSelectionKind) {
+                    DeviceSelectionKind.FTMS -> stringResource(R.string.menu_trainer_picker_title)
+                    DeviceSelectionKind.HEART_RATE -> stringResource(R.string.menu_hr_picker_title)
+                }
+                SectionCard(title = title) {
+                    if (deviceScanStatus != null) {
+                        val scanStatusText = if (deviceScanInProgress) {
+                            val dotsTransition = rememberInfiniteTransition(label = "deviceScanDots")
+                            val dotsProgress = dotsTransition.animateFloat(
+                                initialValue = 0f,
+                                targetValue = 3f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(
+                                        durationMillis = 1400,
+                                        easing = LinearEasing,
+                                    ),
+                                    repeatMode = RepeatMode.Restart,
+                                ),
+                                label = "deviceScanDotsProgress",
+                            ).value
+                            val dotsCount = dotsProgress.toInt().coerceIn(0, 2) + 1
+                            val baseText = deviceScanStatus.trimEnd().trimEnd('.', '…')
+                            "$baseText${".".repeat(dotsCount)}"
+                        } else {
+                            deviceScanStatus
+                        }
+                        Text(
+                            text = scanStatusText,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = pickerStatusColor
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    scannedDevices.forEach { device ->
+                        val label = buildString {
+                            val baseName = device.displayName?.takeIf { it.isNotBlank() }
+                                ?: unknownDeviceName
+                            append(baseName)
+                            append(" • RSSI ")
+                            append(device.rssi)
+                        }
+                        Button(
+                            onClick = { onScannedDeviceSelected(device) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = disabledVisibleButtonColors()
+                        ) {
+                            Text(
+                                text = label,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                    }
+
+                    val dismissContentColor =
+                        if (deviceScanInProgress) pickerWarningColor else pickerNeutralColor
+                    val dismissBorderColor =
+                        if (deviceScanInProgress) pickerWarningColor else pickerNeutralColor.copy(alpha = 0.75f)
+
+                    OutlinedButton(
+                        onClick = onDismissDeviceSelection,
+                        enabled = if (deviceScanInProgress) deviceScanStopEnabled else true,
+                        modifier = Modifier.fillMaxWidth(),
+                        border = BorderStroke(1.dp, dismissBorderColor),
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = dismissContentColor)
+                    ) {
+                        Text(
+                            stringResource(
+                                if (deviceScanInProgress) {
+                                    R.string.menu_cancel_device_scan
+                                } else {
+                                    R.string.menu_close_device_picker
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        val rightPaneContent: @Composable ColumnScope.() -> Unit = {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Button(
+                    onClick = onSelectWorkoutFile,
+                    modifier = Modifier
+                        .weight(0.3f)
+                        .height(40.dp),
+                    colors = menuSecondaryButtonColors(),
+                ) {
+                    Text(
+                        text = stringResource(R.string.menu_select_workout_file_short),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                MenuInlineValueCard(
+                    value = workoutFileDisplayName,
+                    modifier = Modifier.weight(0.7f),
+                    onClick = if (selectedWorkoutFileName != null) {
+                        { showWorkoutFileDialog.value = true }
+                    } else {
+                        null
+                    },
+                )
+            }
+
+            Button(
+                onClick = onOpenWorkoutEditor,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(40.dp),
+                colors = menuSecondaryButtonColors(),
+            ) {
+                Text(stringResource(R.string.menu_open_workout_editor))
+            }
+
+            if (selectedWorkout != null) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.Top,
                 ) {
-                    DeviceSelectionInfoCard(
-                        label = stringResource(R.string.menu_trainer_device_label),
-                        value = trainerDisplayName,
-                        indicatorState = trainerIndicatorState,
+                    WorkoutMetaListBox(
+                        label = stringResource(R.string.menu_workout_name_tag),
+                        value = workoutNameTagValue,
+                        onClick = { showWorkoutNameDialog.value = true },
                         modifier = Modifier.weight(1f),
                     )
-                    DeviceSelectionInfoCard(
-                        label = stringResource(R.string.menu_hr_device_label),
-                        value = hrDisplayName,
-                        indicatorState = hrIndicatorState,
+                    WorkoutMetaListBox(
+                        label = stringResource(R.string.menu_workout_description_tag),
+                        value = workoutDescriptionTagValue,
+                        onClick = { showWorkoutDescriptionDialog.value = true },
                         modifier = Modifier.weight(1f),
                     )
                 }
+            }
 
-                BoxWithConstraints(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    val halfWidth = (maxWidth - 8.dp) / 2
+            if (statusText != null) {
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = statusTextColor
+                )
+            }
+
+            if (workoutExecutionModeMessage != null) {
+                Text(
+                    text = workoutExecutionModeMessage,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (workoutExecutionModeIsError) {
+                        errorTextColor
+                    } else {
+                        normalTextColor
+                    }
+                )
+            }
+
+            if (selectedWorkout != null) {
+                SectionCard(title = null) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Button(
-                            onClick = onSearchFtmsDevices,
-                            modifier = Modifier
-                                .width(halfWidth)
-                                .height(40.dp),
-                            colors = menuSecondaryButtonColors()
-                        ) {
-                            Text(stringResource(R.string.menu_search_trainer_devices_short))
-                        }
-
-                        Button(
-                            onClick = onSearchHrDevices,
-                            modifier = Modifier
-                                .width(halfWidth)
-                                .height(40.dp),
-                            colors = menuSecondaryButtonColors()
-                        ) {
-                            Text(stringResource(R.string.menu_search_hr_devices_short))
-                        }
-                    }
-                }
-
-                if (activeDeviceSelectionKind != null) {
-                    val unknownDeviceName = stringResource(R.string.menu_device_unknown_name)
-                    val title = when (activeDeviceSelectionKind) {
-                        DeviceSelectionKind.FTMS -> stringResource(R.string.menu_trainer_picker_title)
-                        DeviceSelectionKind.HEART_RATE -> stringResource(R.string.menu_hr_picker_title)
-                    }
-                    SectionCard(title = title) {
-                        if (deviceScanStatus != null) {
-                            val scanStatusText = if (deviceScanInProgress) {
-                                val dotsTransition = rememberInfiniteTransition(label = "deviceScanDots")
-                                val dotsProgress = dotsTransition.animateFloat(
-                                    initialValue = 0f,
-                                    targetValue = 3f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(
-                                            durationMillis = 1400,
-                                            easing = LinearEasing,
-                                        ),
-                                        repeatMode = RepeatMode.Restart,
-                                    ),
-                                    label = "deviceScanDotsProgress",
-                                ).value
-                                val dotsCount = dotsProgress.toInt().coerceIn(0, 2) + 1
-                                val baseText = deviceScanStatus.trimEnd().trimEnd('.', '…')
-                                "$baseText${".".repeat(dotsCount)}"
-                            } else {
-                                deviceScanStatus
-                            }
-                            Text(
-                                text = scanStatusText,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = pickerStatusColor
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        scannedDevices.forEach { device ->
-                            val label = buildString {
-                                val baseName = device.displayName?.takeIf { it.isNotBlank() }
-                                    ?: unknownDeviceName
-                                append(baseName)
-                                append(" • RSSI ")
-                                append(device.rssi)
-                            }
-                            Button(
-                                onClick = { onScannedDeviceSelected(device) },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = disabledVisibleButtonColors()
-                            ) {
-                                Text(
-                                    text = label,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(4.dp))
-                        }
-
-                        val dismissContentColor =
-                            if (deviceScanInProgress) pickerWarningColor else pickerNeutralColor
-                        val dismissBorderColor =
-                            if (deviceScanInProgress) pickerWarningColor else pickerNeutralColor.copy(alpha = 0.75f)
-
-                        OutlinedButton(
-                            onClick = onDismissDeviceSelection,
-                            enabled = if (deviceScanInProgress) deviceScanStopEnabled else true,
-                            modifier = Modifier.fillMaxWidth(),
-                            border = BorderStroke(1.dp, dismissBorderColor),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = dismissContentColor)
-                        ) {
-                            Text(
-                                stringResource(
-                                    if (deviceScanInProgress) {
-                                        R.string.menu_cancel_device_scan
-                                    } else {
-                                        R.string.menu_close_device_picker
-                                    }
-                                )
-                            )
-                        }
-                    }
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Button(
-                        onClick = onSelectWorkoutFile,
-                        modifier = Modifier
-                            .weight(0.3f)
-                            .height(40.dp),
-                        colors = menuSecondaryButtonColors(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween,
                     ) {
                         Text(
-                            text = stringResource(R.string.menu_select_workout_file_short),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
+                            text = stringResource(R.string.session_workout_title),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.SemiBold,
+                            color = normalTextColor,
                         )
-                    }
-                    MenuInlineValueCard(
-                        value = workoutFileDisplayName,
-                        modifier = Modifier.weight(0.7f),
-                        onClick = if (selectedWorkoutFileName != null) {
-                            { showWorkoutFileDialog.value = true }
-                        } else {
-                            null
-                        },
-                    )
-                }
-
-                Button(
-                    onClick = onOpenWorkoutEditor,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(40.dp),
-                    colors = menuSecondaryButtonColors(),
-                ) {
-                    Text(stringResource(R.string.menu_open_workout_editor))
-                }
-
-                if (selectedWorkout != null) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.Top,
-                    ) {
-                        WorkoutMetaListBox(
-                            label = stringResource(R.string.menu_workout_name_tag),
-                            value = workoutNameTagValue,
-                            onClick = { showWorkoutNameDialog.value = true },
-                            modifier = Modifier.weight(1f),
-                        )
-                        WorkoutMetaListBox(
-                            label = stringResource(R.string.menu_workout_description_tag),
-                            value = workoutDescriptionTagValue,
-                            onClick = { showWorkoutDescriptionDialog.value = true },
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
-
-                if (statusText != null) {
-                    Text(
-                        text = statusText,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = statusTextColor
-                    )
-                }
-
-                if (workoutExecutionModeMessage != null) {
-                    Text(
-                        text = workoutExecutionModeMessage,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (workoutExecutionModeIsError) {
-                            errorTextColor
-                        } else {
-                            normalTextColor
-                        }
-                    )
-                }
-
-                if (selectedWorkout != null) {
-                    SectionCard(title = null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(
-                                text = stringResource(R.string.session_workout_title),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold,
-                                color = normalTextColor,
-                            )
-                            if (stepCountText != null || plannedTssText != null) {
-                                Column(
-                                    horizontalAlignment = Alignment.End,
-                                    verticalArrangement = Arrangement.spacedBy(2.dp),
-                                ) {
-                                    if (stepCountText != null) {
-                                        Text(
-                                            text = stepCountText,
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = normalTextColor,
-                                        )
-                                    }
-                                    if (plannedTssText != null) {
-                                        Text(
-                                            text = plannedTssText,
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = normalTextColor,
-                                        )
-                                    }
+                        if (stepCountText != null || plannedTssText != null) {
+                            Column(
+                                horizontalAlignment = Alignment.End,
+                                verticalArrangement = Arrangement.spacedBy(2.dp),
+                            ) {
+                                if (stepCountText != null) {
+                                    Text(
+                                        text = stepCountText,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = normalTextColor,
+                                    )
+                                }
+                                if (plannedTssText != null) {
+                                    Text(
+                                        text = plannedTssText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = normalTextColor,
+                                    )
                                 }
                             }
                         }
-                        WorkoutProfileChart(
-                            workout = selectedWorkout,
-                            ftpWatts = ftpWatts,
+                    }
+                    WorkoutProfileChart(
+                        workout = selectedWorkout,
+                        ftpWatts = ftpWatts,
+                    )
+                }
+            }
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp, vertical = 24.dp),
+            contentAlignment = Alignment.TopCenter
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = contentMaxWidth)
+                    .verticalScroll(rememberScrollState())
+                    .padding(bottom = 24.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                if (showTwoPane) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.Top,
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(paneWeights.left),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            content = leftPaneContent,
+                        )
+                        Column(
+                            modifier = Modifier.weight(paneWeights.right),
+                            verticalArrangement = Arrangement.spacedBy(16.dp),
+                            content = rightPaneContent,
                         )
                     }
+                } else {
+                    leftPaneContent()
+                    rightPaneContent()
                 }
 
                 Button(
@@ -603,12 +697,7 @@ internal fun MenuScreen(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = startCtaColor,
-                        contentColor = startCtaContentColor,
-                        disabledContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        disabledContentColor = MaterialTheme.colorScheme.onPrimaryContainer,
-                    )
+                    colors = menuStartButtonColors(),
                 ) {
                     Icon(
                         imageVector = Icons.Filled.PlayArrow,
@@ -618,6 +707,28 @@ internal fun MenuScreen(
                     Text(
                         text = stringResource(R.string.menu_start_session),
                         fontWeight = FontWeight.SemiBold
+                    )
+                }
+
+                if (startBlockedReasonText != null) {
+                    val blockedReasonPulseTransition =
+                        rememberInfiniteTransition(label = "menuStartBlockedReasonPulse")
+                    val blockedReasonAlpha = blockedReasonPulseTransition.animateFloat(
+                        initialValue = 0.45f,
+                        targetValue = 1.0f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(
+                                durationMillis = 900,
+                                easing = LinearEasing,
+                            ),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "menuStartBlockedReasonAlpha",
+                    ).value
+                    Text(
+                        text = startBlockedReasonText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = blockedReasonAlpha),
                     )
                 }
             }
@@ -663,14 +774,27 @@ internal fun MenuScreen(
         )
     }
 
-    if (suggestTrainerSearchAfterConnectionIssue && connectionIssueMessage != null) {
+    val showConnectionIssueDialog =
+        connectionIssueMessage != null &&
+            (suggestTrainerSearchAfterConnectionIssue || suggestOpenSettingsAfterConnectionIssue)
+    if (showConnectionIssueDialog) {
         AlertDialog(
             onDismissRequest = onDismissConnectionIssue,
             title = { Text(stringResource(R.string.menu_connection_issue_title)) },
             text = { Text(connectionIssueMessage) },
             confirmButton = {
-                TextButton(onClick = onSearchFtmsDevicesFromConnectionIssue) {
-                    Text(stringResource(R.string.menu_connection_issue_search_again))
+                val confirmLabel = if (suggestOpenSettingsAfterConnectionIssue) {
+                    stringResource(R.string.menu_connection_issue_open_settings)
+                } else {
+                    stringResource(R.string.menu_connection_issue_search_again)
+                }
+                val confirmAction = if (suggestOpenSettingsAfterConnectionIssue) {
+                    onOpenAppSettingsFromConnectionIssue
+                } else {
+                    onSearchFtmsDevicesFromConnectionIssue
+                }
+                TextButton(onClick = confirmAction) {
+                    Text(confirmLabel)
                 }
             },
             dismissButton = {
@@ -715,6 +839,7 @@ private fun DeviceSelectionInfoCard(
     label: String,
     value: String,
     indicatorState: DeviceConnectionIndicatorState,
+    compactLabel: Boolean,
     modifier: Modifier = Modifier,
 ) {
     val normalTextColor = menuNormalTextColor()
@@ -740,7 +865,7 @@ private fun DeviceSelectionInfoCard(
     }
 
     ElevatedCard(
-        modifier = modifier.height(78.dp),
+        modifier = modifier.height(if (compactLabel) 88.dp else 78.dp),
         colors = menuInfoCardColors(),
     ) {
         Column(
@@ -756,9 +881,13 @@ private fun DeviceSelectionInfoCard(
             ) {
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelLarge,
+                    style = if (compactLabel) {
+                        MaterialTheme.typography.labelMedium
+                    } else {
+                        MaterialTheme.typography.labelLarge
+                    },
                     color = normalTextColor,
-                    maxLines = 1,
+                    maxLines = if (compactLabel) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
@@ -774,7 +903,11 @@ private fun DeviceSelectionInfoCard(
             }
             Text(
                 text = value,
-                style = MaterialTheme.typography.bodyMedium,
+                style = if (compactLabel) {
+                    MaterialTheme.typography.bodySmall
+                } else {
+                    MaterialTheme.typography.bodyMedium
+                },
                 color = normalTextColor,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
@@ -985,7 +1118,10 @@ internal fun SessionScreen(
             .fillMaxSize()
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
-        val compactTopMetrics = maxWidth < SessionTopMetricsCompactWidth
+        val layoutMode = resolveAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
+        val showTwoPane = layoutMode.isTwoPane()
+        val paneWeights = layoutMode.paneWeights()
+        val compactTopMetrics = !showTwoPane && maxWidth < SessionTopMetricsCompactWidth
 
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1005,35 +1141,82 @@ internal fun SessionScreen(
                         .padding(bottom = SessionStickyActionBottomPadding),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    TopTelemetrySection(
-                        compactLayout = compactTopMetrics,
-                        heartRateValue = heartRateValue,
-                        speedValue = speedValue,
-                        powerValue = powerValue,
-                        cadenceTargetValue = cadenceTargetValue,
-                        distanceValue = distanceValue,
-                        kcalValue = kcalValue,
-                    )
+                    if (showTwoPane) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Column(
+                                modifier = Modifier.weight(paneWeights.left),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                TopTelemetrySection(
+                                    compactLayout = compactTopMetrics,
+                                    heartRateValue = heartRateValue,
+                                    speedValue = speedValue,
+                                    powerValue = powerValue,
+                                    cadenceTargetValue = cadenceTargetValue,
+                                    distanceValue = distanceValue,
+                                    kcalValue = kcalValue,
+                                )
+                                if (sessionIssues.isNotEmpty()) {
+                                    SessionIssuesSection(messages = sessionIssues)
+                                }
+                            }
+                            Column(
+                                modifier = Modifier.weight(paneWeights.right),
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                            ) {
+                                WorkoutProgressSection(
+                                    selectedWorkout = selectedWorkout,
+                                    workoutName = workoutName,
+                                    workoutSegments = workoutSegments,
+                                    ftpWatts = ftpWatts,
+                                    runnerState = runnerState,
+                                    phase = phase,
+                                    cadenceRpm = cadenceRpm,
+                                    remainingText = remainingText,
+                                    elapsedOfTotalText = elapsedOfTotalText,
+                                    unknown = unknown,
+                                    lastTargetPower = lastTargetPower,
+                                    workoutComplete = workoutComplete,
+                                    workoutExecutionModeMessage = workoutExecutionModeMessage,
+                                    workoutExecutionModeIsError = workoutExecutionModeIsError,
+                                )
+                            }
+                        }
+                    } else {
+                        TopTelemetrySection(
+                            compactLayout = compactTopMetrics,
+                            heartRateValue = heartRateValue,
+                            speedValue = speedValue,
+                            powerValue = powerValue,
+                            cadenceTargetValue = cadenceTargetValue,
+                            distanceValue = distanceValue,
+                            kcalValue = kcalValue,
+                        )
 
-                    WorkoutProgressSection(
-                        selectedWorkout = selectedWorkout,
-                        workoutName = workoutName,
-                        workoutSegments = workoutSegments,
-                        ftpWatts = ftpWatts,
-                        runnerState = runnerState,
-                        phase = phase,
-                        cadenceRpm = cadenceRpm,
-                        remainingText = remainingText,
-                        elapsedOfTotalText = elapsedOfTotalText,
-                        unknown = unknown,
-                        lastTargetPower = lastTargetPower,
-                        workoutComplete = workoutComplete,
-                        workoutExecutionModeMessage = workoutExecutionModeMessage,
-                        workoutExecutionModeIsError = workoutExecutionModeIsError,
-                    )
+                        WorkoutProgressSection(
+                            selectedWorkout = selectedWorkout,
+                            workoutName = workoutName,
+                            workoutSegments = workoutSegments,
+                            ftpWatts = ftpWatts,
+                            runnerState = runnerState,
+                            phase = phase,
+                            cadenceRpm = cadenceRpm,
+                            remainingText = remainingText,
+                            elapsedOfTotalText = elapsedOfTotalText,
+                            unknown = unknown,
+                            lastTargetPower = lastTargetPower,
+                            workoutComplete = workoutComplete,
+                            workoutExecutionModeMessage = workoutExecutionModeMessage,
+                            workoutExecutionModeIsError = workoutExecutionModeIsError,
+                        )
 
-                    if (sessionIssues.isNotEmpty()) {
-                        SessionIssuesSection(messages = sessionIssues)
+                        if (sessionIssues.isNotEmpty()) {
+                            SessionIssuesSection(messages = sessionIssues)
+                        }
                     }
                 }
             }
@@ -1467,17 +1650,28 @@ private fun formatWatts(value: Int?, fallback: String): String {
 @Composable
 internal fun SummaryScreen(
     summary: SessionSummary?,
+    fitExportStatusMessage: String?,
+    fitExportStatusIsError: Boolean,
+    onRequestFitExport: () -> Unit,
     onBackToMenu: () -> Unit
 ) {
     val unknown = stringResource(R.string.value_unknown)
     val summaryCardBorder = sessionCardBorder()
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .windowInsetsPadding(WindowInsets.safeDrawing)
     ) {
+        val layoutMode = resolveAdaptiveLayoutMode(width = maxWidth, height = maxHeight)
+        val contentMaxWidth = if (layoutMode.isTwoPane()) {
+            SummaryTwoPaneMaxContentWidth
+        } else {
+            SummaryMaxContentWidth
+        }
+        val summaryColumns = if (layoutMode.isTwoPane()) 2 else 1
+
         Box(
             modifier = Modifier.fillMaxSize(),
             contentAlignment = Alignment.TopCenter
@@ -1485,7 +1679,7 @@ internal fun SummaryScreen(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .widthIn(max = SummaryMaxContentWidth)
+                    .widthIn(max = contentMaxWidth)
                     .verticalScroll(rememberScrollState())
                     .padding(horizontal = 20.dp, vertical = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -1581,18 +1775,49 @@ internal fun SummaryScreen(
                     ) {
                         MetricsGrid(
                             items = summaryItems,
-                            columns = 2,
+                            columns = summaryColumns,
                             cardBorder = summaryCardBorder,
                         )
                     }
                 }
 
-                Button(
-                    onClick = onBackToMenu,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = disabledVisibleButtonColors()
+                if (!fitExportStatusMessage.isNullOrBlank()) {
+                    Text(
+                        text = fitExportStatusMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (fitExportStatusIsError) {
+                            MaterialTheme.colorScheme.error
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                        },
+                    )
+                }
+
+                val buttonModifier = if (layoutMode.isTwoPane()) {
+                    Modifier.fillMaxWidth(0.7f).align(Alignment.CenterHorizontally)
+                } else {
+                    Modifier.fillMaxWidth()
+                }
+
+                Row(
+                    modifier = buttonModifier,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Text(stringResource(R.string.back_to_menu))
+                    Button(
+                        onClick = onRequestFitExport,
+                        enabled = summary != null,
+                        modifier = Modifier.weight(1f),
+                        colors = disabledVisibleButtonColors(),
+                    ) {
+                        Text(stringResource(R.string.summary_export_fit))
+                    }
+                    Button(
+                        onClick = onBackToMenu,
+                        modifier = Modifier.weight(1f),
+                        colors = disabledVisibleButtonColors()
+                    ) {
+                        Text(stringResource(R.string.back_to_menu))
+                    }
                 }
             }
         }

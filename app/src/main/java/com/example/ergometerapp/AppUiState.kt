@@ -41,6 +41,7 @@ class AppUiState {
     val workoutReady: MutableState<Boolean> = mutableStateOf(false)
     val connectionIssueMessage: MutableState<String?> = mutableStateOf(null)
     val suggestTrainerSearchAfterConnectionIssue: MutableState<Boolean> = mutableStateOf(false)
+    val suggestOpenSettingsAfterConnectionIssue: MutableState<Boolean> = mutableStateOf(false)
     val stopFlowState: MutableState<StopFlowState> = mutableStateOf(StopFlowState.IDLE)
 
     var reconnectBleOnNextSessionStart: Boolean = false

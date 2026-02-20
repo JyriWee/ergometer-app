@@ -1,24 +1,25 @@
 # Next Session
 
 ## Branch
-- current: `feature/ci-androidtest-smoke`
+- current: `feature/ci-workflow-concurrency`
 
 ## Session Handoff
-- next task: Merge CI emulator smoke job, then monitor first GitHub run and tune emulator job timeout/retries only if flakiness appears.
+- next task: Implement P1 strict-by-default workout execution policy, with explicit fallback only for debug/dev usage.
 - DoD:
-  - Workflow runs existing `build-test-lint` job and new instrumentation smoke job on PR/push.
-  - Instrumentation smoke job executes `MainActivityContentFlowTest` on emulator.
-  - Existing workflow checks remain unchanged in behavior.
-  - `build-test-lint` remains green after merge.
-  - Run deferred manual picker verification when multi-HR hardware is available.
+  - Release configuration resolves `ALLOW_LEGACY_WORKOUT_FALLBACK=false`.
+  - Debug/dev can still opt in to fallback via explicit flag.
+  - MENU execution-state messaging clearly indicates when fallback mode is active.
+  - Unit tests cover strict-blocked vs fallback-allowed mapping behavior.
 - risks:
-  - Emulator boot/install can be slow or flaky on shared runners.
-  - Instrumentation smoke should stay intentionally narrow to avoid long queue times.
-  - Multi-HR picker verification is deferred due current hardware constraints.
+  - Existing user workouts that relied on degraded fallback may now be blocked in release mode.
+  - Build-type/property wiring can drift if debug and release constants are not validated side-by-side.
+  - Messaging regressions could make strict-vs-fallback behavior unclear in MENU.
 - validation commands:
-  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:lintDebug --no-daemon`
+  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
+  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+  - manual: with an unsupported workout file in strict mode, verify `Start session` stays disabled and reason messaging is explicit.
+  - manual (ADB + USB tablet): verify debug/dev fallback opt-in path still allows start when fallback is explicitly enabled.
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -34,6 +35,194 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- P0 regression coverage closure for start/stop transitions:
+  - Added `startAndStopFlowTransitionCompletesToSummaryOnAcknowledgement` to `SessionOrchestratorFlowTest`.
+  - Added `stopFlowTimeoutCompletesToSummaryWithoutAcknowledgement` to cover timeout finalization from `STOPPING_AWAIT_ACK`.
+  - Extended test `ManualHandler` with deterministic `advanceBy(...)` to drive delayed stop-timeout callbacks without wall-clock waits.
+  - Validation:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --tests "com.example.ergometerapp.ble.FtmsControllerTimeoutTest" --no-daemon`
+- Start-blocked reason attention pulse:
+  - Added subtle pulsing animation for the disabled `Start session` reason text so setup blockers are easier to notice on tablet UI.
+  - Kept copy and gating logic unchanged; only visual emphasis was added.
+  - Validation:
+    - `./gradlew --stop`
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- Start-button disabled reason messaging:
+  - MENU now shows explicit reason text under `Start session` when start preconditions are not met.
+  - Reason text is dynamic and reports missing setup directly (`workout`, `trainer`, import issue, execution issue) instead of leaving disabled state unexplained.
+  - `MainViewModel.onStartSession()` is guarded by `canStartSession()` so runtime behavior matches UI gating.
+  - Added instrumentation assertion to keep disabled+reason UX stable:
+    - `startSessionButtonRemainsDisabledWhenStartEnabledIsFalse` now also verifies reason text rendering.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- Start gating and disabled-visibility hardening:
+  - `MainViewModel.onStartSession()` now requires full `canStartSession()` preconditions (valid workout + trainer), not just trainer selection.
+  - MENU `Start session` button disabled colors were adjusted to `surfaceVariant/onSurfaceVariant` to increase visual separation in dark mode.
+  - Added instrumentation regression `startSessionButtonRemainsDisabledWhenStartEnabledIsFalse` in `MainActivityContentFlowTest`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- BT connect-permission denial recovery hardening:
+  - Added explicit in-app recovery mode for denied `BLUETOOTH_CONNECT` during session start:
+    - show connection issue prompt with `Open settings` CTA,
+    - clear stale prompt on explicit retry,
+    - keep legacy trainer failure mode on `Search again`.
+  - Added app settings deep-link callback from menu connection issue dialog to `ACTION_APPLICATION_DETAILS_SETTINGS`.
+  - Extended tests:
+    - `MainActivityContentFlowTest`: added `menuConnectionIssueDialogSupportsOpenSettingsRecoveryAction`.
+    - `SessionOrchestratorFlowTest`: asserts denied-permission path sets settings-recovery prompt and clears on explicit retry.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SM-X210`: 8 tests, 0 failures)
+- ADB one-command local device smoke pipeline:
+  - Added `scripts/adb/device-smoke.sh` for repeatable local validation:
+    - installs debug + androidTest APKs
+    - clears app data (optional)
+    - runs connected instrumentation tests (class/all-tests mode)
+    - captures logcat and optional screen recording
+    - stores timestamped artifacts under `.local/device-test-runs/`
+  - Updated `docs/adb-cheatsheet.md` with usage examples and artifact layout.
+  - Validation:
+    - `scripts/adb/device-smoke.sh` on `SM-X210` (2 tests, 0 failures)
+    - `bash -n scripts/adb/device-smoke.sh`
+- `MENU` picker instrumentation coverage:
+  - Added `menuPickerScanAndCloseStatesRenderExpectedActions` in `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`.
+  - Covers active picker title, scanning status anchor, `Stop scan` action, failed scan status, and `Close picker` action.
+  - Validation:
+    - `./gradlew connectedDebugAndroidTest --no-daemon` on `SM-X210` (3 tests, 0 failures).
+- Workout editor unsaved-state visual cue:
+  - `Unsaved changes` indicator now uses an explicit amber accent (theme-aware dark/light variants).
+  - Kept indicator static (no blink) to avoid distraction and preserve readability/accessibility.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Workout editor polish follow-up:
+  - Fixed step position label color (`Step X / Y`) to use themed `onSurface` for reliable dark-mode contrast.
+  - Corrected unsaved-changes semantics:
+    - editor no longer starts in unsaved state by default,
+    - loading selected workout into editor now marks draft as saved baseline,
+    - `Unsaved changes` now appears only after actual draft edits.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Workout editor density/layout cleanup:
+  - Removed always-visible editor heading/subtitle to free vertical space.
+  - Success status text is now suppressed in-line; only error status remains visible.
+  - In two-pane mode:
+    - `Name` + `Description` are shown in the right pane before step editing.
+    - `Author` is moved to the left pane lower section.
+  - Tightened spacing/padding for better no-scroll fit in constrained landscape heights.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+- Workout editor back-navigation unsaved guard:
+  - Added explicit unsaved-changes dialog when pressing editor `Back`.
+  - New options:
+    - `Apply and go back` (applies draft to MENU selection and exits editor)
+    - `Discard changes` (returns to MENU without applying draft)
+    - `Keep editing` (stays in editor)
+  - Behavior aligns back-navigation with user expectation that unsaved edits must be acknowledged explicitly.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+- Workout editor file-load flow parity with MENU selector:
+  - `Load` action in workout editor now opens the same document picker flow as MENU `Select workout`.
+  - When a file is selected while `WORKOUT_EDITOR` is open, import result is immediately reflected in editor draft state.
+  - `Open workout editor` now always initializes editor draft from current MENU selection when a workout is selected, so menu/editor cannot drift apart.
+  - Import failure while in editor now surfaces as an editor status error instead of silently doing nothing.
+  - Updated button label from `Load selected` to `Load file` to match behavior.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+- Workout editor landscape finalization:
+  - Moved editor pre-step content (title/actions/status/unsaved/meta fields) to left pane under preview.
+  - Kept right pane dedicated to steps for continuous editing flow.
+  - Converted step action row to two rows in two-pane mode:
+    - `Move earlier` / `Move later`
+    - `Copy step` / `Delete step`
+  - Converted numeric step fields to single-row layout in two-pane mode:
+    - Steady: duration + FTP %
+    - Ramp: duration + start FTP % + end FTP %
+    - Intervals: repeat + on/off duration + on/off %
+  - Tuned Intervals field widths so `Repeat` label is fully visible.
+  - Explicitly themed `Steps` header color (`onSurface`) to avoid dark-mode black text.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+- Workout editor landscape and open-flow fixes:
+  - Improved `WORKOUT_EDITOR` two-pane readability in landscape:
+    - custom pane weights for editor (`left` wider than generic two-pane)
+    - compact action labels in two-pane mode (`Back/Load/Save/Apply`)
+    - compact step-row labels in two-pane mode (`Earlier/Later/Copy/Delete`)
+  - Fixed editor open behavior:
+    - `Open workout editor` now auto-loads the selected workout when editor draft is pristine.
+    - Existing non-pristine draft is preserved (no silent overwrite).
+  - Hardened instrumentation smoke anchor:
+    - `MainActivityContentFlowTest` summary assertion now anchors on `summary_duration` instead of a scroll-dependent button label.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+- Menu two-pane landscape tuning pass (tablet):
+  - Increased left pane weight to improve readability of setup controls.
+  - Refined two-pane subtitle/FTP row into a clearer stacked layout.
+  - Added compact label mode for trainer/HR cards to reduce aggressive truncation.
+  - Updated pane-weight expectations in `app/src/test/java/com/example/ergometerapp/ui/AdaptiveLayoutTest.kt`.
+  - On-device result: accepted by user (`MENU` landscape now balanced).
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
+- Adaptive layout foundation and screen integration:
+  - Added `app/src/main/java/com/example/ergometerapp/ui/AdaptiveLayout.kt`:
+    - width classes: `<600dp`, `600..839dp`, `>=840dp`
+    - height classes: `<480dp`, `480..899dp`, `>=900dp`
+    - layout modes: `SINGLE_PANE`, `SINGLE_PANE_DENSE`, `TWO_PANE_MEDIUM`, `TWO_PANE_EXPANDED`
+    - pane ratios: `45/55` (medium), `35/65` (expanded)
+  - Updated `MenuScreen` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - compact keeps existing vertical flow
+    - medium/expanded use two-pane split (device/setup on left, workout/metadata on right)
+  - Updated `SessionScreen` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - compact keeps stacked telemetry + workout
+    - medium/expanded split telemetry/issues and workout progress into two panes
+  - Updated `SummaryScreen` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - compact metrics grid is 1 column
+    - medium/expanded metrics grid is 2 columns with wider content width
+  - Updated `WorkoutEditorScreen` in `app/src/main/java/com/example/ergometerapp/ui/WorkoutEditorScreen.kt`:
+    - compact keeps single-column editor
+    - medium/expanded split into left editor pane and right validation/preview pane
+  - Added unit coverage:
+    - `app/src/test/java/com/example/ergometerapp/ui/AdaptiveLayoutTest.kt`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ui.AdaptiveLayoutTest" --no-daemon`
+    - `./gradlew :app:lintDebug --no-daemon`
+- CI smoke command parsing fix for PR `#30`:
+  - Root cause identified from GitHub Actions logs:
+    - Gradle command in smoke script was parsed with a literal `\` task (`Task '\' not found`).
+  - Updated `.github/workflows/android-build.yml` smoke script to a single-line Gradle command:
+    - `./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest`
+  - Why:
+    - Removes shell line-continuation ambiguity in workflow script execution.
+- CI emulator boot stability tuning for PR `#30`:
+  - Updated `.github/workflows/android-build.yml` `android-instrumentation-smoke` runner inputs:
+    - `target: default` (lighter system image than `google_apis` for this smoke test).
+    - `emulator-boot-timeout: 900` to tolerate slower GitHub runner startup.
+    - Added `-no-snapshot` to emulator options for cleaner cold boot behavior.
+  - Kept smoke scope unchanged:
+    - `connectedDebugAndroidTest` with `MainActivityContentFlowTest`.
+  - Trigger reason:
+    - Previous CI run failed with `Timeout waiting for emulator to boot.`
+- CI workflow deduplication guard:
+  - Added top-level workflow `concurrency` to `.github/workflows/android-build.yml`:
+    - `group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}`
+    - `cancel-in-progress: true`
+  - Purpose: prevent duplicate heavy runs for the same feature branch when both `push` and `pull_request` events trigger.
+  - Scope: does not change test steps or release checks; only run scheduling behavior.
 - CI Android instrumentation smoke baseline:
   - Added new workflow job `android-instrumentation-smoke` in `.github/workflows/android-build.yml`.
   - Job runs after `build-test-lint` and executes emulator-based instrumentation smoke using `reactivecircus/android-emulator-runner@v2`.
@@ -441,3 +630,533 @@
 2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.ZwoParserTest" --tests "com.example.ergometerapp.workout.editor.WorkoutEditorMapperTest" --tests "com.example.ergometerapp.DeviceScanPolicyTest" --tests "com.example.ergometerapp.ble.LowLatencyScanStartGateTest" --no-daemon`
 3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
 4. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - FIT Export Planning)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added `docs/fit-export-plan.md`.
+- Collected official FIT Activity export requirements and message sequencing references.
+- Mapped current ErgometerApp session fields to FIT `FileId/Record/Lap/Session/Activity` model.
+- Documented staged implementation path (`v1`, `v1.1`, `v2`) and licensing risk checkpoints.
+
+### Next Task
+- Implement `v1` minimal valid FIT export behind a feature flag (single-session activity file with required messages).
+
+### Definition of Done
+- A completed session can be exported as a syntactically valid `.fit` activity file.
+- Exported file includes required message types (`FileId`, `Activity`, `Session`, `Lap`, `Record`).
+- Required summary fields are populated (`start_time`, `total_elapsed_time`, `total_timer_time`, `timestamp`).
+- Export path reports typed success/failure back to UI.
+- Documentation is updated with user-visible export behavior and known limitations.
+
+### Risks / Open Questions
+- FIT SDK licensing model is not standard OSS; verify compatibility with public-template distribution policy before shipping SDK-based writer.
+- Summary-only export is valid but may appear sparse in analysis platforms until per-sample record timeline is added.
+- Platform-specific import tolerance differs; practical smoke import is required.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --no-daemon`
+3. `./gradlew :app:lintDebug --no-daemon`
+4. Manual: export one session and verify import on at least one target platform.
+
+## Session Update (2026-02-19 - FTMS Protocol Documentation)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added and finalized `docs/ftms-protocol-reference.md`.
+- Consolidated public FTMS references (profile/service page, assigned numbers, public ICS/TS docs).
+- Documented current app FTMS contract (UUID requirements, setup order, control-point invariants, opcode set).
+- Added interoperability checklist for validating new trainer models.
+
+### Next Task
+- Wait for current smoke-test result and then continue FIT export `v1` implementation (`FileId` + `Activity` + `Session` + `Lap` + `Record`).
+
+### Definition of Done
+- FTMS protocol reference is accurate against current code and public Bluetooth sources.
+- Document distinguishes normative public references vs app-specific behavior.
+- Future maintainer can verify trainer compatibility using the provided checklist.
+- Session handoff data is updated for continuation.
+
+### Risks / Open Questions
+- Public Bluetooth documents do not include full normative payload semantics; deeper details still require licensed spec text.
+- Trainer firmware differences can still require device-level validation despite protocol-level checklist pass.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --no-daemon`
+3. `./gradlew :app:lintDebug --no-daemon`
+4. Manual: verify one trainer end-to-end (`MENU -> CONNECTING -> SESSION -> SUMMARY`) with control-point command acknowledgments.
+
+## Session Update (2026-02-19 - Custom FIT Export v1, no SDK)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Implemented a custom in-repo FIT binary export path (Option B, no Garmin SDK dependency).
+- Added `session/export/FitExportService` + minimal FIT writer with CRC/header/definition/data record support.
+- Export now writes required activity message set: `file_id`, `record`, `lap`, `session`, `activity`.
+- Added Summary UI export action (`Export .fit`) with typed success/error status messaging.
+- Added session timestamps to `SessionSummary` (`startTimestampMillis`, `stopTimestampMillis`) for valid FIT timing fields.
+- Added unit tests for FIT structure/CRC/message coverage and sparse-summary handling.
+
+### Next Task
+- Manual validation of generated `.fit` imports on target platforms (Intervals.icu, Strava, GoldenCheetah).
+- If needed, add richer record timeline export (1 Hz samples) after import compatibility baseline is confirmed.
+
+### Definition of Done
+- Summary screen can export a completed session as `.fit` through create-document flow.
+- Exported file has valid FIT header, header CRC, and file CRC.
+- File contains required activity messages (`file_id`, `record`, `lap`, `session`, `activity`).
+- Compile, unit tests, androidTest compile, and lint pass for touched scope.
+
+### Risks / Open Questions
+- Current export uses a single record sample from summary-level data; downstream chart richness is limited.
+- Some platforms may accept minimal FIT strictly but display reduced analytics until per-sample record timeline is added.
+- Event semantics are intentionally minimal (`activity` + `stop`) and may need tuning for platform-specific expectations.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.export.FitExportServiceTest" --no-daemon`
+3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+4. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - FIT Timeline Export v1.1)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added per-session timeline model with 1 Hz capture gating:
+  - `SessionSample`
+  - `SessionExportSnapshot`
+- Extended `SessionManager` to collect timestamped telemetry samples during active sessions and expose immutable export snapshots.
+- Updated summary export flow to use snapshot payloads (`summary + timeline`) instead of summary-only payloads.
+- Updated FIT writer to emit multiple `record` messages from session timeline samples.
+- Added fallback record generation when timeline is empty to preserve export compatibility.
+- Added and updated unit tests for:
+  - FIT record timeline emission
+  - SessionManager one-sample-per-second capture behavior
+
+### Next Task
+- Run practical import validation of timeline-rich FIT files on target platforms (Intervals.icu, Strava, GoldenCheetah) and verify charts/timestamps look correct.
+
+### Definition of Done
+- Summary export produces FIT files that include multiple time-ordered `record` messages when telemetry exists.
+- FIT export remains valid when no timeline samples are available (fallback record path).
+- Export UI flow remains unchanged for users (same button and save flow).
+- Compile, unit tests, androidTest compile, and lint pass for touched scope.
+
+### Risks / Open Questions
+- Current timeline is sampled at most once per second using app wall-clock and latest known values; platforms may differ in smoothing expectations.
+- Cadence is exported as integer RPM from truncated FTMS cadence; rounding strategy can be revisited if needed.
+- No pause/resume FIT event stream yet; platforms may still infer timer time differently for complex stop flows.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.export.FitExportServiceTest" --tests "com.example.ergometerapp.session.SessionManagerEdgeCaseTest.timelineCapture_isLimitedToOneSamplePerSecond" --no-daemon`
+3. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+4. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - Session Chart Cursor FTP Label)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added a live FTP percentage label next to the session chart cursor target label.
+- Cursor labels now show:
+  - right side: current target watts (`W`)
+  - left side: current target relative FTP (`%`)
+- Kept label rendering resilient for narrow chart widths by clamping both labels within chart bounds.
+
+### Next Task
+- Practical UI check on device during an active session to confirm readability and non-overlap at low and high target powers.
+
+### Definition of Done
+- Session chart cursor shows watts and FTP% simultaneously at the same vertical level.
+- Existing chart behavior and interactions remain unchanged.
+- Compile and lint pass after the change.
+
+### Risks / Open Questions
+- On extremely narrow layouts, labels may still feel visually dense even though they stay in bounds.
+- If needed, future refinement can hide one label under tight width constraints.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - Cursor Label Placement Adjustment)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Adjusted session chart live cursor labels to reduce overlap risk:
+  - watts label remains on the right side of cursor
+  - FTP percent label is now stacked directly below the watts label on the right side
+- Kept bounds clamping so stacked labels remain inside chart drawing area.
+
+### Next Task
+- Practical readability check during workout execution on tablet and phone portrait.
+
+### Definition of Done
+- Cursor labels show `W` and `%` as a right-side vertical stack.
+- No clipping or overlap regressions in normal session chart sizes.
+- Compile and lint pass.
+
+### Risks / Open Questions
+- In very short chart heights the stacked labels may still feel dense; optional future fallback is hiding `%` label under tight height constraints.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugKotlin --no-daemon`
+2. `./gradlew :app:lintDebug --no-daemon`
+
+## Session Update (2026-02-19 - FIT Export Manual Validation Template)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added a dedicated manual validation template for FIT export compatibility:
+  - `docs/fit-export-manual-validation-template.md`
+- Template covers:
+  - source-of-truth summary values from app
+  - platform-specific comparison tables (GoldenCheetah, Intervals.icu, Strava)
+  - tolerance-based PASS/FAIL rules
+  - timeline quality checks for power/cadence/HR charts
+
+### Next Task
+- Execute one full cross-platform FIT validation run using the new template with the latest 27-minute workout export.
+
+### Definition of Done
+- One exported FIT file is validated in all three target platforms using the template.
+- Any platform mismatch is captured with delta and defect notes.
+- Follow-up fixes are prioritized from real import results.
+
+### Risks / Open Questions
+- Platform-side metric rounding/normalization may differ despite a valid FIT payload.
+- Some platforms may compute derived fields (for example TSS) differently from app summary values.
+
+### Validation Commands
+1. `git status --short --branch`
+
+## Session Update (2026-02-19 - FIT Baseline Values Captured)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Captured baseline expected FIT values from a real exported workout:
+  - `.local/fit-exports/session_2026-02-19_06-48-25.fit`
+- Added pre-filled validation report:
+  - `docs/fit-export-validation-2026-02-19-session_06-48-25.md`
+- Report includes:
+  - structural FIT validity checks (header/CRC/messages)
+  - expected metrics (duration, distance, power, cadence, HR, calories, TSS)
+  - ready-to-fill comparison tables for GoldenCheetah, Intervals.icu, and Strava
+
+### Next Task
+- Keep FIT baseline compatibility by re-running the same cross-platform check after future FIT export changes.
+
+### Definition of Done
+- The same FIT artifact is imported into all target platforms.
+- Platform values are compared against the pre-filled expected baseline.
+- Any out-of-tolerance mismatches are logged as concrete follow-up items.
+- Current baseline status: PASS on GoldenCheetah, Intervals.icu, and Strava.
+
+### Risks / Open Questions
+- Platform-specific rounding and derived metric recalculation may create small deltas.
+- Event/timer semantics may still need refinement if pause/resume handling differs by platform.
+
+### Validation Commands
+1. `git status --short --branch`
+
+## Session Update (2026-02-19 - ADB Daily Ops Cheatsheet)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added practical device-debug command reference:
+  - `docs/adb-cheatsheet.md`
+- Covers:
+  - install/start/stop/clear app
+  - logcat filtering
+  - file pull/push patterns
+  - screenshots and screenrecord
+  - instrumentation test commands
+  - key diagnostics (`dumpsys` battery/activity/bluetooth)
+  - multi-device serial targeting
+
+### Next Task
+- Use cheatsheet commands in real debugging sessions and refine only if gaps are found.
+
+### Definition of Done
+- Core adb workflows for this project are documented in one place and ready for daily use.
+
+### Risks / Open Questions
+- Some `run-as` file commands depend on build type/debuggability and may not work in release contexts.
+
+### Validation Commands
+1. `adb devices -l`
+2. `adb shell am start -n com.example.ergometerapp/.MainActivity`
+
+## Session Update (2026-02-19 - ADB Log Harness Improvements)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added helper script:
+  - `scripts/adb/logcat-ergometer.sh`
+- Script capabilities:
+  - filtered ErgometerApp-focused log capture
+  - optional log buffer clear
+  - dump or live follow modes
+  - serial-targeted capture
+  - output file capture to `.local/logs/...`
+  - `--pid-only` mode for low-noise app-process-only logs
+- Updated `docs/adb-cheatsheet.md` with helper script usage examples.
+
+### Next Task
+- Use `--pid-only` mode during practical workout and BLE scenario tests to collect reproducible low-noise logs.
+
+### Definition of Done
+- One command is enough to capture useful app logs during device testing.
+- Developers can switch between broad filtered capture and strict app-PID capture as needed.
+
+### Risks / Open Questions
+- `--pid-only` requires the app process to be running before capture starts.
+- If app restarts during a long run, a new process PID requires restarting capture.
+
+### Validation Commands
+1. `bash -n scripts/adb/logcat-ergometer.sh`
+2. `adb shell am start -n com.example.ergometerapp/.MainActivity`
+3. `./scripts/adb/logcat-ergometer.sh --dump --pid-only --serial R92Y40YAZPB`
+
+## Session Update (2026-02-19 - ADB Capture Helper)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added capture helper script:
+  - `scripts/adb/capture.sh`
+- Script captures:
+  - screenshot (`.png`)
+  - screen recording (`.mp4`)
+- Supports:
+  - device serial targeting
+  - configurable output directory
+  - configurable recording duration
+  - optional screenshot-only or record-only modes
+- Updated `docs/adb-cheatsheet.md` with helper usage.
+
+### Next Task
+- Use `capture.sh` together with `logcat-ergometer.sh` during scenario tests to keep reproducible evidence bundles (logs + media).
+
+### Definition of Done
+- One command can produce screenshot and recording artifacts in `.local/captures`.
+- Command works on current test tablet (`SM-X210`).
+
+### Risks / Open Questions
+- Device may fallback to lower recording resolution when codec resources are constrained (`screenrecord` behavior).
+
+### Validation Commands
+1. `bash -n scripts/adb/capture.sh`
+2. `./scripts/adb/capture.sh --serial R92Y40YAZPB --seconds 3`
+
+## Session Update (2026-02-20 - Menu Connection-Issue Instrumentation Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Expanded `MainActivityContentFlowTest` instrumentation coverage for interactive MENU/BLE recovery states:
+  - Added `menuConnectionIssueDialogShowsRecoveryActionsAndRoutesCallbacks`.
+  - Verifies connection-issue dialog title/message rendering.
+  - Verifies both CTA labels (`Search again`, `Dismiss`) and callback routing.
+- Tightened picker scan-state assertions in existing test:
+  - While scanning with stop-lock active, `Stop scan` is now asserted as disabled.
+  - After scan completes, `Close picker` is now asserted as enabled.
+- Practical on-device validation:
+  - First smoke run failed with `No compose hierarchies found` while device state was likely in sleep/keyguard mode.
+  - Re-ran after explicit wake/unlock; smoke passed (`3/3` tests) on `SM-X210`.
+
+### Next Task
+- Continue instrumentation expansion for lifecycle-sensitive UI paths:
+  - Add rotation continuity coverage for `MENU` and `SESSION`.
+  - Add permission deny/grant continuity coverage for BLE scan/connect paths.
+
+### Definition of Done
+- `MainActivityContentFlowTest` keeps existing flow anchors green and adds connection-issue recovery coverage.
+- New test coverage is stable on connected tablet (`SM-X210`) using one-command smoke.
+- Test execution checklist includes explicit pre-run device wake step to avoid false negatives.
+
+### Risks / Open Questions
+- Tablet sleep/keyguard can cause false instrumentation failures (`No compose hierarchies found`) if not woken before run.
+- Current smoke scope still focuses on a single test class; broader regressions still depend on manual checks.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+2. `scripts/adb/device-smoke.sh`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - Rotation Continuity Instrumentation Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Expanded `MainActivityContentFlowTest` with rotation continuity coverage:
+  - Added `menuAndSessionAnchorsRemainVisibleAcrossRotation`.
+  - Verifies `MENU` title anchor remains visible after landscape rotation.
+  - Verifies `SESSION` quit-action anchor remains visible after portrait rotation.
+  - Resets requested orientation to `UNSPECIFIED` in a `finally` block to avoid cross-test orientation leakage.
+- Existing instrumentation tests remain green with the new rotation case (`4` total tests in class).
+
+### Next Task
+- Add BLE permission deny/grant continuity instrumentation coverage:
+  - ensure UI state continuity for scan/connect flows when permissions are denied then granted
+  - keep assertions robust to existing animated scan-status text behavior
+
+### Definition of Done
+- Rotation continuity is regression-protected for core `MENU` and `SESSION` anchors.
+- `MainActivityContentFlowTest` passes on-device with the added rotation test.
+- Session handoff is updated with concrete commands and risks.
+
+### Risks / Open Questions
+- Tablet keyguard/sleep state can still produce false negatives if not dismissed before instrumentation launch.
+- BLE-dependent tests require manual wake of the Tunturi ergometer before attempting trainer connection.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+2. `adb devices -l`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - BLE Scan Permission Continuity Instrumentation Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added deny/grant continuity instrumentation coverage for BLE scan permission flow in:
+  - `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`
+- New test:
+  - `menuPickerFlowStaysConsistentAcrossScanPermissionDenyThenGrant`
+  - Covers sequence:
+    - picker open + `menu_device_scan_permission_required`
+    - scanning state after grant (`menu_device_scan_status_scanning`)
+    - completed state with discovered device row and done status
+  - Asserts picker action semantics remain usable across the sequence (`Stop scan` lock while scanning, `Close picker` enabled after scan).
+- Stabilized final picker action assertion with `performScrollTo()` to avoid viewport-only false negatives on tablet layouts.
+- Existing instrumentation suite in this class now runs 5 tests green on device smoke.
+
+### Next Task
+- Add connect-flow continuity coverage around permission-gated start behavior:
+  - verify start-session UI continuity when connect permission is denied and later granted
+  - keep assertions anchored to stable visible strings/state transitions
+
+### Definition of Done
+- BLE scan permission deny/grant continuity is regression-protected by instrumentation.
+- `MainActivityContentFlowTest` passes on device with the new coverage (`5/5`).
+- Session handoff includes practical device pre-check notes.
+
+### Risks / Open Questions
+- Test environment stability still depends on dismissing tablet keyguard before instrumentation launch.
+- BLE connection scenarios require manual wake of Tunturi ergometer before connection attempts.
+
+### Validation Commands
+1. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+2. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+3. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+4. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - Connect Permission Continuity Coverage)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added connect-permission continuity instrumentation coverage in:
+  - `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`
+- New instrumentation test:
+  - `startSessionAnchorsStayConsistentAcrossConnectPermissionDenyThenGrant`
+  - Verifies MENU start CTA remains actionable after a denied-path return to MENU.
+  - Verifies transition anchors to CONNECTING remain stable once granted-path flow continues.
+- Added orchestrator unit coverage for denied-then-granted callback behavior:
+  - `app/src/test/java/com/example/ergometerapp/session/SessionOrchestratorFlowTest.kt`
+  - New test: `connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry`
+  - Verifies pending-start is cleared on deny and later grant does not auto-resume without explicit retry.
+- Expanded instrumentation class total to 6 tests and verified on device smoke.
+
+### Next Task
+- Expand permission continuity coverage to include BLE scan/connect permission matrix edges:
+  - connect permission denied while pending start is active and user retries explicitly
+  - scan permission denied while picker is active and user restarts search
+
+### Definition of Done
+- Connect-permission continuity is covered in both UI instrumentation anchors and orchestrator state logic.
+- On-device instrumentation smoke passes with all `MainActivityContentFlowTest` cases green.
+- Session handoff includes required pre-run device checks.
+
+### Risks / Open Questions
+- Tablet sleep/keyguard still causes false negatives if not dismissed before instrumentation run.
+- Tunturi ergometer must be woken manually before BLE connection attempts.
+
+### Validation Commands
+1. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest.connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry" --no-daemon`
+2. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`
+
+## Session Update (2026-02-20 - Permission Matrix Edge Retries)
+
+### Branch
+- `feature/ci-workflow-concurrency`
+
+### Recently Completed
+- Added connect-permission retry edge coverage in orchestrator unit tests:
+  - `connectPermissionDeniedAllowsPendingStartToBeReArmedOnExplicitRetry`
+  - Location: `app/src/test/java/com/example/ergometerapp/session/SessionOrchestratorFlowTest.kt`
+  - Verifies denied permission clears pending start, and explicit user retry re-arms pending start deterministically.
+- Added active-picker scan-permission retry edge coverage in instrumentation:
+  - `activePickerPermissionDeniedStateSupportsExplicitSearchRetry`
+  - Location: `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`
+  - Verifies active picker can recover from permission-required state via explicit `Search trainer` retry and return to scanning state.
+- Existing connect continuity and scan continuity cases remain green.
+- Instrumentation class now contains `7` passing tests on on-device smoke.
+
+### Next Task
+- Extend permission continuity beyond model-driven anchors into practical runtime-flow confidence:
+  - run targeted manual permission toggling pass (deny -> grant) on device for both scan and connect
+  - capture logs/screenshots for reproducible evidence bundle
+
+### Definition of Done
+- Permission matrix retry edges are covered by deterministic tests in both orchestrator and instrumentation layers.
+- On-device smoke run passes all `MainActivityContentFlowTest` cases (`7/7`).
+- Session handoff reflects latest edge coverage and validation commands.
+
+### Risks / Open Questions
+- Compose instrumentation remains model-driven and does not operate Android system permission dialogs directly.
+- Device keyguard/sleep still needs explicit wake/unlock pre-check to avoid false negatives.
+- BLE connect behavior depends on manual wake state of Tunturi ergometer before connection attempts.
+
+### Validation Commands
+1. `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest.connectPermissionDeniedThenGrantedKeepsFlowStableUntilExplicitRetry" --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest.connectPermissionDeniedAllowsPendingStartToBeReArmedOnExplicitRetry" --no-daemon`
+2. `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+3. `adb -s R92Y40YAZPB shell input keyevent KEYCODE_WAKEUP`
+4. `adb -s R92Y40YAZPB shell wm dismiss-keyguard`
+5. `scripts/adb/device-smoke.sh`

@@ -88,6 +88,64 @@ class SessionManagerEdgeCaseTest {
         assertEquals(listOf(publishedSummary), persistedSummaries)
     }
 
+    @Test
+    fun timelineCapture_isLimitedToOneSamplePerSecond() {
+        val clock = MutableClock(startMillis = 1_000L)
+        val manager = createManager(clock)
+
+        manager.startSession(ftpWatts = 250)
+        clock.currentMillis = 1_100L
+        manager.updateBikeData(
+            bikeData(
+                instantaneousPowerWatts = 100,
+                cadenceRpm = 80.0,
+                distanceMeters = 10,
+            ),
+        )
+        clock.currentMillis = 1_500L
+        manager.updateHeartRate(130)
+        clock.currentMillis = 1_900L
+        manager.updateBikeData(
+            bikeData(
+                instantaneousPowerWatts = 120,
+                cadenceRpm = 82.0,
+                distanceMeters = 12,
+            ),
+        )
+        clock.currentMillis = 2_100L
+        manager.updateHeartRate(131)
+        clock.currentMillis = 2_800L
+        manager.updateBikeData(
+            bikeData(
+                instantaneousPowerWatts = 130,
+                cadenceRpm = 83.0,
+                distanceMeters = 15,
+            ),
+        )
+        clock.currentMillis = 3_000L
+        manager.stopSession()
+
+        val timeline = manager.exportTimelineSnapshot()
+        assertEquals(3, timeline.size)
+        assertEquals(1_100L, timeline[0].timestampMillis)
+        assertEquals(100, timeline[0].powerWatts)
+        assertEquals(80, timeline[0].cadenceRpm)
+        assertNull(timeline[0].heartRateBpm)
+        assertEquals(10, timeline[0].distanceMeters)
+
+        assertEquals(2_100L, timeline[1].timestampMillis)
+        assertEquals(120, timeline[1].powerWatts)
+        assertEquals(82, timeline[1].cadenceRpm)
+        assertEquals(131, timeline[1].heartRateBpm)
+        assertEquals(12, timeline[1].distanceMeters)
+
+        assertEquals(3_000L, timeline[2].timestampMillis)
+        assertEquals(130, timeline[2].powerWatts)
+        assertEquals(83, timeline[2].cadenceRpm)
+        assertEquals(131, timeline[2].heartRateBpm)
+        assertEquals(15, timeline[2].distanceMeters)
+    }
+
     private fun runConstantPowerSession(sampleIntervalSec: Int, durationSec: Int): SessionSummary {
         val clock = MutableClock(startMillis = 100_000L)
         val manager = createManager(clock)
@@ -120,14 +178,16 @@ class SessionManagerEdgeCaseTest {
 
     private fun bikeData(
         instantaneousPowerWatts: Int,
+        cadenceRpm: Double? = null,
+        distanceMeters: Int? = null,
     ): IndoorBikeData {
         return IndoorBikeData(
             valid = true,
             instantaneousSpeedKmh = null,
             averageSpeedKmh = null,
-            instantaneousCadenceRpm = null,
+            instantaneousCadenceRpm = cadenceRpm,
             averageCadenceRpm = null,
-            totalDistanceMeters = null,
+            totalDistanceMeters = distanceMeters,
             resistanceLevel = null,
             instantaneousPowerW = instantaneousPowerWatts,
             averagePowerW = null,

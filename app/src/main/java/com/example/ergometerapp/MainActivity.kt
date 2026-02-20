@@ -1,8 +1,11 @@
 package com.example.ergometerapp
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
+import android.provider.Settings
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -36,6 +39,10 @@ class MainActivity : ComponentActivity() {
     private val exportWorkoutFile =
         registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
             viewModel.onWorkoutEditorExportTargetSelected(uri)
+        }
+    private val exportSessionFitFile =
+        registerForActivityResult(ActivityResultContracts.CreateDocument("application/octet-stream")) { uri ->
+            viewModel.onSessionFitExportTargetSelected(uri)
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,6 +93,7 @@ class MainActivity : ComponentActivity() {
                     workoutExecutionModeIsError = viewModel.uiState.workoutExecutionModeIsError.value,
                     connectionIssueMessage = viewModel.uiState.connectionIssueMessage.value,
                     suggestTrainerSearchAfterConnectionIssue = viewModel.uiState.suggestTrainerSearchAfterConnectionIssue.value,
+                    suggestOpenSettingsAfterConnectionIssue = viewModel.uiState.suggestOpenSettingsAfterConnectionIssue.value,
                     activeDeviceSelectionKind = viewModel.activeDeviceSelectionKindState.value,
                     scannedDevices = viewModel.scannedDevicesState.toList(),
                     deviceScanInProgress = viewModel.deviceScanInProgressState.value,
@@ -97,6 +105,8 @@ class MainActivity : ComponentActivity() {
                     workoutEditorStatusIsError = viewModel.workoutEditorStatusIsErrorState.value,
                     workoutEditorHasUnsavedChanges = viewModel.workoutEditorHasUnsavedChangesState.value,
                     workoutEditorShowSaveBeforeApplyPrompt = viewModel.workoutEditorShowSaveBeforeApplyPromptState.value,
+                    summaryFitExportStatusMessage = viewModel.summaryFitExportStatusMessageState.value,
+                    summaryFitExportStatusIsError = viewModel.summaryFitExportStatusIsErrorState.value,
                 ),
                 onSelectWorkoutFile = { selectWorkoutFile.launch(arrayOf("*/*")) },
                 onFtpInputChanged = { input -> viewModel.onFtpInputChanged(input) },
@@ -106,14 +116,25 @@ class MainActivity : ComponentActivity() {
                 onDismissDeviceSelection = { viewModel.onDismissDeviceSelection() },
                 onDismissConnectionIssue = { viewModel.clearConnectionIssuePrompt() },
                 onSearchFtmsDevicesFromConnectionIssue = { viewModel.onSearchFtmsDevicesFromConnectionIssue() },
+                onOpenAppSettingsFromConnectionIssue = {
+                    viewModel.clearConnectionIssuePrompt()
+                    openAppSettings()
+                },
                 onStartSession = { viewModel.onStartSession() },
                 onEndSession = { viewModel.onEndSessionAndGoToSummary() },
                 onBackToMenu = { viewModel.onBackToMenu() },
                 onWorkoutEditorAction = { action: WorkoutEditorAction ->
-                    viewModel.onWorkoutEditorAction(action)
+                    when (action) {
+                        WorkoutEditorAction.LoadSelectedWorkout -> selectWorkoutFile.launch(arrayOf("*/*"))
+                        else -> viewModel.onWorkoutEditorAction(action)
+                    }
                 },
                 onRequestWorkoutEditorSave = { suggestedFileName ->
                     exportWorkoutFile.launch(suggestedFileName)
+                },
+                onRequestSummaryFitExport = {
+                    viewModel.prepareSessionFitExport()
+                        ?.let { suggestedFileName -> exportSessionFitFile.launch(suggestedFileName) }
                 },
             )
         }
@@ -144,6 +165,17 @@ class MainActivity : ComponentActivity() {
             return false
         }
         return true
+    }
+
+    /**
+     * Opens this app's Android settings page for runtime permission recovery.
+     */
+    private fun openAppSettings() {
+        val settingsIntent = Intent(
+            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+            Uri.fromParts("package", packageName, null),
+        )
+        startActivity(settingsIntent)
     }
 
     /**
