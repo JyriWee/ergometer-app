@@ -1,11 +1,11 @@
 # Next Session
 
 ## Branch
-- current: `feature/ui-session-tablet`
+- current: `chore/merge-ui-session-tablet-into-main`
 
 ## Session Handoff
 - next task: Persist Session portrait preset across app restarts (not only recomposition) and validate the final tablet information hierarchy during an active workout.
-- next task: Persist Session portrait preset across app restarts (not only recomposition) and add coverage for setup-vs-running preset visibility to prevent regressions.
+- next task: Merge PR `#31` to `main` after required checks pass, then optionally delete merged feature branches and start the next UI refinement from a fresh branch.
 - DoD:
   - Selected portrait preset survives process restart and app relaunch.
   - Compact preset row (`Preset: ... | Change`) remains stable after rotation/background-foreground.
@@ -17,6 +17,7 @@
   - Compact selector can hide discoverability if users do not notice the `Change` action.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
   - `./gradlew :app:installDebug --no-daemon`
   - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
   - manual (USB tablet): verify preset card collapses immediately after selection and expands via `Change`.
