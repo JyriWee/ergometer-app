@@ -4,7 +4,7 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Open PR from `feature/pr32-connect-timeout-watchdog` and run one manual GitHub smoke dispatch (`run_instrumentation_smoke=true`, `include_flaky_tests=true`) to verify policy wiring end-to-end.
+- next task: Run one manual GitHub smoke dispatch for PR `#33` (`run_instrumentation_smoke=true`, `include_flaky_tests=true`) and verify artifacts/policy output end-to-end.
 - DoD:
   - PR description covers: connect timeout watchdog, CI smoke trigger changes, serial pinning, and flaky policy visibility.
   - Manual dispatch creates `android-instrumentation-smoke-*` artifact bundle including `smoke-policy.txt` with `include_flaky=true`.
@@ -38,6 +38,7 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Opened PR `#33` (`feature/pr32-connect-timeout-watchdog` -> `main`) with session connect-timeout + smoke/CI policy changes.
 - Flaky-test visibility policy finalized across local + GitHub smoke lanes:
   - `android-build.yml` now supports manual flaky inclusion input (`include_flaky_tests`) and resolves explicit smoke policy per trigger.
   - Nightly scheduled smoke includes flaky tests by default; manual dispatch can include them explicitly.
