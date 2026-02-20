@@ -1,24 +1,28 @@
 # Next Session
 
 ## Branch
-- current: `docs/ui-workflow-playbook`
+- current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Start the next UI refinement from a fresh feature branch and execute it using `docs/ui-workflow-playbook.md` from step 1.
+- next task: Open PR from `feature/pr32-connect-timeout-watchdog` and run one manual GitHub smoke dispatch (`run_instrumentation_smoke=true`, `include_flaky_tests=true`) to verify policy wiring end-to-end.
 - DoD:
-  - Scope is written first (orientation, posture, top 3 signals, primary action).
-  - State matrix is updated before layout changes.
-  - Baseline layout is validated with screenshot + PASS/FAIL before advanced options.
-  - Iterations follow the documented validation loop.
+  - PR description covers: connect timeout watchdog, CI smoke trigger changes, serial pinning, and flaky policy visibility.
+  - Manual dispatch creates `android-instrumentation-smoke-*` artifact bundle including `smoke-policy.txt` with `include_flaky=true`.
+  - Required PR checks remain fast/stable (no default emulator smoke gate on PR event).
 - risks:
-  - Process may drift back into ad-hoc visual micro-tuning.
-  - Multiple orientations handled too early may slow convergence.
-  - Missing state-matrix updates can reintroduce UI regressions.
+  - Manual dispatch input mistakes can produce false confidence (smoke job not run when toggle is off).
+  - Nightly can still fail for infrastructure reasons unrelated to app regressions.
+  - Non-blocking smoke requires explicit monitoring discipline to stay useful.
 - validation commands:
-  - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:installDebug --no-daemon`
-  - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
-  - manual (USB tablet): PASS/FAIL against playbook acceptance criteria for the selected baseline mode.
+  - `git diff -- .github/workflows/android-build.yml`
+  - `git diff -- scripts/adb/emulator-smoke.sh`
+  - `git diff -- scripts/adb/device-smoke.sh`
+  - `git diff -- docs/adb-cheatsheet.md`
+  - `bash -n scripts/adb/device-smoke.sh`
+  - `bash -n scripts/adb/emulator-smoke.sh`
+  - `scripts/adb/device-smoke.sh --help`
+  - `scripts/adb/emulator-smoke.sh --help`
+  - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -34,6 +38,37 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Flaky-test visibility policy finalized across local + GitHub smoke lanes:
+  - `android-build.yml` now supports manual flaky inclusion input (`include_flaky_tests`) and resolves explicit smoke policy per trigger.
+  - Nightly scheduled smoke includes flaky tests by default; manual dispatch can include them explicitly.
+  - Smoke artifacts now include `smoke-policy.txt` and connected AndroidTest reports for triage visibility.
+  - `scripts/adb/emulator-smoke.sh` now logs flaky policy at runtime and records both `exclude_flaky` and `include_flaky` in `run-summary.txt`.
+  - `docs/adb-cheatsheet.md` now documents lane-specific flaky policy and artifact expectations.
+  - Validation:
+    - `bash -n scripts/adb/emulator-smoke.sh`
+    - `scripts/adb/emulator-smoke.sh --help`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+- Device smoke determinism via explicit Gradle serial pinning:
+  - `scripts/adb/device-smoke.sh` now runs install and connected AndroidTest Gradle tasks with `ANDROID_SERIAL` pinned to the selected/resolved device serial.
+  - Added explicit run log line for Gradle target serial and included `gradle_android_serial` in `run-summary.txt`.
+  - Validation:
+    - `bash -n scripts/adb/device-smoke.sh`
+    - `scripts/adb/device-smoke.sh --help`
+- GitHub CI smoke decoupling and safer trigger model:
+  - Workflow now runs `push` checks only on `main` to avoid duplicate branch `push` + `pull_request` CI noise.
+  - Added nightly schedule (`04:30 UTC`, currently `06:30` Finland local time) and manual toggle input for emulator smoke execution.
+  - `android-instrumentation-smoke` no longer blocks normal PR runs by default; it runs on nightly schedule or manual dispatch input.
+  - Added explicit workflow token hardening with read-only `contents` permissions.
+  - Validation:
+    - `git diff -- .github/workflows/android-build.yml`
+- Session start connect-phase watchdog (`CONNECTING` timeout):
+  - Added a bounded connect-phase timeout in `SessionOrchestrator` (`15s`) to fail fast from stuck `CONNECTING` and return to `MENU` with recovery prompt.
+  - Added cancellation wiring so timeout is cleared on successful control grant, disconnect cleanup, and orchestrator teardown.
+  - Added deterministic unit coverage in `SessionOrchestratorFlowTest`:
+    - `connectFlowTimeoutRollsBackToMenuWithRecoveryPrompt`
+    - `connectFlowTimeoutIsCancelledAfterRequestControlGranted`
+  - Validation:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
 - UI process hardening for future sessions:
   - Added `docs/ui-workflow-playbook.md` with a step-by-step beginner-friendly UI workflow.
   - Added an explicit AGENTS rule to follow the playbook on UI tasks and remind when drift is detected.

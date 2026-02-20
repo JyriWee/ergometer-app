@@ -300,6 +300,13 @@ Artifacts are written under `.local/emulator-test-runs/run-<timestamp>/`:
 Notes:
 - This emulator pipeline is for UI/Compose/instrumentation regressions.
 - By default, emulator smoke excludes tests annotated with `@FlakyTest`; use `--include-flaky` when needed.
+- Local emulator smoke run artifacts include flaky policy fields in `run-summary.txt` (`exclude_flaky`, `include_flaky`).
 - BLE trainer behavior (FTMS/Tunturi) must still be validated on real hardware with `./scripts/adb/device-smoke.sh`.
 - If both USB device and emulator are connected, emulator runs stay deterministic because the script pins test execution via `ANDROID_SERIAL=emulator-<port>`.
 - If you see `avdmanager` or `sdkmanager` missing errors, install **Android SDK Command-line Tools** from Android Studio: `Settings > Android SDK > SDK Tools`.
+
+GitHub smoke policy:
+- PR checks do not run emulator smoke by default (keeps PR gate fast and stable).
+- Nightly smoke (`04:30 UTC`) includes tests annotated with `@FlakyTest`.
+- Manual workflow dispatch runs emulator smoke only when explicitly requested and can include flaky tests via workflow input.
+- GitHub smoke uploads `smoke-policy.txt` plus instrumentation reports as run artifacts.

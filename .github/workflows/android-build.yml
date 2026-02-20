@@ -2,8 +2,26 @@ name: Android Build
 
 on:
   push:
+    branches:
+      - main
   pull_request:
+  schedule:
+    - cron: "30 4 * * *"
   workflow_dispatch:
+    inputs:
+      run_instrumentation_smoke:
+        description: "Run emulator instrumentation smoke job"
+        required: false
+        default: false
+        type: boolean
+      include_flaky_tests:
+        description: "Include @FlakyTest in instrumentation smoke (manual dispatch only)"
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -11,6 +29,7 @@ concurrency:
 
 jobs:
   build-test-lint:
+    if: ${{ github.event_name != 'schedule' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -96,9 +115,9 @@ jobs:
         run: ./gradlew :app:lintRelease --no-daemon --stacktrace -Pergometer.release.minify=true
 
   android-instrumentation-smoke:
+    if: ${{ github.event_name == 'schedule' || github.event.inputs.run_instrumentation_smoke == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    needs: build-test-lint
 
     steps:
       - name: Checkout
@@ -117,6 +136,22 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Resolve smoke policy
+        id: smoke-policy
+        shell: bash
+        run: |
+          include_flaky="false"
+          if [[ "${GITHUB_EVENT_NAME}" == "schedule" ]]; then
+            include_flaky="true"
+          elif [[ "${{ github.event.inputs.include_flaky_tests }}" == "true" ]]; then
+            include_flaky="true"
+          fi
+          echo "include_flaky=${include_flaky}" >> "$GITHUB_OUTPUT"
+          {
+            echo "event_name=${GITHUB_EVENT_NAME}"
+            echo "include_flaky=${include_flaky}"
+          } > smoke-policy.txt
+
       - name: Run instrumentation smoke on emulator
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -128,4 +163,25 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest
+            INCLUDE_FLAKY="${{ steps.smoke-policy.outputs.include_flaky }}"
+            echo "Smoke policy: include_flaky=${INCLUDE_FLAKY}"
+            runner_args=()
+            if [[ "${INCLUDE_FLAKY}" != "true" ]]; then
+              runner_args+=("-Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.FlakyTest")
+            fi
+            ./gradlew :app:connectedDebugAndroidTest \
+              --no-daemon \
+              --stacktrace \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest \
+              "${runner_args[@]}"
+
+      - name: Upload instrumentation smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-instrumentation-smoke-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            smoke-policy.txt
+            app/build/outputs/androidTest-results/connected/debug
+            app/build/reports/androidTests/connected/debug

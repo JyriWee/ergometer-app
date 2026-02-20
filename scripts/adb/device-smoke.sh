@@ -150,8 +150,13 @@ RUN_DIR="${OUT_BASE}/run-${TIMESTAMP}"
 mkdir -p "$RUN_DIR"
 LOG_PATH="${RUN_DIR}/logcat.log"
 
+run_gradle_on_selected_device() {
+  ANDROID_SERIAL="$DEVICE_SERIAL" ./gradlew "$@"
+}
+
 echo "==> Device: ${DEVICE_MODEL} (${DEVICE_SERIAL})"
 echo "==> Output: ${RUN_DIR}"
+echo "==> Gradle target serial: ${DEVICE_SERIAL}"
 
 echo "==> Starting log capture..."
 "${ADB_CMD[@]}" logcat -c
@@ -170,7 +175,7 @@ if [[ "$RECORD_SECONDS" -gt 0 ]]; then
 fi
 
 echo "==> Installing debug artifacts..."
-./gradlew :app:installDebug :app:installDebugAndroidTest --no-daemon
+run_gradle_on_selected_device :app:installDebug :app:installDebugAndroidTest --no-daemon
 
 if [[ "$CLEAR_APP_DATA" == true ]]; then
   echo "==> Clearing app data (${PACKAGE})..."
@@ -180,10 +185,10 @@ fi
 echo "==> Running instrumentation tests..."
 set +e
 if [[ "$RUN_ALL_TESTS" == true ]]; then
-  ./gradlew :app:connectedDebugAndroidTest --no-daemon
+  run_gradle_on_selected_device :app:connectedDebugAndroidTest --no-daemon
   TEST_EXIT=$?
 else
-  ./gradlew :app:connectedDebugAndroidTest \
+  run_gradle_on_selected_device :app:connectedDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.class="$TEST_CLASS" \
     --no-daemon
   TEST_EXIT=$?
@@ -209,6 +214,7 @@ cat > "${RUN_DIR}/run-summary.txt" <<EOF
 timestamp=${TIMESTAMP}
 device_model=${DEVICE_MODEL}
 device_serial=${DEVICE_SERIAL}
+gradle_android_serial=${DEVICE_SERIAL}
 test_mode=$([[ "$RUN_ALL_TESTS" == true ]] && echo all || echo class)
 test_class=$([[ "$RUN_ALL_TESTS" == true ]] && echo n/a || echo "$TEST_CLASS")
 clear_app_data=${CLEAR_APP_DATA}
