@@ -164,10 +164,7 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-            ./gradlew :app:connectedDebugAndroidTest \
-              --no-daemon \
-              --stacktrace \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest
 
       - name: Run instrumentation smoke on emulator (exclude flaky)
         if: ${{ steps.smoke-policy.outputs.include_flaky != 'true' }}
@@ -181,11 +178,7 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-            ./gradlew :app:connectedDebugAndroidTest \
-              --no-daemon \
-              --stacktrace \
-              -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest \
-              -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.FlakyTest
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.FlakyTest
 
       - name: Upload instrumentation smoke artifacts
         if: always()
