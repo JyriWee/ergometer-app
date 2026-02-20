@@ -403,12 +403,18 @@ fi
 LOGCAT_PID=$!
 
 detect_compose_hierarchy_flake() {
-  local result_file
-  result_file="$(find app/build/outputs/androidTest-results/connected/debug -name 'TEST-*.xml' | head -n 1)"
-  if [[ -z "$result_file" ]]; then
+  local result_dir
+  result_dir="app/build/outputs/androidTest-results/connected/debug"
+  local result_files=()
+  while IFS= read -r -d '' result_file; do
+    result_files+=("$result_file")
+  done < <(find "$result_dir" -name 'TEST-*.xml' -print0)
+
+  if [[ "${#result_files[@]}" -eq 0 ]]; then
     return 1
   fi
-  rg -q "No compose hierarchies found" "$result_file"
+
+  rg -q "No compose hierarchies found" "${result_files[@]}"
 }
 
 run_instrumentation() {
