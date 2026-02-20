@@ -152,7 +152,8 @@ jobs:
             echo "include_flaky=${include_flaky}"
           } > smoke-policy.txt
 
-      - name: Run instrumentation smoke on emulator
+      - name: Run instrumentation smoke on emulator (include flaky)
+        if: ${{ steps.smoke-policy.outputs.include_flaky == 'true' }}
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -163,17 +164,28 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-            INCLUDE_FLAKY="${{ steps.smoke-policy.outputs.include_flaky }}"
-            echo "Smoke policy: include_flaky=${INCLUDE_FLAKY}"
-            runner_args=()
-            if [[ "${INCLUDE_FLAKY}" != "true" ]]; then
-              runner_args+=("-Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.FlakyTest")
-            fi
+            ./gradlew :app:connectedDebugAndroidTest \
+              --no-daemon \
+              --stacktrace \
+              -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest
+
+      - name: Run instrumentation smoke on emulator (exclude flaky)
+        if: ${{ steps.smoke-policy.outputs.include_flaky != 'true' }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: default
+          arch: x86_64
+          emulator-boot-timeout: 900
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          script: |
+            echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
             ./gradlew :app:connectedDebugAndroidTest \
               --no-daemon \
               --stacktrace \
               -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest \
-              "${runner_args[@]}"
+              -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.FlakyTest
 
       - name: Upload instrumentation smoke artifacts
         if: always()

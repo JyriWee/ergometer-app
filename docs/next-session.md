@@ -32,6 +32,9 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- GitHub emulator-runner shell-compat fix for smoke policy:
+  - Replaced bash-array based runner-arg logic with two explicit emulator-runner steps (`include flaky` / `exclude flaky`) keyed by resolved smoke-policy output.
+  - Fix addresses workflow-dispatch run failure where `/usr/bin/sh` could not parse bash array syntax.
 - Workflow dispatch smoke-only routing fix:
   - `build-test-lint` is now skipped when manual dispatch is explicitly used for smoke (`run_instrumentation_smoke=true`), so manual smoke does not trigger redundant full build/test/lint.
 - `MainActivityContentFlowTest` anchor fix for animated waiting labels:
