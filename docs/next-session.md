@@ -4,20 +4,22 @@
 - current: `feature/ui-session-tablet`
 
 ## Session Handoff
-- next task: Continue Session screen tablet polish with portrait-first readability, then run on-device visual verification in both portrait and landscape.
+- next task: Persist Session portrait preset across app restarts (not only recomposition) and validate the final tablet information hierarchy during an active workout.
 - DoD:
-  - Session screen stays single-column in portrait, including large tablets.
-  - Top telemetry row order remains `HR | Power / target | Kcal`.
-  - Second telemetry row order remains `Speed | Cadence / target | Distance`.
+  - Selected portrait preset survives process restart and app relaunch.
+  - Compact preset row (`Preset: ... | Change`) remains stable after rotation/background-foreground.
+  - Portrait hierarchy remains readable on tablet without forcing frequent neck movement.
   - Landscape still supports two-pane session layout for wider displays.
 - risks:
-  - Long metric labels can wrap aggressively on narrow cards, reducing readability.
-  - Portrait-forced single-column increases vertical scrolling pressure on smaller heights.
-  - Landscape/portrait logic can regress if adaptive layout thresholds change later.
+  - Persisting preset in the wrong state owner can create mismatch between UI and `rememberSaveable` state restoration.
+  - Additional preset state wiring can introduce regressions in existing session-layout branching.
+  - Compact selector can hide discoverability if users do not notice the `Change` action.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-  - manual (USB tablet): open Session screen in portrait and verify one-column page flow.
+  - `./gradlew :app:installDebug --no-daemon`
+  - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
+  - manual (USB tablet): verify preset card collapses immediately after selection and expands via `Change`.
+  - manual (USB tablet): verify portrait hierarchy in Session during active workout.
   - manual (USB tablet): rotate to landscape and verify two-pane layout remains usable.
 
 ## Deferred Manual Validation
@@ -34,6 +36,19 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Session portrait preset selector and telemetry hierarchy refinements:
+  - Added portrait-only layout presets in Session: `Balanced`, `Power first`, `Workout first`.
+  - Added compact-after-selection preset UI (`Preset: ...` + `Change`) to reclaim vertical space immediately after choosing a preset.
+  - Swapped metric placement as requested:
+    - emphasized row: `HR | Power / target | Cadence / target`
+    - upper telemetry row: `Speed | Kcal | Distance`
+  - Added preset labels in `strings.xml`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `./gradlew :app:compileDebugKotlin :app:installDebug --no-daemon`
+    - manual (USB tablet): preset selection + compact mode behavior verified.
+    - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
+    - screenshot: `.local/captures/session-layout-check/screenshot-20260220-043252.png`
 - Session screen portrait column behavior update:
   - Forced `SessionScreen` to single-column content flow in portrait orientation, including tablet portrait widths.
   - Kept two-pane behavior available in landscape by gating two-pane rendering with orientation check.
