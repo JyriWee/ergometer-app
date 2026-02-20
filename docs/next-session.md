@@ -6,7 +6,7 @@
 ## Session Handoff
 - next task: Trigger manual GitHub smoke run for PR `#33` with flaky inclusion (`run_instrumentation_smoke=true`, `include_flaky_tests=true`) and verify uploaded artifacts.
 - DoD:
-  - Manual dispatch starts `android-instrumentation-smoke` job and finishes with expected artifact bundle.
+  - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` job and skips `build-test-lint`.
   - Uploaded artifact includes `smoke-policy.txt` with `include_flaky=true`.
   - PR remains green on fast required checks while smoke stays non-blocking.
 - risks:
@@ -32,6 +32,8 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Workflow dispatch smoke-only routing fix:
+  - `build-test-lint` is now skipped when manual dispatch is explicitly used for smoke (`run_instrumentation_smoke=true`), so manual smoke does not trigger redundant full build/test/lint.
 - `MainActivityContentFlowTest` anchor fix for animated waiting labels:
   - Updated connecting/stopping assertions to match normalized waiting status text used by animated dot rendering.
   - Fixed failing cases:
