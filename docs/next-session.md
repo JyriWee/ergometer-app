@@ -4,20 +4,19 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Fix `MainActivityContentFlowTest` failures caused by missing `Connecting…` anchor after connect-timeout flow updates.
+- next task: Trigger manual GitHub smoke run for PR `#33` with flaky inclusion (`run_instrumentation_smoke=true`, `include_flaky_tests=true`) and verify uploaded artifacts.
 - DoD:
-  - `criticalFlowScreensRenderExpectedAnchors` passes on tablet (`SM-X210`).
-  - `startSessionAnchorsStayConsistentAcrossConnectPermissionDenyThenGrant` passes on tablet (`SM-X210`).
-  - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB` exits cleanly without lingering `adb logcat` processes on both pass and fail paths.
+  - Manual dispatch starts `android-instrumentation-smoke` job and finishes with expected artifact bundle.
+  - Uploaded artifact includes `smoke-policy.txt` with `include_flaky=true`.
+  - PR remains green on fast required checks while smoke stays non-blocking.
 - risks:
-  - UI copy/state transitions for `CONNECTING` may have drifted from instrumentation test assumptions.
-  - Tests can remain timing-sensitive on real hardware if anchor assertions are too strict.
-  - CI smoke signal may still be noisy until these anchors are stabilized.
+  - Manual dispatch may be skipped accidentally if `run_instrumentation_smoke` input is left false.
+  - Flaky inclusion can reveal infra noise that is not app regression.
+  - Nightly/manual smoke requires active monitoring to be useful.
 - validation commands:
-  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
-  - `./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
-  - `bash -n scripts/adb/device-smoke.sh`
-  - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB`
+  - `gh workflow run \"Android Build\" -f run_instrumentation_smoke=true -f include_flaky_tests=true`
+  - `gh run list --workflow \"Android Build\" --limit 5`
+  - `gh run view <run-id> --log`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -33,6 +32,17 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- `MainActivityContentFlowTest` anchor fix for animated waiting labels:
+  - Updated connecting/stopping assertions to match normalized waiting status text used by animated dot rendering.
+  - Fixed failing cases:
+    - `criticalFlowScreensRenderExpectedAnchors`
+    - `startSessionAnchorsStayConsistentAcrossConnectPermissionDenyThenGrant`
+  - Validation:
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
+- Device smoke end-to-end pass after cleanup hardening:
+  - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB` now completes with `test_exit_code=0` and no lingering `adb logcat` process.
+  - Verified artifact run:
+    - `.local/device-test-runs/run-20260221-013713/run-summary.txt`
 - Device smoke cleanup hardening for failure-path exit:
   - Reworked `scripts/adb/device-smoke.sh` logcat capture to avoid background pipeline orphaning (`adb logcat` is now tracked as a single process).
   - Added forced shutdown fallback for lingering logcat PID and post-capture filtering step, preserving default filtered `logcat.log`.

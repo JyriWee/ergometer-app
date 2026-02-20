@@ -57,7 +57,10 @@ class MainActivityContentFlowTest {
         composeRule.runOnIdle {
             modelState.value = baseModel(screen = AppScreen.CONNECTING)
         }
-        composeRule.onNodeWithText(composeRule.activity.getString(R.string.status_connecting)).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            normalizedWaitingStatus(R.string.status_connecting),
+            substring = true,
+        ).assertIsDisplayed()
 
         composeRule.runOnIdle {
             modelState.value = baseModel(screen = AppScreen.SESSION)
@@ -67,7 +70,10 @@ class MainActivityContentFlowTest {
         composeRule.runOnIdle {
             modelState.value = baseModel(screen = AppScreen.STOPPING)
         }
-        composeRule.onNodeWithText(composeRule.activity.getString(R.string.status_stopping)).assertIsDisplayed()
+        composeRule.onNodeWithText(
+            normalizedWaitingStatus(R.string.status_stopping),
+            substring = true,
+        ).assertIsDisplayed()
 
         composeRule.runOnIdle {
             modelState.value = baseModel(
@@ -460,7 +466,7 @@ class MainActivityContentFlowTest {
 
         val menuTitle = composeRule.activity.getString(R.string.menu_title)
         val startSession = composeRule.activity.getString(R.string.menu_start_session)
-        val connecting = composeRule.activity.getString(R.string.status_connecting)
+        val connecting = normalizedWaitingStatus(R.string.status_connecting)
         val connectingHint = composeRule.activity.getString(R.string.menu_connection_hint)
 
         composeRule.onNodeWithText(menuTitle).assertIsDisplayed()
@@ -481,7 +487,7 @@ class MainActivityContentFlowTest {
         composeRule.runOnIdle {
             modelState.value = baseModel(screen = AppScreen.CONNECTING)
         }
-        composeRule.onNodeWithText(connecting).assertIsDisplayed()
+        composeRule.onNodeWithText(connecting, substring = true).assertIsDisplayed()
         composeRule.onNodeWithText(connectingHint).assertIsDisplayed()
     }
 
@@ -545,6 +551,10 @@ class MainActivityContentFlowTest {
         composeRule.onNodeWithText(
             composeRule.activity.getString(R.string.menu_cancel_device_scan)
         ).assertIsDisplayed().assertIsNotEnabled()
+    }
+
+    private fun normalizedWaitingStatus(resId: Int): String {
+        return composeRule.activity.getString(resId).trimEnd().trimEnd('.', '…')
     }
 
     private fun baseModel(
