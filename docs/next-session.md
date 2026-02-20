@@ -1,33 +1,24 @@
 # Next Session
 
 ## Branch
-- current: `chore/merge-ui-session-tablet-into-main`
+- current: `docs/ui-workflow-playbook`
 
 ## Session Handoff
-- next task: Persist Session portrait preset across app restarts (not only recomposition) and validate the final tablet information hierarchy during an active workout.
-- next task: Merge PR `#31` to `main` after required checks pass, then optionally delete merged feature branches and start the next UI refinement from a fresh branch.
+- next task: Start the next UI refinement from a fresh feature branch and execute it using `docs/ui-workflow-playbook.md` from step 1.
 - DoD:
-  - Selected portrait preset survives process restart and app relaunch.
-  - Compact preset row (`Preset: ... | Change`) remains stable after rotation/background-foreground.
-  - Portrait hierarchy remains readable on tablet without forcing frequent neck movement.
-  - Landscape still supports two-pane session layout for wider displays.
+  - Scope is written first (orientation, posture, top 3 signals, primary action).
+  - State matrix is updated before layout changes.
+  - Baseline layout is validated with screenshot + PASS/FAIL before advanced options.
+  - Iterations follow the documented validation loop.
 - risks:
-  - Persisting preset in the wrong state owner can create mismatch between UI and `rememberSaveable` state restoration.
-  - Additional preset state wiring can introduce regressions in existing session-layout branching.
-  - Compact selector can hide discoverability if users do not notice the `Change` action.
+  - Process may drift back into ad-hoc visual micro-tuning.
+  - Multiple orientations handled too early may slow convergence.
+  - Missing state-matrix updates can reintroduce UI regressions.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
   - `./gradlew :app:installDebug --no-daemon`
   - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
-  - manual (USB tablet): verify preset card collapses immediately after selection and expands via `Change`.
-  - manual (USB tablet): verify preset card is visible in waiting-start phase and hidden after ride is actively running.
-  - manual (USB tablet): verify `Connecting` headline shows animated trailing dots while connection is in progress.
-  - manual (USB tablet): verify Session waiting states (`waiting start`, `paused`) show animated trailing dots.
-  - manual (USB tablet): verify `Stopping` headline shows animated trailing dots while stop-finalization is in progress.
-  - manual (USB tablet): verify Session screen background follows theme in dark mode (no bright side gutters).
-  - manual (USB tablet): verify portrait hierarchy in Session during active workout.
-  - manual (USB tablet): rotate to landscape and verify two-pane layout remains usable.
+  - manual (USB tablet): PASS/FAIL against playbook acceptance criteria for the selected baseline mode.
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -43,6 +34,10 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- UI process hardening for future sessions:
+  - Added `docs/ui-workflow-playbook.md` with a step-by-step beginner-friendly UI workflow.
+  - Added an explicit AGENTS rule to follow the playbook on UI tasks and remind when drift is detected.
+  - Merged all pending feature work into `main` through PR `#31`, then cleaned merged feature branches from `origin`.
 - Session dark-mode consistency + stopping feedback polish:
   - Added themed background to `SessionScreen` root container to remove bright side gutters in dark mode.
   - Added themed background to `Connecting` and `Stopping` transitional screens for consistent dark-mode rendering.
