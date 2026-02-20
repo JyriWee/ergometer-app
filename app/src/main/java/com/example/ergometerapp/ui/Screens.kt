@@ -1207,10 +1207,19 @@ internal fun SessionScreen(
                             }
                         }
                     } else {
-                        SessionPresetSelector(
-                            selectedPreset = portraitPresetState.value,
-                            onPresetSelected = { selected -> portraitPresetState.value = selected },
-                        )
+                        val showPortraitPresetSelector =
+                            phase != SessionPhase.RUNNING ||
+                                isWaitingStartState(
+                                    phase = phase,
+                                    runnerState = runnerState,
+                                    cadenceRpm = cadenceRpm,
+                                )
+                        if (showPortraitPresetSelector) {
+                            SessionPresetSelector(
+                                selectedPreset = portraitPresetState.value,
+                                onPresetSelected = { selected -> portraitPresetState.value = selected },
+                            )
+                        }
 
                         when (portraitPresetState.value) {
                             SessionPortraitPreset.BALANCED -> {
