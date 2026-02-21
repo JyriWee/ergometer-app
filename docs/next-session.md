@@ -54,6 +54,9 @@
     - `group: ${{ github.workflow }}-smoke-${{ github.ref_name || github.ref }}`
     - `cancel-in-progress: true`
   - Result: new smoke dispatch on same branch cancels previous in-progress smoke run automatically.
+  - Validation:
+    - Back-to-back dispatch check: `22248406229` -> `cancelled` after newer `22248407185` started on same branch.
+    - Validation run was then explicitly cancelled to avoid wasted CI time.
 - Docs-only PR gate verification for CI wait-time reduction:
   - Opened temporary docs-only PR against `feature/pr32-connect-timeout-watchdog` to validate new `detect-android-changes` behavior.
   - Verification run `22248334054`:
