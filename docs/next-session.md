@@ -44,6 +44,7 @@
   - Validation:
     - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SKIPPED`: rotation test, class run passes)
     - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SKIPPED`: rotation test, class run passes)
+    - `22247846824` (`include_flaky_tests=true`) completed `success`; include-flaky lane reports `menuAndSessionAnchorsRemainVisibleAcrossRotation` as `SKIPPED` with no test failures.
 - Non-blocking policy for flaky-inclusive GitHub smoke:
   - `Run instrumentation smoke on emulator (include flaky)` now uses `continue-on-error: true`.
   - Added workflow summary marker when flaky-inclusive lane fails:
