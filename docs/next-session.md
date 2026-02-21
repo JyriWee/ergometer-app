@@ -39,6 +39,9 @@
   - Added workflow summary marker when flaky-inclusive lane fails:
     - `Record non-blocking flaky smoke failure`
   - Result: `include_flaky_tests=true` is informational; default `exclude flaky` lane remains the pass/fail smoke gate.
+  - Validation:
+    - `22247080041` (`include_flaky_tests=true`) completed `success` while still recording flaky failure (`menuAndSessionAnchorsRemainVisibleAcrossRotation`) and adding non-blocking summary note.
+    - Uploaded `smoke-policy.txt` confirms `include_flaky=true`.
 - GitHub smoke dispatch stabilization round (PR `#33` branch):
   - Replaced multiline Gradle invocations in emulator-runner script blocks with single-line commands to avoid `/usr/bin/sh` line-splitting (`Task '\\' not found`).
   - Added `disk-size: 4096M` to emulator-runner include/exclude smoke steps.
