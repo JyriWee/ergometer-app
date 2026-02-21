@@ -4,10 +4,11 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Observe one PR cycle with the new CI change-detection gate and refine path patterns if we see false skips or unnecessary runs.
+- next task: Start replacing the quarantined rotation coverage with a dedicated `MainActivity` recreation-safe instrumentation test.
 - DoD:
   - `build-test-lint` runs only when Android-impacting files changed on `pull_request`/`push`.
   - Docs-only/non-Android PR updates skip `build-test-lint` fast gate and save CI wait time.
+  - New manual smoke dispatch cancels older in-progress smoke on the same branch automatically.
   - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` and skips `build-test-lint`.
   - Manual dispatch with `include_flaky_tests=false` completes successfully on PR branch.
   - `menuAndSessionAnchorsRemainVisibleAcrossRotation` remains quarantined until replacement test exists.
@@ -16,11 +17,15 @@
 - risks:
   - If the path list is too narrow, a real Android-impacting change could skip fast gate unexpectedly.
   - If the path list is too broad, we still lose part of the expected CI time savings.
+  - Aggressive smoke cancellation can interrupt a run if another dispatch is triggered unintentionally.
   - Quarantine reduces false alarms but temporarily lowers direct rotation-regression signal.
   - Flaky-inclusive lane may hide new regressions if warnings are not actively monitored.
   - Emulator instrumentation runtime is long (~20 minutes) and increases feedback delay.
   - Nightly/manual smoke still requires active monitoring to produce actionable signal.
 - validation commands:
+  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=true`
+  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=false`
+  - `gh run list --workflow \"Android Build\" --branch feature/pr32-connect-timeout-watchdog --limit 5`
   - `git diff --name-only <base-sha> <head-sha> -- app/ build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle.properties gradle/ gradlew gradlew.bat scripts/adb/ .github/workflows/android-build.yml`
   - `gh run view <run-id> --job <detect-job-id> --log`
   - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
@@ -44,6 +49,11 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Smoke-lane auto-cancel for manual reruns:
+  - Added job-level concurrency to `android-instrumentation-smoke`:
+    - `group: ${{ github.workflow }}-smoke-${{ github.ref_name || github.ref }}`
+    - `cancel-in-progress: true`
+  - Result: new smoke dispatch on same branch cancels previous in-progress smoke run automatically.
 - Docs-only PR gate verification for CI wait-time reduction:
   - Opened temporary docs-only PR against `feature/pr32-connect-timeout-watchdog` to validate new `detect-android-changes` behavior.
   - Verification run `22248334054`:
