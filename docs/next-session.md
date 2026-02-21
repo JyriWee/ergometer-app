@@ -44,6 +44,13 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Docs-only PR gate verification for CI wait-time reduction:
+  - Opened temporary docs-only PR against `feature/pr32-connect-timeout-watchdog` to validate new `detect-android-changes` behavior.
+  - Verification run `22248334054`:
+    - `detect-android-changes`: `success`
+    - `build-test-lint`: `skipped`
+    - `android-instrumentation-smoke`: `skipped`
+  - Result: docs-only changes now bypass long Android fast gate as intended.
 - CI wait-time reduction via Android change detection gate:
   - Added `detect-android-changes` job in `.github/workflows/android-build.yml`.
   - `build-test-lint` now depends on detected Android-impacting file changes for `pull_request`/`push`, while manual dispatch keeps explicit control.
