@@ -4,19 +4,20 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Trigger manual GitHub smoke run for PR `#33` with flaky inclusion (`run_instrumentation_smoke=true`, `include_flaky_tests=true`) and verify uploaded artifacts.
+- next task: Decide follow-up policy for `include_flaky_tests=true` smoke failures (known flaky rotation test) and keep default `exclude flaky` smoke lane stable for nightly/manual verification.
 - DoD:
-  - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` job and skips `build-test-lint`.
-  - Uploaded artifact includes `smoke-policy.txt` with `include_flaky=true`.
-  - PR remains green on fast required checks while smoke stays non-blocking.
+  - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` and skips `build-test-lint`.
+  - Manual dispatch with `include_flaky_tests=false` completes successfully on PR branch.
+  - Manual dispatch with `include_flaky_tests=true` surfaces known flaky failures with clear test-level identification.
 - risks:
-  - Manual dispatch may be skipped accidentally if `run_instrumentation_smoke` input is left false.
-  - Flaky inclusion can reveal infra noise that is not app regression.
-  - Nightly/manual smoke requires active monitoring to be useful.
+  - `include_flaky_tests=true` lane can stay red due known flaky UI rotation test and create alert fatigue.
+  - Emulator instrumentation runtime is long (~20 minutes) and increases feedback delay.
+  - Nightly/manual smoke still requires active monitoring to produce actionable signal.
 - validation commands:
-  - `gh workflow run \"Android Build\" -f run_instrumentation_smoke=true -f include_flaky_tests=true`
+  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=false`
+  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=true`
   - `gh run list --workflow \"Android Build\" --limit 5`
-  - `gh run view <run-id> --log`
+  - `gh run view <run-id> --log-failed`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -32,6 +33,12 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- GitHub smoke dispatch stabilization round (PR `#33` branch):
+  - Replaced multiline Gradle invocations in emulator-runner script blocks with single-line commands to avoid `/usr/bin/sh` line-splitting (`Task '\\' not found`).
+  - Added `disk-size: 4096M` to emulator-runner include/exclude smoke steps.
+  - Manual dispatch results:
+    - `22246195078` (`include_flaky_tests=true`): workflow path worked; instrumentation executed and failed in known flaky test `menuAndSessionAnchorsRemainVisibleAcrossRotation`.
+    - `22246629540` (`include_flaky_tests=false`): `android-instrumentation-smoke` completed successfully.
 - GitHub emulator-runner shell-compat fix for smoke policy:
   - Replaced bash-array based runner-arg logic with two explicit emulator-runner steps (`include flaky` / `exclude flaky`) keyed by resolved smoke-policy output.
   - Fix addresses workflow-dispatch run failure where `/usr/bin/sh` could not parse bash array syntax.
