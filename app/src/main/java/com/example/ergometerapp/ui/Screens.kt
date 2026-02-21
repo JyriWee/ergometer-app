@@ -43,9 +43,12 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -75,6 +78,7 @@ import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
 import com.example.ergometerapp.workout.WorkoutFile
 import com.example.ergometerapp.workout.runner.IntervalPartPhase
 import com.example.ergometerapp.workout.runner.RunnerState
+import kotlinx.coroutines.delay
 import kotlin.math.roundToInt
 import java.util.Locale
 
@@ -86,6 +90,7 @@ private val SummaryMaxContentWidth = 920.dp
 private val SummaryTwoPaneMaxContentWidth = 1200.dp
 private val SessionStickyActionBottomPadding = 96.dp
 private val SessionWorkoutChartHeight = 220.dp
+private val SessionWorkoutChartHeightPhonePortrait = 260.dp
 
 private data class MetricItem(
     val label: String,
@@ -217,20 +222,14 @@ private fun WaitingStatusText(
         return
     }
 
-    val dotsTransition = rememberInfiniteTransition(label = "waitingLabelDots")
-    val dotsProgress = dotsTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 3f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(
-                durationMillis = 1200,
-                easing = LinearEasing,
-            ),
-            repeatMode = RepeatMode.Restart,
-        ),
-        label = "waitingLabelDotsProgress",
-    ).value
-    val dotsCount = dotsProgress.toInt().coerceIn(0, 2) + 1
+    var dotsCount by remember(animateDots) { mutableIntStateOf(1) }
+    LaunchedEffect(animateDots) {
+        if (!animateDots) return@LaunchedEffect
+        while (true) {
+            delay(350)
+            dotsCount = if (dotsCount >= 3) 1 else dotsCount + 1
+        }
+    }
     val animatedDots = ".".repeat(dotsCount).padEnd(3, ' ')
 
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1186,27 +1185,6 @@ internal fun SessionScreen(
         selectedWorkoutFileName = selectedWorkoutFileName,
         fallback = unknown,
     )
-    val activeSegment = remember(workoutSegments, runnerState.workoutElapsedSec, workoutComplete) {
-        currentWorkoutProfileSegment(
-            workoutSegments = workoutSegments,
-            elapsedSec = runnerState.workoutElapsedSec,
-            completed = workoutComplete,
-        )
-    }
-    val stepTypeValue = sessionStepTypeLabel(
-        phase = phase,
-        runnerState = runnerState,
-        cadenceRpm = cadenceRpm,
-        activeSegment = activeSegment,
-        unknown = unknown,
-    )
-    val targetPowerValue = sessionTargetPowerLabel(
-        runnerState = runnerState,
-        activeSegment = activeSegment,
-        ftpWatts = ftpWatts,
-        fallbackTargetPower = lastTargetPower,
-        unknown = unknown,
-    )
     val sessionIssues = buildList {
         if (!ftmsReady) {
             add(stringResource(R.string.session_issue_ftms_not_ready))
@@ -1315,8 +1293,6 @@ internal fun SessionScreen(
                     } else {
                         if (isPhonePortrait) {
                             PhonePortraitSessionWorkoutCard(
-                                selectedPreset = portraitPresetState.value,
-                                onPresetSelected = { selected -> portraitPresetState.value = selected },
                                 sessionIssues = sessionIssues,
                                 workoutName = workoutName,
                                 phase = phase,
@@ -1329,8 +1305,6 @@ internal fun SessionScreen(
                                 kcalValue = kcalValue,
                                 distanceValue = distanceValue,
                                 elapsedOfTotalText = elapsedOfTotalText,
-                                stepTypeValue = stepTypeValue,
-                                stepRemainingValue = formatTime(runnerState.stepRemainingSec, unknown),
                                 selectedWorkout = selectedWorkout,
                                 ftpWatts = ftpWatts,
                                 workoutElapsedSec = runnerState.workoutElapsedSec,
@@ -1494,8 +1468,6 @@ internal fun SessionScreen(
 
 @Composable
 private fun PhonePortraitSessionWorkoutCard(
-    selectedPreset: SessionPortraitPreset,
-    onPresetSelected: (SessionPortraitPreset) -> Unit,
     sessionIssues: List<String>,
     workoutName: String,
     phase: SessionPhase,
@@ -1508,8 +1480,6 @@ private fun PhonePortraitSessionWorkoutCard(
     kcalValue: String,
     distanceValue: String,
     elapsedOfTotalText: String,
-    stepTypeValue: String,
-    stepRemainingValue: String,
     selectedWorkout: WorkoutFile?,
     ftpWatts: Int,
     workoutElapsedSec: Int?,
@@ -1518,15 +1488,6 @@ private fun PhonePortraitSessionWorkoutCard(
     workoutExecutionModeIsError: Boolean,
 ) {
     val cardBorder = sessionCardBorder()
-    val balancedLabel = stringResource(R.string.session_layout_preset_balanced)
-    val powerFirstLabel = stringResource(R.string.session_layout_preset_power_first)
-    val workoutFirstLabel = stringResource(R.string.session_layout_preset_workout_first)
-    val selectedPresetLabel = when (selectedPreset) {
-        SessionPortraitPreset.BALANCED -> balancedLabel
-        SessionPortraitPreset.POWER_FIRST -> powerFirstLabel
-        SessionPortraitPreset.WORKOUT_FIRST -> workoutFirstLabel
-    }
-    val showPresetOptions = rememberSaveable { mutableStateOf(false) }
 
     SectionCard(title = null, border = cardBorder) {
         Text(
@@ -1535,70 +1496,17 @@ private fun PhonePortraitSessionWorkoutCard(
             fontWeight = FontWeight.SemiBold,
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                text = stringResource(
-                    R.string.session_layout_preset_selected_value,
-                    selectedPresetLabel,
-                ),
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.weight(1f),
-            )
-            OutlinedButton(onClick = { showPresetOptions.value = !showPresetOptions.value }) {
-                Text(text = stringResource(R.string.session_layout_preset_change))
-            }
-        }
-
-        if (showPresetOptions.value) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SessionPresetButton(
-                    label = balancedLabel,
-                    selected = selectedPreset == SessionPortraitPreset.BALANCED,
-                    onClick = {
-                        onPresetSelected(SessionPortraitPreset.BALANCED)
-                        showPresetOptions.value = false
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                SessionPresetButton(
-                    label = powerFirstLabel,
-                    selected = selectedPreset == SessionPortraitPreset.POWER_FIRST,
-                    onClick = {
-                        onPresetSelected(SessionPortraitPreset.POWER_FIRST)
-                        showPresetOptions.value = false
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-                SessionPresetButton(
-                    label = workoutFirstLabel,
-                    selected = selectedPreset == SessionPortraitPreset.WORKOUT_FIRST,
-                    onClick = {
-                        onPresetSelected(SessionPortraitPreset.WORKOUT_FIRST)
-                        showPresetOptions.value = false
-                    },
-                    modifier = Modifier.weight(1f),
-                )
-            }
-        }
-
         SessionInlineMetricsRow(
             leftLabel = stringResource(R.string.session_hr_short_label),
             leftValue = heartRateValue,
             rightLabel = stringResource(R.string.session_power_target_label),
             rightValue = powerTargetValue,
         )
-        SessionInlineMetric(
-            label = stringResource(R.string.session_elapsed_of_total),
-            value = elapsedOfTotalText,
-            modifier = Modifier.fillMaxWidth(),
+        SessionInlineMetricsRow(
+            leftLabel = stringResource(R.string.session_elapsed_of_total),
+            leftValue = elapsedOfTotalText,
+            rightLabel = stringResource(R.string.session_cadence_target_label),
+            rightValue = cadenceTargetValue,
         )
 
         sessionIssues.forEach { issue ->
@@ -1609,52 +1517,17 @@ private fun PhonePortraitSessionWorkoutCard(
             )
         }
 
-        when (selectedPreset) {
-            SessionPortraitPreset.BALANCED -> {
-                SessionInlineMetricsRow(
-                    leftLabel = stringResource(R.string.session_speed_label),
-                    leftValue = speedValue,
-                    rightLabel = stringResource(R.string.summary_distance),
-                    rightValue = distanceValue,
-                )
-                SessionInlineMetricsRow(
-                    leftLabel = stringResource(R.string.session_cadence_target_label),
-                    leftValue = cadenceTargetValue,
-                    rightLabel = stringResource(R.string.session_kcal_label),
-                    rightValue = kcalValue,
-                )
-            }
-
-            SessionPortraitPreset.POWER_FIRST -> {
-                SessionInlineMetricsRow(
-                    rightLabel = stringResource(R.string.session_cadence_target_label),
-                    rightValue = cadenceTargetValue,
-                    leftLabel = stringResource(R.string.session_speed_label),
-                    leftValue = speedValue,
-                )
-                SessionInlineMetricsRow(
-                    leftLabel = stringResource(R.string.session_workout_step_remaining),
-                    leftValue = stepRemainingValue,
-                    rightLabel = stringResource(R.string.session_kcal_label),
-                    rightValue = kcalValue,
-                )
-            }
-
-            SessionPortraitPreset.WORKOUT_FIRST -> {
-                SessionInlineMetricsRow(
-                    leftLabel = stringResource(R.string.session_workout_step_type),
-                    leftValue = stepTypeValue,
-                    rightLabel = stringResource(R.string.session_workout_step_remaining),
-                    rightValue = stepRemainingValue,
-                )
-                SessionInlineMetricsRow(
-                    leftLabel = stringResource(R.string.summary_distance),
-                    leftValue = distanceValue,
-                    rightLabel = stringResource(R.string.session_speed_label),
-                    rightValue = speedValue,
-                )
-            }
-        }
+        SessionInlineMetricsRow(
+            leftLabel = stringResource(R.string.session_speed_label),
+            leftValue = speedValue,
+            rightLabel = stringResource(R.string.summary_distance),
+            rightValue = distanceValue,
+        )
+        SessionInlineMetric(
+            label = stringResource(R.string.session_kcal_label),
+            value = kcalValue,
+            modifier = Modifier.fillMaxWidth(),
+        )
 
         val stateMessage = sessionStateLabel(
             phase = phase,
@@ -1702,7 +1575,7 @@ private fun PhonePortraitSessionWorkoutCard(
                 ftpWatts = ftpWatts,
                 elapsedSec = workoutElapsedSec,
                 currentTargetWatts = currentTargetWatts,
-                chartHeight = SessionWorkoutChartHeight
+                chartHeight = SessionWorkoutChartHeightPhonePortrait
             )
         }
     }
@@ -2630,9 +2503,8 @@ private fun isWaitingStartState(
 ): Boolean {
     if (phase != SessionPhase.RUNNING) return false
     val elapsedSec = runnerState.workoutElapsedSec ?: 0
-    return !runnerState.running &&
-        (cadenceRpm ?: 0.0) <= 0.0 &&
-        elapsedSec == 0
+    return elapsedSec == 0 &&
+        (cadenceRpm ?: 0.0) <= 0.0
 }
 
 private fun isSessionWaitingForUserActionState(

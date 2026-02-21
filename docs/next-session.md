@@ -4,17 +4,20 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Capture and review live phone-portrait `SESSION` screenshots for all 3 presets (waiting + running) and tune only if any row truncation or tap-target issues remain.
+- next task: Capture and review live phone-portrait `SESSION` screenshots (waiting + running) with the new single fixed card layout, then tune only if any metric row truncation remains.
 - DoD:
   - Phone portrait workout card keeps a fixed core telemetry trio above the graph: `HR`, `Power / target`, and `Elapsed / total`.
-  - Preset control stays compact by default (`Preset: ...` + `Change`) and expands to all 3 preset options only when requested.
-  - Presets (`Balanced`, `Power first`, `Workout first`) now only swap secondary metric rows; message area stays unchanged for future `.zwo` parser-driven messages.
-  - Waiting-state copy is action-oriented and animated dots are rendered through shared `WaitingStatusText` in all layouts/orientations.
+  - `Cadence / target` is positioned under `Power / target`, on the right side of the `Elapsed / total` row.
+  - Phone portrait no longer shows preset options or variant switching; it uses one permanent metric layout.
+  - Phone portrait secondary rows no longer show `Step type` or `Step remaining`.
+  - Freed portrait space is used for information density with always-visible secondary metrics and a taller workout graph.
+  - Message area stays unchanged for future `.zwo` parser-driven messages.
+  - Waiting-state label shows `Waiting for pedaling...` with `1 -> 2 -> 3 -> 1` animated dots through shared `WaitingStatusText` in all layouts/orientations.
   - Session quit CTA is phase-sensitive: subdued in waiting-start state, emphasized once the workout is actively running.
   - `:app:compileDebugKotlin` passes.
 - risks:
   - Long localized labels can still wrap/truncate in compact-width phone portrait rows.
-  - Preset option row (3 buttons) may still feel dense on very narrow devices/foldables when expanded.
+  - Taller portrait workout graph may push lower content farther below fold on smallest phones.
   - Visual verification for active running state is still pending for this exact revision set.
 - validation commands:
   - `./gradlew :app:compileDebugKotlin --no-daemon`
@@ -36,6 +39,34 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Waiting dots animation reliability fix:
+  - Replaced the waiting-dot render logic in `WaitingStatusText` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) with explicit stepped state updates (`1 -> 2 -> 3 -> 1`) via `LaunchedEffect + delay`.
+  - Result: pre-start waiting message now visibly cycles dot count instead of appearing static.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Waiting label correctness fix for pre-start session state:
+  - Updated `session_state_waiting` to `Waiting for pedaling` in `app/src/main/res/values/strings.xml`; shared `WaitingStatusText` appends animated dots (`...` effect).
+  - Fixed pre-start detection in `isWaitingStartState` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) so the label remains waiting at elapsed `0` and zero cadence even if `runnerState.done` is stale.
+  - Result: pre-start screen no longer shows `Done`; it shows `Waiting for pedaling...` with moving dots.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait telemetry positioning + waiting animation follow-up:
+  - Moved `Cadence / target` in phone portrait fixed card under `Power / target`, aligned to the right side of the `Elapsed / total` row (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`).
+  - Rebalanced lower metrics to keep `Speed + Distance` in a row and show `Kcal` as a full-width metric.
+  - Relaxed waiting-start detection so `Waiting for pedaling...` dot animation is shown whenever session is in pre-start waiting (`phase=RUNNING`, elapsed `0`, cadence `0`), independent of `runnerState.running`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait single-layout simplification (request-driven):
+  - Removed portrait preset controls and preset-specific switching from `PhonePortraitSessionWorkoutCard` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`.
+  - Phone portrait now always renders one fixed metric composition (`HR`, `Power / target`, `Elapsed / total`, `Speed`, `Distance`, `Cadence / target`, `Kcal`) before messages and graph.
+  - Increased phone portrait workout chart height to `260.dp` to use the saved vertical space for clearer workout information.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait row-density trim (request-driven):
+  - Removed `Step type` and `Step remaining` fields from all phone portrait preset views inside `PhonePortraitSessionWorkoutCard`.
+  - Deleted now-unused phone-portrait card parameters (`stepTypeValue`, `stepRemainingValue`) from `SessionScreen -> PhonePortraitSessionWorkoutCard` wiring.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
 - Phone portrait follow-up bundle (requested items `1-4` and `7`):
   - Refined `PhonePortraitSessionWorkoutCard` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) to keep `HR`, `Power / target`, and `Elapsed / total` always visible above the chart.
   - Converted preset controls to compact mode (`Preset: ...` + `Change`) with expandable 3-option selector.
