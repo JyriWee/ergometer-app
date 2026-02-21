@@ -4,22 +4,22 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Capture and review phone portrait `SESSION` screen screenshots (all 3 presets) and tune inline metric spacing/priority only if readability issues remain.
+- next task: Capture and review live phone-portrait `SESSION` screenshots for all 3 presets (waiting + running) and tune only if any row truncation or tap-target issues remain.
 - DoD:
-  - Phone portrait `SessionScreen` uses one primary workout card that always includes the workout graph.
-  - The same 3 presets (`Balanced`, `Power first`, `Workout first`) switch which inline metrics are shown above the graph.
-  - Preset controls are directly inside the primary workout card on phone portrait.
-  - Tablet portrait/landscape layout behavior remains consistent with previous accepted UX.
-  - `:app:compileDebugKotlin` passes after layout branching changes.
+  - Phone portrait workout card keeps a fixed core telemetry trio above the graph: `HR`, `Power / target`, and `Elapsed / total`.
+  - Preset control stays compact by default (`Preset: ...` + `Change`) and expands to all 3 preset options only when requested.
+  - Presets (`Balanced`, `Power first`, `Workout first`) now only swap secondary metric rows; message area stays unchanged for future `.zwo` parser-driven messages.
+  - Waiting-state copy is action-oriented and animated dots are rendered through shared `WaitingStatusText` in all layouts/orientations.
+  - Session quit CTA is phase-sensitive: subdued in waiting-start state, emphasized once the workout is actively running.
+  - `:app:compileDebugKotlin` passes.
 - risks:
-  - Inline metric rows can still become dense for long localized values on compact-width phones.
-  - Because the screenshot run opened `MENU` (no workout selected), visual confirmation for live `SESSION` flow is still pending on device.
-  - Compact-width portrait branch (`<600dp`) may also affect narrow foldables; verify on at least one non-tablet form factor.
+  - Long localized labels can still wrap/truncate in compact-width phone portrait rows.
+  - Preset option row (3 buttons) may still feel dense on very narrow devices/foldables when expanded.
+  - Visual verification for active running state is still pending for this exact revision set.
 - validation commands:
-  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
   - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
-  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-single-card`
+  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-session-followup`
   - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/tablet-regression-check`
 
 ## Deferred Manual Validation
@@ -36,9 +36,17 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Phone portrait follow-up bundle (requested items `1-4` and `7`):
+  - Refined `PhonePortraitSessionWorkoutCard` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) to keep `HR`, `Power / target`, and `Elapsed / total` always visible above the chart.
+  - Converted preset controls to compact mode (`Preset: ...` + `Change`) with expandable 3-option selector.
+  - Restricted presets to secondary metric rows only, leaving workout graph and message area intact.
+  - Updated waiting copy (`session_state_waiting`) to `Start pedaling to begin workout` and kept animated dots behavior via shared `WaitingStatusText`.
+  - Added phase-aware quit button emphasis in `SessionScreen`: waiting-start uses subdued CTA colors, active run uses emphasized CTA colors.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
 - Session start waiting-state copy + dots animation refresh (all layouts/orientations):
   - Updated waiting copy in `app/src/main/res/values/strings.xml`:
-    - `session_state_waiting`: `Waiting for you to start pedaling`
+    - `session_state_waiting`: `Start pedaling to begin workout`
   - Updated `WaitingStatusText` animation in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
     - Replaced low-contrast static three-dot rendering with an explicit animated suffix (`.`, `..`, `...`) for clearer perceived motion.
   - Scope:
