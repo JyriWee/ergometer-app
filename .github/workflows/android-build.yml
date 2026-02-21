@@ -160,6 +160,7 @@ jobs:
           target: default
           arch: x86_64
           emulator-boot-timeout: 900
+          disk-size: 4096M
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
@@ -174,6 +175,7 @@ jobs:
           target: default
           arch: x86_64
           emulator-boot-timeout: 900
+          disk-size: 4096M
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
