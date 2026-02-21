@@ -6,7 +6,7 @@ on:
       - main
   pull_request:
   schedule:
-    - cron: "30 2 * * *"
+    - cron: "30 4 * * *"
   workflow_dispatch:
     inputs:
       run_instrumentation_smoke:

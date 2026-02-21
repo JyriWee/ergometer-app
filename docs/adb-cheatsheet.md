@@ -307,6 +307,6 @@ Notes:
 
 GitHub smoke policy:
 - PR checks do not run emulator smoke by default (keeps PR gate fast and stable).
-- Nightly smoke (`02:30 UTC`) includes tests annotated with `@FlakyTest` (Finland local: `04:30` in winter, `05:30` in summer).
+- Nightly smoke (`04:30 UTC`) includes tests annotated with `@FlakyTest` (Finland local: `06:30` in winter, `07:30` in summer).
 - Manual workflow dispatch runs emulator smoke only when explicitly requested and can include flaky tests via workflow input.
 - GitHub smoke uploads `smoke-policy.txt` plus instrumentation reports as run artifacts.

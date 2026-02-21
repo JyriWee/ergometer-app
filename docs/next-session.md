@@ -9,7 +9,7 @@
   - `build-test-lint` runs only when Android-impacting files changed on `pull_request`/`push`.
   - Docs-only/non-Android PR updates skip `build-test-lint` fast gate and save CI wait time.
   - New manual smoke dispatch cancels older in-progress smoke on the same branch automatically.
-  - Nightly smoke trigger stays inside working window `00:00-06:00` (scheduled at `02:30 UTC`).
+  - Nightly smoke trigger stays outside working window `00:00-06:00` (scheduled at `04:30 UTC`).
   - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` and skips `build-test-lint`.
   - Manual dispatch with `include_flaky_tests=false` completes successfully on PR branch.
   - `menuAndSessionAnchorsRemainVisibleAcrossRotation` remains quarantined until replacement test exists.
@@ -50,10 +50,10 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
-- Night-window alignment for nightly smoke:
-  - Updated GitHub schedule from `04:30 UTC` to `02:30 UTC`.
-  - New timing keeps nightly smoke inside the `00:00-06:00` Finland working window (`04:30` winter / `05:30` summer local time).
-  - Updated docs in `docs/adb-cheatsheet.md` to match the new schedule.
+- Night-window correction for nightly smoke:
+  - Updated GitHub schedule from `02:30 UTC` back to `04:30 UTC` by request.
+  - New timing keeps nightly smoke outside the `00:00-06:00` Finland working window (`06:30` winter / `07:30` summer local time).
+  - Updated docs in `docs/adb-cheatsheet.md` to match the corrected schedule.
 - Smoke-lane auto-cancel for manual reruns:
   - Added job-level concurrency to `android-instrumentation-smoke`:
     - `group: ${{ github.workflow }}-smoke-${{ github.ref_name || github.ref }}`
@@ -139,7 +139,7 @@
     - `scripts/adb/device-smoke.sh --help`
 - GitHub CI smoke decoupling and safer trigger model:
   - Workflow now runs `push` checks only on `main` to avoid duplicate branch `push` + `pull_request` CI noise.
-  - Added nightly schedule (currently `02:30 UTC`, `04:30` Finland winter / `05:30` Finland summer local time) and manual toggle input for emulator smoke execution.
+  - Added nightly schedule (currently `04:30 UTC`, `06:30` Finland winter / `07:30` Finland summer local time) and manual toggle input for emulator smoke execution.
   - `android-instrumentation-smoke` no longer blocks normal PR runs by default; it runs on nightly schedule or manual dispatch input.
   - Added explicit workflow token hardening with read-only `contents` permissions.
   - Validation:
