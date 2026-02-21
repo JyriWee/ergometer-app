@@ -143,6 +143,23 @@ private fun menuStartButtonColors() = ButtonDefaults.buttonColors(
 )
 
 @Composable
+private fun sessionQuitButtonColors(emphasized: Boolean) = if (emphasized) {
+    ButtonDefaults.buttonColors(
+        containerColor = MaterialTheme.colorScheme.primary,
+        contentColor = MaterialTheme.colorScheme.onPrimary,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+    )
+} else {
+    ButtonDefaults.buttonColors(
+        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+        disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+    )
+}
+
+@Composable
 private fun menuDeviceConnectedColor() = MaterialTheme.colorScheme.primary
 
 @Composable
@@ -1219,6 +1236,12 @@ internal fun SessionScreen(
         val sectionHorizontalPadding = if (isPhonePortrait) 12.dp else 20.dp
         val sessionTopPadding = if (isPhonePortrait) 16.dp else if (isPortrait) 28.dp else 16.dp
         val endSessionButtonWidth = if (isPhonePortrait) 0.9f else 0.5f
+        val waitingForStart = isWaitingStartState(
+            phase = phase,
+            runnerState = runnerState,
+            cadenceRpm = cadenceRpm,
+        )
+        val endSessionCtaEmphasized = phase == SessionPhase.RUNNING && !waitingForStart
 
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -1461,7 +1484,7 @@ internal fun SessionScreen(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth(endSessionButtonWidth)
                     .padding(vertical = 16.dp),
-                colors = disabledVisibleButtonColors()
+                colors = sessionQuitButtonColors(emphasized = endSessionCtaEmphasized)
             ) {
                 Text(stringResource(R.string.btn_quit_session_now))
             }
