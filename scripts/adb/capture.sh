@@ -89,14 +89,28 @@ fi
 mkdir -p "$OUT_DIR"
 TS="$(date +%Y%m%d-%H%M%S)"
 MODEL="$("${ADB_CMD[@]}" shell getprop ro.product.model | tr -d '\r')"
+MIN_REASONABLE_PNG_SIZE_BYTES=50000
 
 echo "Device: ${MODEL}"
 echo "Output dir: ${OUT_DIR}"
 echo "Timestamp: ${TS}"
 
+# Improve screenshot reliability on devices that occasionally return a blank frame.
+"${ADB_CMD[@]}" shell input keyevent KEYCODE_WAKEUP >/dev/null 2>&1 || true
+"${ADB_CMD[@]}" shell wm dismiss-keyguard >/dev/null 2>&1 || true
+sleep 1
+
 if [[ "$SKIP_SCREENSHOT" == false ]]; then
   PNG="${OUT_DIR}/screenshot-${TS}.png"
   "${ADB_CMD[@]}" exec-out screencap -p > "$PNG"
+  PNG_SIZE_BYTES="$(wc -c < "$PNG" | tr -d '[:space:]')"
+  if [[ "${PNG_SIZE_BYTES}" -lt "${MIN_REASONABLE_PNG_SIZE_BYTES}" ]]; then
+    REMOTE_PNG="/sdcard/Download/ergometer-screenshot-${TS}.png"
+    "${ADB_CMD[@]}" shell screencap -p "$REMOTE_PNG"
+    "${ADB_CMD[@]}" pull "$REMOTE_PNG" "$PNG" >/dev/null
+    "${ADB_CMD[@]}" shell rm "$REMOTE_PNG" >/dev/null 2>&1 || true
+    echo "Screenshot fallback used (small initial frame: ${PNG_SIZE_BYTES} bytes)."
+  fi
   echo "Saved screenshot: $PNG"
 fi
 
@@ -109,4 +123,3 @@ if [[ "$SKIP_RECORD" == false ]]; then
   "${ADB_CMD[@]}" shell rm "$REMOTE"
   echo "Saved screenrecord: $MP4"
 fi
-

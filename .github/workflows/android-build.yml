@@ -191,6 +191,8 @@ jobs:
     if: ${{ github.event_name == 'schedule' || github.event.inputs.run_instrumentation_smoke == 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      SMOKE_TEST_CLASSES: com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest
     concurrency:
       group: ${{ github.workflow }}-smoke-${{ github.ref_name || github.ref }}
       cancel-in-progress: true
@@ -231,7 +233,6 @@ jobs:
       - name: Run instrumentation smoke on emulator (include flaky)
         id: smoke-include-flaky
         if: ${{ steps.smoke-policy.outputs.include_flaky == 'true' }}
-        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
@@ -243,18 +244,7 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest
-
-      - name: Record non-blocking flaky smoke failure
-        if: ${{ steps.smoke-policy.outputs.include_flaky == 'true' && steps.smoke-include-flaky.outcome == 'failure' }}
-        shell: bash
-        run: |
-          {
-            echo "### Flaky-inclusive smoke failed (non-blocking)"
-            echo
-            echo "- include_flaky_tests=true lane is informational and does not fail the workflow."
-            echo "- Check uploaded Android test reports/artifacts for failing test details."
-          } >> "$GITHUB_STEP_SUMMARY"
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class="${SMOKE_TEST_CLASSES}"
 
       - name: Run instrumentation smoke on emulator (exclude flaky)
         if: ${{ steps.smoke-policy.outputs.include_flaky != 'true' }}
@@ -269,7 +259,7 @@ jobs:
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           script: |
             echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
-            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.FlakyTest
+            ./gradlew :app:connectedDebugAndroidTest --no-daemon --stacktrace -Pandroid.testInstrumentationRunnerArguments.class="${SMOKE_TEST_CLASSES}" -Pandroid.testInstrumentationRunnerArguments.notAnnotation=androidx.test.filters.FlakyTest
 
       - name: Upload instrumentation smoke artifacts
         if: always()

@@ -1,9 +1,7 @@
 package com.example.ergometerapp.ui
 
 import androidx.activity.ComponentActivity
-import android.content.pm.ActivityInfo
 import androidx.compose.runtime.mutableStateOf
-import androidx.test.filters.FlakyTest
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsNotEnabled
@@ -20,7 +18,6 @@ import com.example.ergometerapp.session.SessionSummary
 import com.example.ergometerapp.workout.editor.WorkoutEditorDraft
 import com.example.ergometerapp.workout.runner.RunnerState
 import org.junit.Assert.assertEquals
-import org.junit.Ignore
 import org.junit.Rule
 import org.junit.Test
 
@@ -266,62 +263,6 @@ class MainActivityContentFlowTest {
     }
 
     @Test
-    @FlakyTest
-    @Ignore("Quarantined: orientation recreation with test-rule setContent is device-dependent; migrate to dedicated MainActivity rotation test.")
-    fun menuAndSessionAnchorsRemainVisibleAcrossRotation() {
-        val modelState = mutableStateOf(baseModel(screen = AppScreen.MENU))
-
-        composeRule.setContent {
-            MainActivityContent(
-                model = modelState.value,
-                onSelectWorkoutFile = {},
-                onFtpInputChanged = {},
-                onSearchFtmsDevices = {},
-                onSearchHrDevices = {},
-                onScannedDeviceSelected = {},
-                onDismissDeviceSelection = {},
-                onDismissConnectionIssue = {},
-                onSearchFtmsDevicesFromConnectionIssue = {},
-                onOpenAppSettingsFromConnectionIssue = {},
-                onStartSession = {},
-                onEndSession = {},
-                onBackToMenu = {},
-                onWorkoutEditorAction = {},
-                onRequestWorkoutEditorSave = {},
-                onRequestSummaryFitExport = {},
-            )
-        }
-
-        val menuTitle = composeRule.activity.getString(R.string.menu_title)
-        val quitLabel = composeRule.activity.getString(R.string.btn_quit_session_now)
-
-        try {
-            assertNodeWithTextEventually(menuTitle)
-
-            composeRule.runOnUiThread {
-                composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
-            }
-            composeRule.waitForIdle()
-            assertNodeWithTextEventually(menuTitle)
-
-            composeRule.runOnIdle {
-                modelState.value = baseModel(screen = AppScreen.SESSION)
-            }
-            assertNodeWithTextEventually(quitLabel)
-
-            composeRule.runOnUiThread {
-                composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            }
-            composeRule.waitForIdle()
-            assertNodeWithTextEventually(quitLabel)
-        } finally {
-            composeRule.runOnUiThread {
-                composeRule.activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
-            }
-        }
-    }
-
-    @Test
     fun menuPickerFlowStaysConsistentAcrossScanPermissionDenyThenGrant() {
         val modelState = mutableStateOf(baseModel(screen = AppScreen.MENU))
         val permissionRequired = composeRule.activity.getString(R.string.menu_device_scan_permission_required)
@@ -557,27 +498,6 @@ class MainActivityContentFlowTest {
 
     private fun normalizedWaitingStatus(resId: Int): String {
         return composeRule.activity.getString(resId).trimEnd().trimEnd('.', '…')
-    }
-
-    /**
-     * Rotation can briefly recreate the host activity and clear the Compose hierarchy.
-     * Retry assertions until the node is visible to avoid transient race failures.
-     */
-    private fun assertNodeWithTextEventually(
-        text: String,
-        substring: Boolean = false,
-        timeoutMillis: Long = 10_000L,
-    ) {
-        composeRule.waitUntil(timeoutMillis) {
-            try {
-                composeRule.onNodeWithText(text, substring = substring).assertIsDisplayed()
-                true
-            } catch (_: AssertionError) {
-                false
-            } catch (_: IllegalStateException) {
-                false
-            }
-        }
     }
 
     private fun baseModel(

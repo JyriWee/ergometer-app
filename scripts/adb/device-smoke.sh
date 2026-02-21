@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PACKAGE="com.example.ergometerapp"
-DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest"
+DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest"
 FILTER_REGEX='com\.example\.ergometerapp|FTMS|SESSION|WORKOUT|BluetoothGatt|BluetoothLeScanner'
 
 SERIAL=""
@@ -37,7 +37,7 @@ Purpose:
 Options:
   --serial <id>          Use specific adb serial (default: current adb device).
   --out-dir <path>       Output base directory (default: .local/device-test-runs).
-  --test-class <fqcn>    Instrumentation class to run (default: MainActivityContentFlowTest).
+  --test-class <fqcn>    Instrumentation class/filter to run (default: MainActivityContentFlowTest + MainActivityRecreationRotationTest).
   --all-tests            Run all connected instrumentation tests.
   --no-clear             Do not clear app data before test run.
   --no-screenshot        Do not capture final screenshot.
@@ -48,7 +48,7 @@ Options:
 Examples:
   ./scripts/adb/device-smoke.sh
   ./scripts/adb/device-smoke.sh --serial R92Y40YAZPB --all-tests
-  ./scripts/adb/device-smoke.sh --test-class com.example.ergometerapp.ui.MainActivityContentFlowTest
+  ./scripts/adb/device-smoke.sh --test-class com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest
   ./scripts/adb/device-smoke.sh --record-seconds 20
 EOF
 }

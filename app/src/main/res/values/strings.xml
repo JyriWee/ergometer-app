@@ -143,7 +143,7 @@
         <string name="session_elapsed_of_total">Elapsed / total</string>
         <string name="session_elapsed_of_total_value">%1$s / %2$s</string>
         <string name="session_workout_complete">Workout complete</string>
-        <string name="session_state_waiting">waiting start</string>
+        <string name="session_state_waiting">Waiting for you to start pedaling</string>
         <string name="session_issue_title">Connection issue</string>
         <string name="session_issue_ftms_not_ready">Trainer not ready</string>
         <string name="session_issue_control_missing">Control not granted</string>

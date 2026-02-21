@@ -4,37 +4,23 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Start replacing the quarantined rotation coverage with a dedicated `MainActivity` recreation-safe instrumentation test.
+- next task: Capture and review phone portrait `SESSION` screen screenshots (all 3 presets) and tune inline metric spacing/priority only if readability issues remain.
 - DoD:
-  - `build-test-lint` runs only when Android-impacting files changed on `pull_request`/`push`.
-  - Docs-only/non-Android PR updates skip `build-test-lint` fast gate and save CI wait time.
-  - New manual smoke dispatch cancels older in-progress smoke on the same branch automatically.
-  - Nightly smoke trigger stays outside working window `00:00-06:00` (scheduled at `04:30 UTC`).
-  - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` and skips `build-test-lint`.
-  - Manual dispatch with `include_flaky_tests=false` completes successfully on PR branch.
-  - `menuAndSessionAnchorsRemainVisibleAcrossRotation` remains quarantined until replacement test exists.
-  - Replacement rotation test validates menu/session anchors across portrait<->landscape recreation on at least one physical device.
-  - Workflow summary explicitly records non-blocking flaky-inclusive failure context.
+  - Phone portrait `SessionScreen` uses one primary workout card that always includes the workout graph.
+  - The same 3 presets (`Balanced`, `Power first`, `Workout first`) switch which inline metrics are shown above the graph.
+  - Preset controls are directly inside the primary workout card on phone portrait.
+  - Tablet portrait/landscape layout behavior remains consistent with previous accepted UX.
+  - `:app:compileDebugKotlin` passes after layout branching changes.
 - risks:
-  - If the path list is too narrow, a real Android-impacting change could skip fast gate unexpectedly.
-  - If the path list is too broad, we still lose part of the expected CI time savings.
-  - Aggressive smoke cancellation can interrupt a run if another dispatch is triggered unintentionally.
-  - Quarantine reduces false alarms but temporarily lowers direct rotation-regression signal.
-  - Flaky-inclusive lane may hide new regressions if warnings are not actively monitored.
-  - Emulator instrumentation runtime is long (~20 minutes) and increases feedback delay.
-  - Nightly/manual smoke still requires active monitoring to produce actionable signal.
+  - Inline metric rows can still become dense for long localized values on compact-width phones.
+  - Because the screenshot run opened `MENU` (no workout selected), visual confirmation for live `SESSION` flow is still pending on device.
+  - Compact-width portrait branch (`<600dp`) may also affect narrow foldables; verify on at least one non-tablet form factor.
 - validation commands:
-  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=true`
-  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=false`
-  - `gh run list --workflow \"Android Build\" --branch feature/pr32-connect-timeout-watchdog --limit 5`
-  - `git diff --name-only <base-sha> <head-sha> -- app/ build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle.properties gradle/ gradlew gradlew.bat scripts/adb/ .github/workflows/android-build.yml`
-  - `gh run view <run-id> --job <detect-job-id> --log`
-  - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
-  - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
-  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=false`
-  - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=true`
-  - `gh run list --workflow \"Android Build\" --limit 5`
-  - `gh run view <run-id> --log-failed`
+  - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+  - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
+  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-single-card`
+  - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/tablet-regression-check`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -50,6 +36,91 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Session start waiting-state copy + dots animation refresh (all layouts/orientations):
+  - Updated waiting copy in `app/src/main/res/values/strings.xml`:
+    - `session_state_waiting`: `Waiting for you to start pedaling`
+  - Updated `WaitingStatusText` animation in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - Replaced low-contrast static three-dot rendering with an explicit animated suffix (`.`, `..`, `...`) for clearer perceived motion.
+  - Scope:
+    - Applies to all Session layout branches because they all use `WaitingStatusText` with `sessionStateLabel`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait metric cleanup (request-driven):
+  - Removed `Workout remaining` from all phone portrait preset views inside `PhonePortraitSessionWorkoutCard`.
+  - Updated preset rows:
+    - `Balanced`: replaced `Workout remaining` with `Elapsed/total`.
+    - `Power first`: replaced `Workout remaining` with `Distance`.
+    - `Workout first`: replaced `Workout remaining` with `Cadence/target`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
+- Phone portrait `SESSION` layout switched to one primary workout card with preset-driven inline metrics:
+  - Added a dedicated phone portrait card path in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - `PhonePortraitSessionWorkoutCard`
+    - `SessionInlineMetricsRow`
+    - `SessionInlineMetric`
+  - Phone portrait now keeps workout graph always visible inside that single primary card and uses 3 presets to switch the metric set shown above it.
+  - Non-phone/tablet branches continue to use the previous section-based layout path.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
+    - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-single-card`
+  - Notes:
+    - Latest capture landed on `MENU` due missing selected workout in app state; live `SESSION` screenshot pass is still pending.
+- ADB capture reliability hardening for occasional black phone screenshots:
+  - Updated `scripts/adb/capture.sh` to wake/unlock before capture and fallback to `shell screencap + pull` when the first PNG frame is suspiciously small.
+  - Validation:
+    - `bash -n scripts/adb/capture.sh`
+    - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-quick2`
+    - screenshot: `.local/captures/phone-portrait-quick2/screenshot-20260222-002427.png`
+- Phone portrait `SessionScreen` split from tablet-focused layout behavior:
+  - Added compact-width portrait branching in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt` so phone portrait no longer reuses the denser tablet-oriented row composition.
+  - Phone portrait adjustments:
+    - Reduced horizontal padding and top offset for more usable content width.
+    - Preset selector buttons are stacked vertically with full-width targets.
+    - Top telemetry and primary telemetry are reflowed into fewer columns per row.
+    - Workout step metrics are reflowed to avoid 3-column crowding.
+    - End-session button width increased for easier tap targets.
+  - Tablet/non-phone behavior remains on existing branch path (`phonePortraitLayout=false`).
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - Follow-up pending:
+    - Capture and review phone portrait screenshots in active session state.
+- Flaky-inclusive smoke lane changed to blocking:
+  - Updated `.github/workflows/android-build.yml` to remove `continue-on-error` from `Run instrumentation smoke on emulator (include flaky)`.
+  - Removed obsolete non-blocking summary step `Record non-blocking flaky smoke failure`.
+  - Result: when `include_flaky_tests=true` lane fails, `android-instrumentation-smoke` now fails the workflow.
+  - Updated docs in `docs/adb-cheatsheet.md` to state both include/exclude-flaky lanes are blocking.
+  - Validation (no smoke run launched due local quiet window `00:00-04:00`):
+    - `rg -n \"continue-on-error|Record non-blocking flaky smoke failure\" .github/workflows/android-build.yml`
+    - `rg -n \"include_flaky_tests=true.*blocking|include_flaky_tests=false.*blocking\" docs/adb-cheatsheet.md`
+- CI smoke lane validation + workflow-doc cleanup after rotation-test replacement:
+  - Verified manual smoke dispatch both ways on branch `feature/pr32-connect-timeout-watchdog`:
+    - `22264482028` (`include_flaky_tests=false`): `android-instrumentation-smoke=success`, `build-test-lint=skipped`.
+    - `22264782312` (`include_flaky_tests=true`): `android-instrumentation-smoke=success`, `build-test-lint=skipped`.
+  - Confirmed lane routing from job steps:
+    - `include_flaky_tests=false`: include-flaky step skipped, exclude-flaky step executed.
+    - `include_flaky_tests=true`: include-flaky step executed, exclude-flaky step skipped.
+  - Expanded smoke class scope to keep rotation coverage in smoke runs:
+    - `.github/workflows/android-build.yml` now runs `MainActivityContentFlowTest,MainActivityRecreationRotationTest`.
+    - `scripts/adb/emulator-smoke.sh` and `scripts/adb/device-smoke.sh` default `--test-class` now uses the same two-class scope.
+  - Updated workflow-facing docs in `docs/adb-cheatsheet.md`:
+    - Smoke class scope now documents both instrumentation classes.
+    - Added explicit note that as of February 21, 2026 there are currently no `@FlakyTest` instrumentation tests.
+  - Validation:
+    - `bash -n scripts/adb/emulator-smoke.sh`
+    - `bash -n scripts/adb/device-smoke.sh`
+    - `scripts/adb/emulator-smoke.sh --help`
+    - `scripts/adb/device-smoke.sh --help`
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- Rotation regression coverage replacement with recreation-safe `MainActivity` instrumentation:
+  - Added `app/src/androidTest/java/com/example/ergometerapp/MainActivityRecreationRotationTest.kt`.
+  - New test `menuAndSessionAnchorsRemainVisibleAcrossRotationRecreation` rotates portrait/landscape and verifies `MENU` + `SESSION` anchors survive activity recreation.
+  - Removed the legacy quarantined rotation case from `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`.
+  - Validation:
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.MainActivityRecreationRotationTest --no-daemon` (`SM-X210`: 1 test, 0 failures)
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.MainActivityRecreationRotationTest --no-daemon` (`SM-A226B`: 1 test, 0 failures)
 - Night-window correction for nightly smoke:
   - Updated GitHub schedule from `02:30 UTC` back to `04:30 UTC` by request.
   - New timing keeps nightly smoke outside the `00:00-06:00` Finland working window (`06:30` winter / `07:30` summer local time).

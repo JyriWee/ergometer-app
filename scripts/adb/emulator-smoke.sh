@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PACKAGE="com.example.ergometerapp"
-DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest"
+DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest"
 FILTER_REGEX='com\.example\.ergometerapp|FTMS|SESSION|WORKOUT|BluetoothGatt|BluetoothLeScanner'
 
 OUT_BASE=".local/emulator-test-runs"
@@ -46,7 +46,7 @@ Purpose:
 
 Options:
   --out-dir <path>         Output base directory (default: .local/emulator-test-runs).
-  --test-class <fqcn>      Instrumentation class to run (default: MainActivityContentFlowTest).
+  --test-class <fqcn>      Instrumentation class/filter to run (default: MainActivityContentFlowTest + MainActivityRecreationRotationTest).
   --all-tests              Run all connected instrumentation tests.
   --create-only            Create/verify AVD and exit without booting emulator.
   --keep-running           Keep emulator process running after script exits.
