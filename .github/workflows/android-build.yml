@@ -28,8 +28,81 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  detect-android-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      run_android_ci: ${{ steps.detect.outputs.run_android_ci }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect Android-impacting changes
+        id: detect
+        shell: bash
+        run: |
+          run_android_ci="true"
+
+          if [[ "${GITHUB_EVENT_NAME}" == "pull_request" ]]; then
+            base_sha="${{ github.event.pull_request.base.sha }}"
+            head_sha="${{ github.event.pull_request.head.sha }}"
+          elif [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
+            base_sha="${{ github.event.before }}"
+            head_sha="${{ github.sha }}"
+          else
+            echo "run_android_ci=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ -z "${base_sha}" || "${base_sha}" == "0000000000000000000000000000000000000000" ]]; then
+            echo "run_android_ci=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          relevant_changes=$(
+            git diff --name-only "${base_sha}" "${head_sha}" -- \
+              app/ \
+              build.gradle \
+              build.gradle.kts \
+              settings.gradle \
+              settings.gradle.kts \
+              gradle.properties \
+              gradle/ \
+              gradlew \
+              gradlew.bat \
+              scripts/adb/ \
+              .github/workflows/android-build.yml
+          )
+
+          if [[ -z "${relevant_changes}" ]]; then
+            run_android_ci="false"
+          fi
+
+          {
+            echo "run_android_ci=${run_android_ci}"
+            echo "base_sha=${base_sha}"
+            echo "head_sha=${head_sha}"
+          } >> "$GITHUB_OUTPUT"
+
+          {
+            echo "### Android CI change detection"
+            echo
+            echo "- run_android_ci=${run_android_ci}"
+            if [[ -n "${relevant_changes}" ]]; then
+              echo "- Relevant files changed:"
+              echo '```'
+              echo "${relevant_changes}"
+              echo '```'
+            else
+              echo "- No Android-impacting file changes detected."
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
   build-test-lint:
-    if: ${{ github.event_name != 'schedule' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.run_instrumentation_smoke == 'true') }}
+    needs: detect-android-changes
+    if: ${{ github.event_name != 'schedule' && !(github.event_name == 'workflow_dispatch' && github.event.inputs.run_instrumentation_smoke == 'true') && (github.event_name == 'workflow_dispatch' || needs.detect-android-changes.outputs.run_android_ci == 'true') }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
 

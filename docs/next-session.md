@@ -4,19 +4,25 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Replace quarantined rotation coverage with a dedicated `MainActivity` instrumentation test that survives real activity recreation.
+- next task: Observe one PR cycle with the new CI change-detection gate and refine path patterns if we see false skips or unnecessary runs.
 - DoD:
+  - `build-test-lint` runs only when Android-impacting files changed on `pull_request`/`push`.
+  - Docs-only/non-Android PR updates skip `build-test-lint` fast gate and save CI wait time.
   - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` and skips `build-test-lint`.
   - Manual dispatch with `include_flaky_tests=false` completes successfully on PR branch.
   - `menuAndSessionAnchorsRemainVisibleAcrossRotation` remains quarantined until replacement test exists.
   - Replacement rotation test validates menu/session anchors across portrait<->landscape recreation on at least one physical device.
   - Workflow summary explicitly records non-blocking flaky-inclusive failure context.
 - risks:
+  - If the path list is too narrow, a real Android-impacting change could skip fast gate unexpectedly.
+  - If the path list is too broad, we still lose part of the expected CI time savings.
   - Quarantine reduces false alarms but temporarily lowers direct rotation-regression signal.
   - Flaky-inclusive lane may hide new regressions if warnings are not actively monitored.
   - Emulator instrumentation runtime is long (~20 minutes) and increases feedback delay.
   - Nightly/manual smoke still requires active monitoring to produce actionable signal.
 - validation commands:
+  - `git diff --name-only <base-sha> <head-sha> -- app/ build.gradle build.gradle.kts settings.gradle settings.gradle.kts gradle.properties gradle/ gradlew gradlew.bat scripts/adb/ .github/workflows/android-build.yml`
+  - `gh run view <run-id> --job <detect-job-id> --log`
   - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
   - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
   - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=false`
@@ -38,6 +44,13 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- CI wait-time reduction via Android change detection gate:
+  - Added `detect-android-changes` job in `.github/workflows/android-build.yml`.
+  - `build-test-lint` now depends on detected Android-impacting file changes for `pull_request`/`push`, while manual dispatch keeps explicit control.
+  - Detection writes a step summary with decision and changed files, making skip/run behavior visible in each CI run.
+  - Validation:
+    - Docs-only commit simulation (`dcff1d5`) produced no relevant file matches for the gate.
+    - Android-impacting commit simulation (`af0bd63`) matched `.github/workflows/android-build.yml` as expected.
 - Rotation-test quarantine for stable smoke signal:
   - `menuAndSessionAnchorsRemainVisibleAcrossRotation` in `MainActivityContentFlowTest` is now explicitly quarantined with `@Ignore`.
   - Retained a bounded retry helper inside the quarantined test to document the investigated race-mitigation attempt.
