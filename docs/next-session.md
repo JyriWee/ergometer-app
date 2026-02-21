@@ -4,13 +4,14 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Decide follow-up policy for `include_flaky_tests=true` smoke failures (known flaky rotation test) and keep default `exclude flaky` smoke lane stable for nightly/manual verification.
+- next task: Stabilize or quarantine `menuAndSessionAnchorsRemainVisibleAcrossRotation` so flaky-inclusive smoke provides cleaner diagnostics.
 - DoD:
   - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` and skips `build-test-lint`.
   - Manual dispatch with `include_flaky_tests=false` completes successfully on PR branch.
-  - Manual dispatch with `include_flaky_tests=true` surfaces known flaky failures with clear test-level identification.
+  - Manual dispatch with `include_flaky_tests=true` remains non-blocking even when flaky test fails.
+  - Workflow summary explicitly records non-blocking flaky-inclusive failure context.
 - risks:
-  - `include_flaky_tests=true` lane can stay red due known flaky UI rotation test and create alert fatigue.
+  - Flaky-inclusive lane may hide new regressions if warnings are not actively monitored.
   - Emulator instrumentation runtime is long (~20 minutes) and increases feedback delay.
   - Nightly/manual smoke still requires active monitoring to produce actionable signal.
 - validation commands:
@@ -33,6 +34,11 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Non-blocking policy for flaky-inclusive GitHub smoke:
+  - `Run instrumentation smoke on emulator (include flaky)` now uses `continue-on-error: true`.
+  - Added workflow summary marker when flaky-inclusive lane fails:
+    - `Record non-blocking flaky smoke failure`
+  - Result: `include_flaky_tests=true` is informational; default `exclude flaky` lane remains the pass/fail smoke gate.
 - GitHub smoke dispatch stabilization round (PR `#33` branch):
   - Replaced multiline Gradle invocations in emulator-runner script blocks with single-line commands to avoid `/usr/bin/sh` line-splitting (`Task '\\' not found`).
   - Added `disk-size: 4096M` to emulator-runner include/exclude smoke steps.
