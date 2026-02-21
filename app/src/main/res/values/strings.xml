@@ -31,6 +31,13 @@
         <string name="menu_workout_description_tag">Workout description</string>
         <string name="menu_ftp_hint">Current FTP: %1$d W</string>
         <string name="menu_ftp_error_invalid">Enter a positive FTP value.</string>
+        <string name="menu_hr_profile_title">HR zone profile</string>
+        <string name="menu_hr_profile_age_label">Age</string>
+        <string name="menu_hr_profile_age_error">Enter age between 13 and 100.</string>
+        <string name="menu_hr_profile_sex_male">Male</string>
+        <string name="menu_hr_profile_sex_female">Female</string>
+        <string name="menu_hr_profile_summary_value">Age %1$d • %2$s</string>
+        <string name="menu_hr_profile_summary_missing">Set age and sex to enable HR zone.</string>
         <string name="menu_search_trainer_devices_short">Search trainer</string>
         <string name="menu_search_hr_devices_short">Search HR</string>
         <string name="menu_trainer_picker_title">Trainer devices</string>
@@ -153,6 +160,9 @@
         <string name="session_instant_power_label">Instant power</string>
         <string name="session_power_target_label">Power / target</string>
         <string name="session_power_target_value">%1$s / %2$s W</string>
+        <string name="session_hr_zone_label">HR zone</string>
+        <string name="session_hr_zone_set_profile">Set profile</string>
+        <string name="session_hr_zone_value">Z%1$d (%2$d-%3$d bpm)</string>
 
         <string name="session_cadence_target_label">Cadence / target</string>
         <string name="session_cadence_target_value">%1$s / %2$s rpm</string>

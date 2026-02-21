@@ -8,6 +8,7 @@
 - DoD:
   - Phone portrait workout card keeps a fixed core telemetry trio above the graph: `HR`, `Power / target`, and `Elapsed / total`.
   - `Cadence / target` is positioned under `Power / target`, on the right side of the `Elapsed / total` row.
+  - `Kcal` row right side is filled with `HR zone` value based on live HR and stored profile (`age` + `sex`).
   - Phone portrait no longer shows preset options or variant switching; it uses one permanent metric layout.
   - Phone portrait secondary rows no longer show `Step type` or `Step remaining`.
   - Freed portrait space is used for information density with always-visible secondary metrics and a taller workout graph.
@@ -17,10 +18,11 @@
   - `:app:compileDebugKotlin` passes.
 - risks:
   - Long localized labels can still wrap/truncate in compact-width phone portrait rows.
+  - HR-zone output uses an estimated max-HR formula (male/female variants); real training zones may differ from lab-tested values.
   - Taller portrait workout graph may push lower content farther below fold on smallest phones.
   - Visual verification for active running state is still pending for this exact revision set.
 - validation commands:
-  - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon`
   - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
   - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-session-followup`
   - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/tablet-regression-check`
@@ -39,6 +41,20 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- HR zone profile capture + session display switch:
+  - Added persistent HR profile fields (`age`, `sex`) in `app/src/main/java/com/example/ergometerapp/HrProfileSettingsStorage.kt`.
+  - Wired profile state and callbacks through `MainViewModel`, `MainActivity`, and `MainActivityContent`.
+  - Added MENU profile controls for age + sex selection to collect required HR-zone inputs before session use.
+  - Replaced phone-portrait `Kcal + Next target` row with `Kcal + HR zone` in `PhonePortraitSessionWorkoutCard`.
+  - Implemented `sessionHeartRateZoneLabel(...)` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt` using sex-specific estimated max-HR formulas and 5 zone bands.
+  - Added strings for profile inputs and session HR-zone labels in `app/src/main/res/values/strings.xml`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon`
+- Phone portrait lower-row information density improvement:
+  - Transitional `Next target` variant was previously tested for filling the right side of the `Kcal` row.
+  - The layout has since been superseded by `HR zone` (using profile age + sex), which remains the active approach.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
 - Waiting dots animation reliability fix:
   - Replaced the waiting-dot render logic in `WaitingStatusText` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) with explicit stepped state updates (`1 -> 2 -> 3 -> 1`) via `LaunchedEffect + delay`.
   - Result: pre-start waiting message now visibly cycles dot count instead of appearing static.

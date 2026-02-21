@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.example.ergometerapp.R
 import com.example.ergometerapp.DeviceSelectionKind
+import com.example.ergometerapp.HrProfileSex
 import com.example.ergometerapp.ScannedBleDevice
 import com.example.ergometerapp.ftms.IndoorBikeData
 import com.example.ergometerapp.session.SessionPhase
@@ -264,6 +265,10 @@ internal fun MenuScreen(
     ftpWatts: Int,
     ftpInputText: String,
     ftpInputError: String?,
+    hrProfileAge: Int?,
+    hrProfileAgeInput: String,
+    hrProfileAgeError: String?,
+    hrProfileSex: HrProfileSex?,
     ftmsDeviceName: String,
     ftmsSelected: Boolean,
     ftmsConnected: Boolean,
@@ -286,6 +291,8 @@ internal fun MenuScreen(
     onSelectWorkoutFile: () -> Unit,
     onOpenWorkoutEditor: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
+    onHrProfileAgeInputChanged: (String) -> Unit,
+    onHrProfileSexSelected: (HrProfileSex) -> Unit,
     onSearchFtmsDevices: () -> Unit,
     onSearchHrDevices: () -> Unit,
     onScannedDeviceSelected: (ScannedBleDevice) -> Unit,
@@ -359,6 +366,16 @@ internal fun MenuScreen(
         ?.trim()
         ?.takeIf { it.isNotEmpty() }
         ?: unknown
+    val hrProfileSexLabel = when (hrProfileSex) {
+        HrProfileSex.MALE -> stringResource(R.string.menu_hr_profile_sex_male)
+        HrProfileSex.FEMALE -> stringResource(R.string.menu_hr_profile_sex_female)
+        null -> unknown
+    }
+    val hrProfileSummary = if (hrProfileAge != null && hrProfileSex != null) {
+        stringResource(R.string.menu_hr_profile_summary_value, hrProfileAge, hrProfileSexLabel)
+    } else {
+        stringResource(R.string.menu_hr_profile_summary_missing)
+    }
     val trainerDisplayName = ftmsDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
     val hrDisplayName = hrDeviceName.ifBlank { stringResource(R.string.menu_device_not_selected) }
     val trainerIndicatorState = when {
@@ -472,6 +489,54 @@ internal fun MenuScreen(
                     style = MaterialTheme.typography.bodySmall,
                     color = errorTextColor,
                 )
+            }
+
+            SectionCard(title = stringResource(R.string.menu_hr_profile_title)) {
+                Text(
+                    text = hrProfileSummary,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = normalTextColor,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    OutlinedTextField(
+                        value = hrProfileAgeInput,
+                        onValueChange = onHrProfileAgeInputChanged,
+                        modifier = Modifier.weight(0.38f),
+                        label = { Text(stringResource(R.string.menu_hr_profile_age_label)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        isError = hrProfileAgeError != null,
+                        colors = menuTextFieldColors(),
+                    )
+                    Row(
+                        modifier = Modifier.weight(0.62f),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        HrProfileSexButton(
+                            label = stringResource(R.string.menu_hr_profile_sex_male),
+                            selected = hrProfileSex == HrProfileSex.MALE,
+                            onClick = { onHrProfileSexSelected(HrProfileSex.MALE) },
+                            modifier = Modifier.weight(1f),
+                        )
+                        HrProfileSexButton(
+                            label = stringResource(R.string.menu_hr_profile_sex_female),
+                            selected = hrProfileSex == HrProfileSex.FEMALE,
+                            onClick = { onHrProfileSexSelected(HrProfileSex.FEMALE) },
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                if (hrProfileAgeError != null) {
+                    Text(
+                        text = hrProfileAgeError,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = errorTextColor,
+                    )
+                }
             }
 
             Row(
@@ -1123,6 +1188,8 @@ internal fun SessionScreen(
     selectedWorkoutFileName: String?,
     ftpWatts: Int,
     runnerState: RunnerState,
+    hrProfileAge: Int?,
+    hrProfileSex: HrProfileSex?,
     lastTargetPower: Int?,
     workoutExecutionModeMessage: String?,
     workoutExecutionModeIsError: Boolean,
@@ -1184,6 +1251,13 @@ internal fun SessionScreen(
         selectedWorkout = selectedWorkout,
         selectedWorkoutFileName = selectedWorkoutFileName,
         fallback = unknown,
+    )
+    val hrZoneValue = sessionHeartRateZoneLabel(
+        currentHeartRate = effectiveHr,
+        profileAge = hrProfileAge,
+        profileSex = hrProfileSex,
+        unknown = unknown,
+        missingProfile = stringResource(R.string.session_hr_zone_set_profile),
     )
     val sessionIssues = buildList {
         if (!ftmsReady) {
@@ -1304,6 +1378,7 @@ internal fun SessionScreen(
                                 speedValue = speedValue,
                                 kcalValue = kcalValue,
                                 distanceValue = distanceValue,
+                                hrZoneValue = hrZoneValue,
                                 elapsedOfTotalText = elapsedOfTotalText,
                                 selectedWorkout = selectedWorkout,
                                 ftpWatts = ftpWatts,
@@ -1479,6 +1554,7 @@ private fun PhonePortraitSessionWorkoutCard(
     speedValue: String,
     kcalValue: String,
     distanceValue: String,
+    hrZoneValue: String,
     elapsedOfTotalText: String,
     selectedWorkout: WorkoutFile?,
     ftpWatts: Int,
@@ -1523,10 +1599,11 @@ private fun PhonePortraitSessionWorkoutCard(
             rightLabel = stringResource(R.string.summary_distance),
             rightValue = distanceValue,
         )
-        SessionInlineMetric(
-            label = stringResource(R.string.session_kcal_label),
-            value = kcalValue,
-            modifier = Modifier.fillMaxWidth(),
+        SessionInlineMetricsRow(
+            leftLabel = stringResource(R.string.session_kcal_label),
+            leftValue = kcalValue,
+            rightLabel = stringResource(R.string.session_hr_zone_label),
+            rightValue = hrZoneValue,
         )
 
         val stateMessage = sessionStateLabel(
@@ -1752,6 +1829,31 @@ private fun SessionPresetButton(
     OutlinedButton(
         onClick = onClick,
         modifier = modifier,
+    ) {
+        Text(text = label, maxLines = 1)
+    }
+}
+
+@Composable
+private fun HrProfileSexButton(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    if (selected) {
+        Button(
+            onClick = onClick,
+            modifier = modifier.height(40.dp),
+            colors = menuSecondaryButtonColors(),
+        ) {
+            Text(text = label, maxLines = 1)
+        }
+        return
+    }
+    OutlinedButton(
+        onClick = onClick,
+        modifier = modifier.height(40.dp),
     ) {
         Text(text = label, maxLines = 1)
     }
@@ -2271,6 +2373,64 @@ private fun sessionTargetPowerLabel(
         ?: activeSegment?.startPowerRelFtp?.let { relativePowerToWatts(it, ftpWatts) }
         ?: fallbackTargetPower
     return formatWatts(resolvedTarget, unknown)
+}
+
+private data class HrZoneRange(
+    val zone: Int,
+    val minBpm: Int,
+    val maxBpm: Int,
+)
+
+@Composable
+private fun sessionHeartRateZoneLabel(
+    currentHeartRate: Int?,
+    profileAge: Int?,
+    profileSex: HrProfileSex?,
+    unknown: String,
+    missingProfile: String,
+): String {
+    if (profileAge == null || profileSex == null) {
+        return missingProfile
+    }
+    val hr = currentHeartRate?.takeIf { it > 0 } ?: return unknown
+    val estimatedMaxHr = estimatedMaxHeartRate(age = profileAge, sex = profileSex)
+    val ranges = heartRateZoneRanges(maxHeartRate = estimatedMaxHr)
+    val matched = ranges.firstOrNull { hr in it.minBpm..it.maxBpm } ?: ranges.last()
+    return stringResource(
+        R.string.session_hr_zone_value,
+        matched.zone,
+        matched.minBpm,
+        matched.maxBpm,
+    )
+}
+
+private fun estimatedMaxHeartRate(age: Int, sex: HrProfileSex): Int {
+    val clampedAge = age.coerceIn(13, 100)
+    val max = when (sex) {
+        HrProfileSex.MALE -> 208.0 - (0.7 * clampedAge)
+        HrProfileSex.FEMALE -> 206.0 - (0.88 * clampedAge)
+    }
+    return max.roundToInt().coerceIn(120, 220)
+}
+
+private fun heartRateZoneRanges(maxHeartRate: Int): List<HrZoneRange> {
+    val maxHr = maxHeartRate.coerceIn(120, 220)
+    val percentages = listOf(
+        0.50 to 0.60,
+        0.60 to 0.70,
+        0.70 to 0.80,
+        0.80 to 0.90,
+        0.90 to 1.00,
+    )
+    return percentages.mapIndexed { index, (minPercent, maxPercent) ->
+        val minBpm = (maxHr * minPercent).roundToInt()
+        val maxBpm = (maxHr * maxPercent).roundToInt()
+        HrZoneRange(
+            zone = index + 1,
+            minBpm = minBpm,
+            maxBpm = maxBpm,
+        )
+    }
 }
 
 private fun relativePowerToWatts(relativePower: Double, ftpWatts: Int): Int {
