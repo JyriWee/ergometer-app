@@ -4,17 +4,21 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Stabilize or quarantine `menuAndSessionAnchorsRemainVisibleAcrossRotation` so flaky-inclusive smoke provides cleaner diagnostics.
+- next task: Replace quarantined rotation coverage with a dedicated `MainActivity` instrumentation test that survives real activity recreation.
 - DoD:
   - Manual dispatch with `run_instrumentation_smoke=true` starts only `android-instrumentation-smoke` and skips `build-test-lint`.
   - Manual dispatch with `include_flaky_tests=false` completes successfully on PR branch.
-  - Manual dispatch with `include_flaky_tests=true` remains non-blocking even when flaky test fails.
+  - `menuAndSessionAnchorsRemainVisibleAcrossRotation` remains quarantined until replacement test exists.
+  - Replacement rotation test validates menu/session anchors across portrait<->landscape recreation on at least one physical device.
   - Workflow summary explicitly records non-blocking flaky-inclusive failure context.
 - risks:
+  - Quarantine reduces false alarms but temporarily lowers direct rotation-regression signal.
   - Flaky-inclusive lane may hide new regressions if warnings are not actively monitored.
   - Emulator instrumentation runtime is long (~20 minutes) and increases feedback delay.
   - Nightly/manual smoke still requires active monitoring to produce actionable signal.
 - validation commands:
+  - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
+  - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
   - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=false`
   - `gh workflow run \"Android Build\" --ref feature/pr32-connect-timeout-watchdog -f run_instrumentation_smoke=true -f include_flaky_tests=true`
   - `gh run list --workflow \"Android Build\" --limit 5`
@@ -34,6 +38,12 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Rotation-test quarantine for stable smoke signal:
+  - `menuAndSessionAnchorsRemainVisibleAcrossRotation` in `MainActivityContentFlowTest` is now explicitly quarantined with `@Ignore`.
+  - Retained a bounded retry helper inside the quarantined test to document the investigated race-mitigation attempt.
+  - Validation:
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SKIPPED`: rotation test, class run passes)
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SKIPPED`: rotation test, class run passes)
 - Non-blocking policy for flaky-inclusive GitHub smoke:
   - `Run instrumentation smoke on emulator (include flaky)` now uses `continue-on-error: true`.
   - Added workflow summary marker when flaky-inclusive lane fails:
