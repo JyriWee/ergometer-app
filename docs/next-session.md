@@ -4,8 +4,10 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Capture and verify phone-portrait `SESSION` after top-row action relocation (`(i)` left, `Quit to summary` right) and HR-zone metric reordering; tune spacing only if any truncation appears.
+- next task: Verify launcher presentation on real devices (name + icon) and decide if icon needs one final visual polish pass before release.
 - DoD:
+  - Launcher app name is `SEA` and full app name is `Simple Ergometer App`.
+  - Launcher icon reflects ergometer use purpose and is readable in adaptive-icon masks.
   - Phone portrait workout card keeps a fixed core telemetry trio above the graph: `HR`, `Power / target`, and `Elapsed / total`.
   - `Cadence / target` is positioned under `Power / target`, on the right side of the `Elapsed / total` row.
   - `Kcal` row right side is filled with `HR zone` value based on live HR and stored profile (`age` + `sex`).
@@ -21,6 +23,7 @@
   - Session quit CTA is phase-sensitive: subdued in waiting-start state, emphasized once the workout is actively running.
   - No extra standalone top action row is left above the card in phone landscape.
 - risks:
+  - Legacy pre-adaptive launcher assets (`mipmap-*/*.webp`) still exist; very old launchers may show previous icon style.
   - Long localized labels can still wrap/truncate in compact-width phone portrait rows.
   - HR-zone output uses an estimated max-HR formula (male/female variants); real training zones may differ from lab-tested values.
   - Taller portrait workout graph may push lower content farther below fold on smallest phones.
@@ -28,8 +31,9 @@
   - Until parser wiring lands, override message hook is placeholder-only (`null`) and needs real `.zwo` text-event source binding.
   - Visual verification for active running state is still pending for this exact revision set.
 - validation commands:
-  - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - `./gradlew :app:assembleDebug --no-daemon`
   - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
+  - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-landscape-top-actions-in-card`
   - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-landscape-status-wrap-check`
   - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-session-followup`
@@ -49,6 +53,21 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- App naming + launcher icon refresh (request-driven):
+  - Updated app naming resources in `app/src/main/res/values/strings.xml`:
+    - `app_name`: `Simple Ergometer App`
+    - `app_name_full`: `Simple Ergometer App`
+    - `app_name_short`: `SEA`
+  - Updated manifest labels in `app/src/main/AndroidManifest.xml`:
+    - application label -> `@string/app_name_full`
+    - launcher activity label -> `@string/app_name_short`
+  - Replaced adaptive launcher visuals:
+    - `app/src/main/res/drawable/ic_launcher_background.xml`
+    - `app/src/main/res/drawable/ic_launcher_foreground.xml`
+    - added `app/src/main/res/drawable/ic_launcher_monochrome.xml`
+    - updated `app/src/main/res/mipmap-anydpi/ic_launcher.xml` and `app/src/main/res/mipmap-anydpi/ic_launcher_round.xml`
+  - Validation:
+    - `./gradlew :app:assembleDebug --no-daemon`
 - Phone portrait status-area spacing + top metric emphasis tuning (request-driven):
   - Increased top-row `HR` and `Power / target` metric text size by ~30% in `PhonePortraitSessionWorkoutCard` via per-cell value scaling.
   - Added extra vertical spacing above the shared status line so `Waiting for pedaling...` (and future workout messages) sits lower with more breathing room above.

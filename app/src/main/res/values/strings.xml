@@ -1,6 +1,8 @@
 <resources>
 
-    <string name="app_name">ErgometerApp</string>
+    <string name="app_name">Simple Ergometer App</string>
+    <string name="app_name_full">Simple Ergometer App</string>
+    <string name="app_name_short">SEA</string>
 
         <!-- Generic -->
         <string name="value_unknown">—</string>
