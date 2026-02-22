@@ -42,6 +42,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val appContext = application.applicationContext
     private val defaultFtpWatts = BuildConfig.DEFAULT_FTP_WATTS.coerceAtLeast(1)
     private val ftpInputMaxLength = 4
+    private val hrProfileAgeInputMaxLength = 3
     private val ftmsServiceUuid: UUID = UUID.fromString("00001826-0000-1000-8000-00805f9b34fb")
     private val hrServiceUuid: UUID = UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")
     private val errorToneDurationMs = 120
@@ -64,6 +65,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val ftpWattsState = mutableIntStateOf(defaultFtpWatts)
     val ftpInputTextState = mutableStateOf(defaultFtpWatts.toString())
     val ftpInputErrorState = mutableStateOf<String?>(null)
+    val hrProfileAgeState = mutableStateOf<Int?>(null)
+    val hrProfileAgeInputState = mutableStateOf("")
+    val hrProfileAgeErrorState = mutableStateOf<String?>(null)
+    val hrProfileSexState = mutableStateOf<HrProfileSex?>(null)
     val ftmsDeviceNameState = mutableStateOf("")
     val ftmsReachableState = mutableStateOf<Boolean?>(null)
     val hrDeviceNameState = mutableStateOf("")
@@ -172,6 +177,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     init {
         val storedFtpWatts = FtpSettingsStorage.loadFtpWatts(appContext, defaultFtpWatts)
+        val storedHrProfileAge = HrProfileSettingsStorage.loadAge(appContext)
+        val storedHrProfileSex = HrProfileSettingsStorage.loadSex(appContext)
         val storedFtmsMac = DeviceSettingsStorage.loadFtmsDeviceMac(appContext)
         val storedHrMac = DeviceSettingsStorage.loadHrDeviceMac(appContext)
         val storedFtmsName = DeviceSettingsStorage.loadFtmsDeviceName(appContext).orEmpty()
@@ -180,6 +187,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ftpWattsState.intValue = storedFtpWatts
         ftpInputTextState.value = storedFtpWatts.toString()
         ftpInputErrorState.value = null
+        hrProfileAgeState.value = storedHrProfileAge
+        hrProfileAgeInputState.value = storedHrProfileAge?.toString().orEmpty()
+        hrProfileAgeErrorState.value = null
+        hrProfileSexState.value = storedHrProfileSex
         selectedFtmsDeviceMacState.value = storedFtmsMac
         ftmsDeviceNameState.value = storedFtmsName
         selectedHrDeviceMacState.value = storedHrMac
@@ -600,6 +611,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         ftpWattsState.intValue = parsed
         FtpSettingsStorage.saveFtpWatts(appContext, parsed)
         sessionOrchestrator.onFtpWattsChanged()
+    }
+
+    /**
+     * Accepts profile age in years for HR-zone estimation.
+     */
+    fun onHrProfileAgeInputChanged(rawInput: String) {
+        val sanitized = rawInput.filter { it.isDigit() }.take(hrProfileAgeInputMaxLength)
+        hrProfileAgeInputState.value = sanitized
+        val parsed = sanitized.toIntOrNull()
+        if (parsed == null || parsed !in 13..100) {
+            hrProfileAgeErrorState.value = appContext.getString(R.string.menu_hr_profile_age_error)
+            return
+        }
+        hrProfileAgeErrorState.value = null
+        hrProfileAgeState.value = parsed
+        HrProfileSettingsStorage.saveAge(appContext, parsed)
+    }
+
+    /**
+     * Persists selected biological sex for HR-zone estimation formula.
+     */
+    fun onHrProfileSexSelected(sex: HrProfileSex) {
+        hrProfileSexState.value = sex
+        HrProfileSettingsStorage.saveSex(appContext, sex)
     }
 
     /**

@@ -162,7 +162,7 @@ Run one instrumentation test class:
 
 ```bash
 ./gradlew :app:connectedDebugAndroidTest \
-  -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest \
+  -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest \
   --no-daemon
 ```
 
@@ -299,7 +299,17 @@ Artifacts are written under `.local/emulator-test-runs/run-<timestamp>/`:
 
 Notes:
 - This emulator pipeline is for UI/Compose/instrumentation regressions.
+- By default, emulator smoke scope runs `MainActivityContentFlowTest` and `MainActivityRecreationRotationTest` (unless `--all-tests` is used).
 - By default, emulator smoke excludes tests annotated with `@FlakyTest`; use `--include-flaky` when needed.
+- As of February 21, 2026, there are no instrumentation tests annotated with `@FlakyTest`, so include/exclude-flaky lanes currently run the same test set.
+- Local emulator smoke run artifacts include flaky policy fields in `run-summary.txt` (`exclude_flaky`, `include_flaky`).
 - BLE trainer behavior (FTMS/Tunturi) must still be validated on real hardware with `./scripts/adb/device-smoke.sh`.
 - If both USB device and emulator are connected, emulator runs stay deterministic because the script pins test execution via `ANDROID_SERIAL=emulator-<port>`.
 - If you see `avdmanager` or `sdkmanager` missing errors, install **Android SDK Command-line Tools** from Android Studio: `Settings > Android SDK > SDK Tools`.
+
+GitHub smoke policy:
+- PR checks do not run emulator smoke by default (keeps PR gate fast and stable).
+- Nightly smoke (`04:30 UTC`) and manual smoke dispatch both run the same smoke class scope (`MainActivityContentFlowTest` + `MainActivityRecreationRotationTest`).
+- Flaky inclusion remains configurable via workflow input; this is currently a no-op until `@FlakyTest`-annotated tests are introduced again.
+- `include_flaky_tests=true` and `include_flaky_tests=false` lanes are both blocking for the `android-instrumentation-smoke` job.
+- GitHub smoke uploads `smoke-policy.txt` plus instrumentation reports as run artifacts.

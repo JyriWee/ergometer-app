@@ -1,6 +1,8 @@
 <resources>
 
-    <string name="app_name">ErgometerApp</string>
+    <string name="app_name">Simple Ergometer App</string>
+    <string name="app_name_full">Simple Ergometer App</string>
+    <string name="app_name_short">SEA</string>
 
         <!-- Generic -->
         <string name="value_unknown">—</string>
@@ -31,6 +33,13 @@
         <string name="menu_workout_description_tag">Workout description</string>
         <string name="menu_ftp_hint">Current FTP: %1$d W</string>
         <string name="menu_ftp_error_invalid">Enter a positive FTP value.</string>
+        <string name="menu_hr_profile_title">HR zone profile</string>
+        <string name="menu_hr_profile_age_label">Age</string>
+        <string name="menu_hr_profile_age_error">Enter age between 13 and 100.</string>
+        <string name="menu_hr_profile_sex_male">Male</string>
+        <string name="menu_hr_profile_sex_female">Female</string>
+        <string name="menu_hr_profile_summary_value">Age %1$d • %2$s</string>
+        <string name="menu_hr_profile_summary_missing">Set age and sex to enable HR zone.</string>
         <string name="menu_search_trainer_devices_short">Search trainer</string>
         <string name="menu_search_hr_devices_short">Search HR</string>
         <string name="menu_trainer_picker_title">Trainer devices</string>
@@ -143,7 +152,7 @@
         <string name="session_elapsed_of_total">Elapsed / total</string>
         <string name="session_elapsed_of_total_value">%1$s / %2$s</string>
         <string name="session_workout_complete">Workout complete</string>
-        <string name="session_state_waiting">waiting start</string>
+        <string name="session_state_waiting">Waiting for pedaling</string>
         <string name="session_issue_title">Connection issue</string>
         <string name="session_issue_ftms_not_ready">Trainer not ready</string>
         <string name="session_issue_control_missing">Control not granted</string>
@@ -153,6 +162,9 @@
         <string name="session_instant_power_label">Instant power</string>
         <string name="session_power_target_label">Power / target</string>
         <string name="session_power_target_value">%1$s / %2$s W</string>
+        <string name="session_hr_zone_label">HR zone</string>
+        <string name="session_hr_zone_set_profile">Set profile</string>
+        <string name="session_hr_zone_value">Z%1$d (%2$d-%3$d bpm)</string>
 
         <string name="session_cadence_target_label">Cadence / target</string>
         <string name="session_cadence_target_value">%1$s / %2$s rpm</string>
@@ -178,6 +190,11 @@
         <!-- Workout -->
         <string name="session_workout_title">Workout</string>
         <string name="session_workout_name_value">Workout: %1$s</string>
+        <string name="session_workout_info_action">(i)</string>
+        <string name="session_workout_info_title">Workout info</string>
+        <string name="session_workout_info_content_description">Open workout info</string>
+        <string name="session_workout_info_name">Name: %1$s</string>
+        <string name="session_workout_info_description">Description: %1$s</string>
         <string name="session_workout_step_type">Step type</string>
         <string name="session_workout_step_type_ramp">Ramp</string>
         <string name="session_workout_step_type_steady">Steady</string>
@@ -196,7 +213,7 @@
         <string name="session_workout_state_stopped">Stopped</string>
 
         <!-- Buttons -->
-        <string name="btn_quit_session_now">Quit and go to summary</string>
+        <string name="btn_quit_session_now">Quit to summary</string>
 
         <!-- Summary -->
         <string name="summary_title">Summary</string>

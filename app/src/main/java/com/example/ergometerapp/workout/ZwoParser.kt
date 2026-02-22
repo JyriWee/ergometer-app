@@ -5,6 +5,7 @@ import org.xmlpull.v1.XmlPullParserException
 import org.xmlpull.v1.XmlPullParserFactory
 import java.io.IOException
 import java.io.StringReader
+import kotlin.math.roundToInt
 
 /**
  * Minimal, tolerant parser for Zwift `.zwo` files.
@@ -49,11 +50,14 @@ fun parseZwo(xml: String): WorkoutFile {
     var author: String? = null
     val tags = LinkedHashSet<String>()
     val steps = mutableListOf<Step>()
+    val textEvents = mutableListOf<WorkoutTextEvent>()
 
     var currentTextTag: String? = null
     var currentText = StringBuilder()
     var inWorkout = false
     var inTags = false
+    var pendingTextEventOffsetSec: Int? = null
+    var pendingTextEventDurationSec: Int? = null
 
     fun flushTextIfNeeded(endTag: String) {
         val text = currentText.toString().trim()
@@ -63,6 +67,18 @@ fun parseZwo(xml: String): WorkoutFile {
             "description" -> description = text
             "author" -> author = text
             "tag" -> tags.add(text)
+            "textevent", "TextEvent" -> {
+                val offsetSec = pendingTextEventOffsetSec
+                if (offsetSec != null) {
+                    textEvents.add(
+                        WorkoutTextEvent(
+                            timeOffsetSec = offsetSec.coerceAtLeast(0),
+                            message = text,
+                            durationSec = pendingTextEventDurationSec?.takeIf { it > 0 },
+                        ),
+                    )
+                }
+            }
         }
     }
 
@@ -71,6 +87,24 @@ fun parseZwo(xml: String): WorkoutFile {
 
     fun attrDouble(tag: XmlPullParser, name: String): Double? =
         tag.getAttributeValue(null, name)?.toDoubleOrNull()
+
+    fun attrStringAny(tag: XmlPullParser, vararg names: String): String? {
+        names.forEach { name ->
+            val value = tag.getAttributeValue(null, name)
+            if (!value.isNullOrBlank()) return value
+        }
+        return null
+    }
+
+    fun attrSecondsAny(tag: XmlPullParser, vararg names: String): Int? {
+        names.forEach { name ->
+            val raw = tag.getAttributeValue(null, name)?.trim().orEmpty()
+            if (raw.isEmpty()) return@forEach
+            val parsed = raw.toDoubleOrNull()?.roundToInt()
+            if (parsed != null) return parsed
+        }
+        return null
+    }
 
     fun attrDoubleAny(tag: XmlPullParser, vararg names: String): Double? {
         names.forEach { name ->
@@ -201,6 +235,43 @@ fun parseZwo(xml: String): WorkoutFile {
                                 ),
                             )
                         }
+                        "textevent", "TextEvent" -> if (inWorkout) {
+                            val message = attrStringAny(
+                                parser,
+                                "message",
+                                "Message",
+                                "text",
+                                "Text",
+                            )?.trim().orEmpty()
+                            val timeOffsetSec = attrSecondsAny(
+                                parser,
+                                "timeoffset",
+                                "TimeOffset",
+                                "timeOffset",
+                            )
+                            val durationSec = attrSecondsAny(
+                                parser,
+                                "duration",
+                                "Duration",
+                            )
+                            if (timeOffsetSec != null) {
+                                if (message.isNotEmpty()) {
+                                    textEvents.add(
+                                        WorkoutTextEvent(
+                                            timeOffsetSec = timeOffsetSec.coerceAtLeast(0),
+                                            message = message,
+                                            durationSec = durationSec?.takeIf { it > 0 },
+                                        ),
+                                    )
+                                } else {
+                                    // Some ZWO files carry the message in text content.
+                                    pendingTextEventOffsetSec = timeOffsetSec.coerceAtLeast(0)
+                                    pendingTextEventDurationSec = durationSec
+                                    currentTextTag = tagName
+                                    currentText = StringBuilder()
+                                }
+                            }
+                        }
                         else -> if (inWorkout) {
                             val looksLikeStep = parser.getAttributeValue(null, "Duration") != null ||
                                 parser.getAttributeValue(null, "OnDuration") != null
@@ -235,6 +306,10 @@ fun parseZwo(xml: String): WorkoutFile {
                         currentTextTag = null
                         currentText = StringBuilder()
                     }
+                    if (tagName.equals("textevent", ignoreCase = true)) {
+                        pendingTextEventOffsetSec = null
+                        pendingTextEventDurationSec = null
+                    }
                 }
             }
             parser.next()
@@ -253,6 +328,10 @@ fun parseZwo(xml: String): WorkoutFile {
         author = author,
         tags = tags.toList(),
         steps = steps.toList(),
+        textEvents = textEvents
+            .asSequence()
+            .sortedBy { it.timeOffsetSec }
+            .toList(),
     )
 }
 

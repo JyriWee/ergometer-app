@@ -3,6 +3,7 @@ package com.example.ergometerapp.ui
 import androidx.compose.runtime.Composable
 import com.example.ergometerapp.AppScreen
 import com.example.ergometerapp.DeviceSelectionKind
+import com.example.ergometerapp.HrProfileSex
 import com.example.ergometerapp.ScannedBleDevice
 import com.example.ergometerapp.workout.editor.WorkoutEditorAction
 import com.example.ergometerapp.workout.editor.WorkoutEditorDraft
@@ -35,6 +36,10 @@ internal data class MainActivityUiModel(
     val ftpWatts: Int,
     val ftpInputText: String,
     val ftpInputError: String?,
+    val hrProfileAge: Int?,
+    val hrProfileAgeInput: String,
+    val hrProfileAgeError: String?,
+    val hrProfileSex: HrProfileSex?,
     val ftmsDeviceName: String,
     val ftmsSelected: Boolean,
     val ftmsConnected: Boolean,
@@ -71,6 +76,8 @@ internal fun MainActivityContent(
     model: MainActivityUiModel,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
+    onHrProfileAgeInputChanged: (String) -> Unit,
+    onHrProfileSexSelected: (HrProfileSex) -> Unit,
     onSearchFtmsDevices: () -> Unit,
     onSearchHrDevices: () -> Unit,
     onScannedDeviceSelected: (ScannedBleDevice) -> Unit,
@@ -90,6 +97,8 @@ internal fun MainActivityContent(
             model = model,
             onSelectWorkoutFile = onSelectWorkoutFile,
             onFtpInputChanged = onFtpInputChanged,
+            onHrProfileAgeInputChanged = onHrProfileAgeInputChanged,
+            onHrProfileSexSelected = onHrProfileSexSelected,
             onSearchFtmsDevices = onSearchFtmsDevices,
             onSearchHrDevices = onSearchHrDevices,
             onScannedDeviceSelected = onScannedDeviceSelected,
@@ -112,6 +121,8 @@ private fun MainDestinationContent(
     model: MainActivityUiModel,
     onSelectWorkoutFile: () -> Unit,
     onFtpInputChanged: (String) -> Unit,
+    onHrProfileAgeInputChanged: (String) -> Unit,
+    onHrProfileSexSelected: (HrProfileSex) -> Unit,
     onSearchFtmsDevices: () -> Unit,
     onSearchHrDevices: () -> Unit,
     onScannedDeviceSelected: (ScannedBleDevice) -> Unit,
@@ -137,6 +148,10 @@ private fun MainDestinationContent(
                 ftpWatts = model.ftpWatts,
                 ftpInputText = model.ftpInputText,
                 ftpInputError = model.ftpInputError,
+                hrProfileAge = model.hrProfileAge,
+                hrProfileAgeInput = model.hrProfileAgeInput,
+                hrProfileAgeError = model.hrProfileAgeError,
+                hrProfileSex = model.hrProfileSex,
                 ftmsDeviceName = model.ftmsDeviceName,
                 ftmsSelected = model.ftmsSelected,
                 ftmsConnected = model.ftmsConnected,
@@ -158,6 +173,8 @@ private fun MainDestinationContent(
                 startEnabled = model.startEnabled,
                 onSelectWorkoutFile = onSelectWorkoutFile,
                 onFtpInputChanged = onFtpInputChanged,
+                onHrProfileAgeInputChanged = onHrProfileAgeInputChanged,
+                onHrProfileSexSelected = onHrProfileSexSelected,
                 onSearchFtmsDevices = onSearchFtmsDevices,
                 onSearchHrDevices = onSearchHrDevices,
                 onScannedDeviceSelected = onScannedDeviceSelected,
@@ -203,6 +220,8 @@ private fun MainDestinationContent(
                 selectedWorkoutFileName = model.selectedWorkoutFileName,
                 ftpWatts = model.ftpWatts,
                 runnerState = model.runnerState,
+                hrProfileAge = model.hrProfileAge,
+                hrProfileSex = model.hrProfileSex,
                 lastTargetPower = model.lastTargetPower,
                 workoutExecutionModeMessage = model.workoutExecutionModeMessage,
                 workoutExecutionModeIsError = model.workoutExecutionModeIsError,

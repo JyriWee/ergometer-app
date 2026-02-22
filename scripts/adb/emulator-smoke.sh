@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PACKAGE="com.example.ergometerapp"
-DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest"
+DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest"
 FILTER_REGEX='com\.example\.ergometerapp|FTMS|SESSION|WORKOUT|BluetoothGatt|BluetoothLeScanner'
 
 OUT_BASE=".local/emulator-test-runs"
@@ -46,7 +46,7 @@ Purpose:
 
 Options:
   --out-dir <path>         Output base directory (default: .local/emulator-test-runs).
-  --test-class <fqcn>      Instrumentation class to run (default: MainActivityContentFlowTest).
+  --test-class <fqcn>      Instrumentation class/filter to run (default: MainActivityContentFlowTest + MainActivityRecreationRotationTest).
   --all-tests              Run all connected instrumentation tests.
   --create-only            Create/verify AVD and exit without booting emulator.
   --keep-running           Keep emulator process running after script exits.
@@ -54,7 +54,7 @@ Options:
   --raw-logcat             Capture full logcat without Ergometer-specific filtering.
   --skip-sdk-install       Skip sdkmanager package install checks.
   --retries <n>            Retry test run on known Compose startup flake (default: 1).
-  --include-flaky          Include @FlakyTest instrumentation tests.
+  --include-flaky          Include @FlakyTest instrumentation tests (default excludes).
   --show-window            Launch emulator with UI window.
   --avd-name <name>        AVD name (default: ErgometerApi34).
   --api-level <number>     Android API level for system image (default: 34).
@@ -437,6 +437,11 @@ run_instrumentation() {
 }
 
 echo "==> Running instrumentation tests on ${EMULATOR_SERIAL}..."
+if [[ "$EXCLUDE_FLAKY" == true ]]; then
+  echo "==> Flaky policy: excluding @FlakyTest tests (use --include-flaky to include)."
+else
+  echo "==> Flaky policy: including @FlakyTest tests."
+fi
 attempt=0
 retry_used=false
 while true; do
@@ -490,6 +495,7 @@ skip_sdk_install=${SKIP_SDK_INSTALL}
 max_retries=${MAX_RETRIES}
 retry_used=${retry_used}
 exclude_flaky=${EXCLUDE_FLAKY}
+include_flaky=$([[ "${EXCLUDE_FLAKY}" == true ]] && echo false || echo true)
 test_exit_code=${TEST_EXIT}
 EOF
 

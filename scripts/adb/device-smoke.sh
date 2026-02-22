@@ -2,7 +2,7 @@
 set -euo pipefail
 
 PACKAGE="com.example.ergometerapp"
-DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest"
+DEFAULT_TEST_CLASS="com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest"
 FILTER_REGEX='com\.example\.ergometerapp|FTMS|SESSION|WORKOUT|BluetoothGatt|BluetoothLeScanner'
 
 SERIAL=""
@@ -18,6 +18,7 @@ LOGCAT_PID=""
 RECORD_PID=""
 RUN_DIR=""
 LOG_PATH=""
+LOG_CAPTURE_PATH=""
 REMOTE_RECORDING_PATH=""
 
 print_help() {
@@ -36,7 +37,7 @@ Purpose:
 Options:
   --serial <id>          Use specific adb serial (default: current adb device).
   --out-dir <path>       Output base directory (default: .local/device-test-runs).
-  --test-class <fqcn>    Instrumentation class to run (default: MainActivityContentFlowTest).
+  --test-class <fqcn>    Instrumentation class/filter to run (default: MainActivityContentFlowTest + MainActivityRecreationRotationTest).
   --all-tests            Run all connected instrumentation tests.
   --no-clear             Do not clear app data before test run.
   --no-screenshot        Do not capture final screenshot.
@@ -47,7 +48,7 @@ Options:
 Examples:
   ./scripts/adb/device-smoke.sh
   ./scripts/adb/device-smoke.sh --serial R92Y40YAZPB --all-tests
-  ./scripts/adb/device-smoke.sh --test-class com.example.ergometerapp.ui.MainActivityContentFlowTest
+  ./scripts/adb/device-smoke.sh --test-class com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest
   ./scripts/adb/device-smoke.sh --record-seconds 20
 EOF
 }
@@ -120,7 +121,27 @@ fi
 cleanup() {
   if [[ -n "$LOGCAT_PID" ]] && kill -0 "$LOGCAT_PID" >/dev/null 2>&1; then
     kill "$LOGCAT_PID" >/dev/null 2>&1 || true
+    for _ in {1..20}; do
+      if ! kill -0 "$LOGCAT_PID" >/dev/null 2>&1; then
+        break
+      fi
+      sleep 0.1
+    done
+    if kill -0 "$LOGCAT_PID" >/dev/null 2>&1; then
+      kill -9 "$LOGCAT_PID" >/dev/null 2>&1 || true
+    fi
     wait "$LOGCAT_PID" 2>/dev/null || true
+  fi
+
+  if [[ -n "$RUN_DIR" ]] && [[ -n "$LOG_CAPTURE_PATH" ]] && [[ -f "$LOG_CAPTURE_PATH" ]]; then
+    if [[ "$RAW_LOGCAT" == true ]]; then
+      if [[ "$LOG_CAPTURE_PATH" != "$LOG_PATH" ]]; then
+        mv -f "$LOG_CAPTURE_PATH" "$LOG_PATH" 2>/dev/null || true
+      fi
+    else
+      awk -v re="$FILTER_REGEX" '$0 ~ re' "$LOG_CAPTURE_PATH" > "$LOG_PATH" 2>/dev/null || true
+      rm -f "$LOG_CAPTURE_PATH" 2>/dev/null || true
+    fi
   fi
 
   if [[ -n "$RECORD_PID" ]] && kill -0 "$RECORD_PID" >/dev/null 2>&1; then
@@ -149,17 +170,23 @@ TIMESTAMP="$(date +%Y%m%d-%H%M%S)"
 RUN_DIR="${OUT_BASE}/run-${TIMESTAMP}"
 mkdir -p "$RUN_DIR"
 LOG_PATH="${RUN_DIR}/logcat.log"
+if [[ "$RAW_LOGCAT" == true ]]; then
+  LOG_CAPTURE_PATH="$LOG_PATH"
+else
+  LOG_CAPTURE_PATH="${RUN_DIR}/logcat.raw.log"
+fi
+
+run_gradle_on_selected_device() {
+  ANDROID_SERIAL="$DEVICE_SERIAL" ./gradlew "$@"
+}
 
 echo "==> Device: ${DEVICE_MODEL} (${DEVICE_SERIAL})"
 echo "==> Output: ${RUN_DIR}"
+echo "==> Gradle target serial: ${DEVICE_SERIAL}"
 
 echo "==> Starting log capture..."
 "${ADB_CMD[@]}" logcat -c
-if [[ "$RAW_LOGCAT" == true ]]; then
-  "${ADB_CMD[@]}" logcat -v time > "$LOG_PATH" &
-else
-  "${ADB_CMD[@]}" logcat -v time | awk -v re="$FILTER_REGEX" '$0 ~ re' > "$LOG_PATH" &
-fi
+"${ADB_CMD[@]}" logcat -v time > "$LOG_CAPTURE_PATH" &
 LOGCAT_PID=$!
 
 if [[ "$RECORD_SECONDS" -gt 0 ]]; then
@@ -170,7 +197,7 @@ if [[ "$RECORD_SECONDS" -gt 0 ]]; then
 fi
 
 echo "==> Installing debug artifacts..."
-./gradlew :app:installDebug :app:installDebugAndroidTest --no-daemon
+run_gradle_on_selected_device :app:installDebug :app:installDebugAndroidTest --no-daemon
 
 if [[ "$CLEAR_APP_DATA" == true ]]; then
   echo "==> Clearing app data (${PACKAGE})..."
@@ -180,10 +207,10 @@ fi
 echo "==> Running instrumentation tests..."
 set +e
 if [[ "$RUN_ALL_TESTS" == true ]]; then
-  ./gradlew :app:connectedDebugAndroidTest --no-daemon
+  run_gradle_on_selected_device :app:connectedDebugAndroidTest --no-daemon
   TEST_EXIT=$?
 else
-  ./gradlew :app:connectedDebugAndroidTest \
+  run_gradle_on_selected_device :app:connectedDebugAndroidTest \
     -Pandroid.testInstrumentationRunnerArguments.class="$TEST_CLASS" \
     --no-daemon
   TEST_EXIT=$?
@@ -209,6 +236,7 @@ cat > "${RUN_DIR}/run-summary.txt" <<EOF
 timestamp=${TIMESTAMP}
 device_model=${DEVICE_MODEL}
 device_serial=${DEVICE_SERIAL}
+gradle_android_serial=${DEVICE_SERIAL}
 test_mode=$([[ "$RUN_ALL_TESTS" == true ]] && echo all || echo class)
 test_class=$([[ "$RUN_ALL_TESTS" == true ]] && echo n/a || echo "$TEST_CLASS")
 clear_app_data=${CLEAR_APP_DATA}

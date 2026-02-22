@@ -1,24 +1,48 @@
 # Next Session
 
 ## Branch
-- current: `docs/ui-workflow-playbook`
+- current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Start the next UI refinement from a fresh feature branch and execute it using `docs/ui-workflow-playbook.md` from step 1.
+- next task: Run one end-to-end manual session with a `.zwo` file containing timed text events, including a pause/resume during an active message, and verify message timing behavior on phone portrait and landscape.
 - DoD:
-  - Scope is written first (orientation, posture, top 3 signals, primary action).
-  - State matrix is updated before layout changes.
-  - Baseline layout is validated with screenshot + PASS/FAIL before advanced options.
-  - Iterations follow the documented validation loop.
+  - Launcher app name is `SEA` and full app name is `Simple Ergometer App`.
+  - Launcher icon reflects ergometer use purpose and is readable in adaptive-icon masks.
+  - ZWO parser captures text events with `timeoffset`, message, and optional duration when present.
+  - Session status field uses text-event priority over waiting/status fallback and returns to fallback after event duration.
+  - Text-event visibility is driven by workout elapsed seconds, so pause/resume keeps the active event stable and continues on resume.
+  - Phone portrait workout card keeps a fixed core telemetry trio above the graph: `HR`, `Power / target`, and `Elapsed / total`.
+  - `Cadence / target` is positioned under `Power / target`, on the right side of the `Elapsed / total` row.
+  - `Kcal` row right side is filled with `HR zone` value based on live HR and stored profile (`age` + `sex`).
+  - Phone portrait no longer shows preset options or variant switching; it uses one permanent metric layout.
+  - Phone landscape uses a dedicated centered-chart layout: workout graph in the middle, telemetry columns on left and right.
+  - Phone-landscape top controls are in-card: `(i)` on top-left and `Quit and go to summary` on top-right.
+  - Phone portrait secondary rows no longer show `Step type` or `Step remaining`.
+  - Freed portrait space is used for information density with always-visible secondary metrics and a taller workout graph.
+  - Message area stays unchanged for future `.zwo` parser-driven messages.
+  - Shared session status/message field now supports future message override priority (`text event > waiting/status`) through a dedicated override hook.
+  - Shared session status/message field is center-aligned, wraps safely, and clamps to two lines with ellipsis to avoid overlap with neighboring UI controls.
+  - Waiting-state label shows `Waiting for pedaling...` with `1 -> 2 -> 3 -> 1` animated dots through shared `WaitingStatusText` in all layouts/orientations.
+  - Session quit CTA is phase-sensitive: subdued in waiting-start state, emphasized once the workout is actively running.
+  - No extra standalone top action row is left above the card in phone landscape.
 - risks:
-  - Process may drift back into ad-hoc visual micro-tuning.
-  - Multiple orientations handled too early may slow convergence.
-  - Missing state-matrix updates can reintroduce UI regressions.
+  - Legacy pre-adaptive launcher assets (`mipmap-*/*.webp`) still exist; very old launchers may show previous icon style.
+  - ZWO files may use additional duration/message attribute names not yet covered by tolerant parser mapping.
+  - Long localized labels can still wrap/truncate in compact-width phone portrait rows.
+  - HR-zone output uses an estimated max-HR formula (male/female variants); real training zones may differ from lab-tested values.
+  - Taller portrait workout graph may push lower content farther below fold on smallest phones.
+  - In very tight landscape heights, top-row status text can truncate between `(i)` and `Quit`.
+  - Until parser wiring lands, override message hook is placeholder-only (`null`) and needs real `.zwo` text-event source binding.
+  - Visual verification for active running state is still pending for this exact revision set.
 - validation commands:
+  - `./gradlew :app:assembleDebug --no-daemon`
+  - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ZwoParserTest" --tests "com.example.ergometerapp.workout.WorkoutTextEventResolverTest" --no-daemon`
+  - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
   - `./gradlew :app:compileDebugKotlin --no-daemon`
-  - `./gradlew :app:installDebug --no-daemon`
-  - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/session-layout-check`
-  - manual (USB tablet): PASS/FAIL against playbook acceptance criteria for the selected baseline mode.
+  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-landscape-top-actions-in-card`
+  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-landscape-status-wrap-check`
+  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-session-followup`
+  - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/tablet-regression-check`
 
 ## Deferred Manual Validation
 - id: `MANUAL-HR-PICKER-MULTI-DEVICE-001`
@@ -34,6 +58,346 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- ZWO text-event parsing + session status integration (request-driven):
+  - Added `WorkoutTextEvent` and stored parsed events in `WorkoutFile.textEvents`.
+  - Extended `parseZwo(...)` to parse workout text events (`textevent` / `TextEvent`) with:
+    - start offset (`timeoffset` variants)
+    - message from attribute or tag text
+    - optional duration (`duration` variants)
+  - Added `resolveActiveWorkoutTextEvent(...)` with fallback duration (`8s`) and overlap resolution (latest matching event wins).
+  - Wired `SessionScreen` status override to active text events so pause/resume behavior follows workout elapsed time.
+  - Added parser and resolver unit tests:
+    - `com.example.ergometerapp.ZwoParserTest`
+    - `com.example.ergometerapp.workout.WorkoutTextEventResolverTest`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ZwoParserTest" --tests "com.example.ergometerapp.workout.WorkoutTextEventResolverTest" --no-daemon`
+- App naming + launcher icon refresh (request-driven):
+  - Updated app naming resources in `app/src/main/res/values/strings.xml`:
+    - `app_name`: `Simple Ergometer App`
+    - `app_name_full`: `Simple Ergometer App`
+    - `app_name_short`: `SEA`
+  - Updated manifest labels in `app/src/main/AndroidManifest.xml`:
+    - application label -> `@string/app_name_full`
+    - launcher activity label -> `@string/app_name_short`
+  - Replaced adaptive launcher visuals:
+    - `app/src/main/res/drawable/ic_launcher_background.xml`
+    - `app/src/main/res/drawable/ic_launcher_foreground.xml`
+    - added `app/src/main/res/drawable/ic_launcher_monochrome.xml`
+    - updated `app/src/main/res/mipmap-anydpi/ic_launcher.xml` and `app/src/main/res/mipmap-anydpi/ic_launcher_round.xml`
+  - Validation:
+    - `./gradlew :app:assembleDebug --no-daemon`
+- Phone portrait status-area spacing + top metric emphasis tuning (request-driven):
+  - Increased top-row `HR` and `Power / target` metric text size by ~30% in `PhonePortraitSessionWorkoutCard` via per-cell value scaling.
+  - Added extra vertical spacing above the shared status line so `Waiting for pedaling...` (and future workout messages) sits lower with more breathing room above.
+  - Expanded portrait status/message field capacity (`min/max height` and `maxLines`) and added a small spacer before the chart so the graph is pushed lower without changing chart height.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait message area cleanup (request-driven):
+  - Removed the `Messages` heading row from `PhonePortraitSessionWorkoutCard` so portrait uses a single shared status/message line without a separate section label (matching the landscape-style status presentation).
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait session card action + metric reflow (request-driven):
+  - Moved `(i)` action to the card top-left in `PhonePortraitSessionWorkoutCard`.
+  - Moved `Quit to summary` into the card top-right in the same row and removed the separate sticky bottom quit button for phone portrait (`SessionScreen` now keeps sticky quit only for non-phone-landscape and non-phone-portrait layouts).
+  - Reordered portrait metric rows so `HR zone` is directly under `HR`.
+  - Updated portrait rows to:
+    - `HR | Power / target`
+    - `HR zone | Cadence / target`
+    - `Elapsed / total | Distance`
+    - `Speed | Kcal`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Session quit CTA wording shortened:
+  - Updated `btn_quit_session_now` from `Quit and go to summary` to `Quit to summary` in `app/src/main/res/values/strings.xml`.
+  - Rationale: better fit in compact layouts without changing the action meaning.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Waiting-dots center-alignment stability fix (request-driven):
+  - Updated `WaitingStatusText` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt` so animated dots reserve constant visual width even when showing `1 -> 2 -> 3` dots.
+  - Implementation now renders a fixed three-dot suffix and hides non-active dots using transparent span styling, preventing center-aligned status text from shifting horizontally.
+  - Scope applies to all layouts/orientations that use `WaitingStatusText`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Session status field message handling + wrapping hardening (request-driven):
+  - Refactored `WaitingStatusText` into a single text renderer that preserves animated dot behavior while supporting reliable wrapping and truncation controls.
+  - Added shared status resolution helpers in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - `resolveSessionStatusMessage(...)`
+    - `shouldAnimateSessionStatusDots(...)`
+  - Applied center-aligned, max-2-line, ellipsis-clamped status rendering in:
+    - `PhonePortraitSessionWorkoutCard`
+    - `PhoneLandscapeSessionWorkoutCard`
+    - `WorkoutProgressSection` (tablet/non-phone path)
+  - Added a reserved status-override hook in `SessionScreen` for future parser-driven `.zwo` text events (`text event > waiting/status` priority path).
+  - Fixed a structural Kotlin syntax issue in `PhoneLandscapeSessionWorkoutCard` (`Button` closing brace), restoring full-file parse integrity.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone landscape in-card top action consolidation (request-driven):
+  - Moved `Quit and go to summary` into the phone-landscape session card top-right and removed the old separate bottom sticky quit button for this layout branch.
+  - Kept `(i)` action in the same top row on card top-left.
+  - Centered waiting/status text between the two actions with animated dots preserved via `WaitingStatusText`.
+  - Scope: `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`.
+- Phone landscape layout update (request-driven):
+  - Added a dedicated phone-landscape branch in `SessionScreen` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) gated by compact-height landscape.
+  - Implemented `PhoneLandscapeSessionWorkoutCard` with centered workout graph and side telemetry columns:
+    - left: `HR`, `HR zone`, `Power / target`, `Cadence / target`
+    - right: `Elapsed / total`, `Speed`, `Distance`, `Kcal`
+  - Increased center graph column width by ~100% (weight `1.35 -> 2.7`) to emphasize workout profile in landscape.
+  - Moved waiting/status text from the bottom `Messages` area to the top of the card, and removed the bottom `Messages` block in phone landscape.
+  - Removed visible workout name from phone landscape session card; status remains visible without workout title.
+  - Aligned the center graph to start from the bottom of the layout row (`Alignment.Bottom`) for stronger baseline readability.
+  - Added session-time navigation-bar hiding in `MainActivity` for `CONNECTING`, `SESSION`, and `STOPPING` screens; bar remains available outside active session flow.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Session-wide workout title/description declutter + info dialog:
+  - Removed visible workout-name text from all session layouts:
+    - `PhonePortraitSessionWorkoutCard`
+    - `PhoneLandscapeSessionWorkoutCard`
+    - `WorkoutProgressSection` (tablet/non-phone paths)
+  - Added a shared session workout-info action as a compact in-card info icon (instead of a full top-row button) that opens a workout-info dialog (`name` + `description`) in `SessionScreen`.
+  - Added new strings:
+    - `session_workout_info_action`
+    - `session_workout_info_title`
+    - `session_workout_info_name`
+    - `session_workout_info_description`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- HR zone profile capture + session display switch:
+  - Added persistent HR profile fields (`age`, `sex`) in `app/src/main/java/com/example/ergometerapp/HrProfileSettingsStorage.kt`.
+  - Wired profile state and callbacks through `MainViewModel`, `MainActivity`, and `MainActivityContent`.
+  - Added MENU profile controls for age + sex selection to collect required HR-zone inputs before session use.
+  - Replaced phone-portrait `Kcal + Next target` row with `Kcal + HR zone` in `PhonePortraitSessionWorkoutCard`.
+  - Implemented `sessionHeartRateZoneLabel(...)` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt` using sex-specific estimated max-HR formulas and 5 zone bands.
+  - Added strings for profile inputs and session HR-zone labels in `app/src/main/res/values/strings.xml`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon`
+- Phone portrait lower-row information density improvement:
+  - Transitional `Next target` variant was previously tested for filling the right side of the `Kcal` row.
+  - The layout has since been superseded by `HR zone` (using profile age + sex), which remains the active approach.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Waiting dots animation reliability fix:
+  - Replaced the waiting-dot render logic in `WaitingStatusText` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) with explicit stepped state updates (`1 -> 2 -> 3 -> 1`) via `LaunchedEffect + delay`.
+  - Result: pre-start waiting message now visibly cycles dot count instead of appearing static.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Waiting label correctness fix for pre-start session state:
+  - Updated `session_state_waiting` to `Waiting for pedaling` in `app/src/main/res/values/strings.xml`; shared `WaitingStatusText` appends animated dots (`...` effect).
+  - Fixed pre-start detection in `isWaitingStartState` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) so the label remains waiting at elapsed `0` and zero cadence even if `runnerState.done` is stale.
+  - Result: pre-start screen no longer shows `Done`; it shows `Waiting for pedaling...` with moving dots.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait telemetry positioning + waiting animation follow-up:
+  - Moved `Cadence / target` in phone portrait fixed card under `Power / target`, aligned to the right side of the `Elapsed / total` row (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`).
+  - Rebalanced lower metrics to keep `Speed + Distance` in a row and show `Kcal` as a full-width metric.
+  - Relaxed waiting-start detection so `Waiting for pedaling...` dot animation is shown whenever session is in pre-start waiting (`phase=RUNNING`, elapsed `0`, cadence `0`), independent of `runnerState.running`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait single-layout simplification (request-driven):
+  - Removed portrait preset controls and preset-specific switching from `PhonePortraitSessionWorkoutCard` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`.
+  - Phone portrait now always renders one fixed metric composition (`HR`, `Power / target`, `Elapsed / total`, `Speed`, `Distance`, `Cadence / target`, `Kcal`) before messages and graph.
+  - Increased phone portrait workout chart height to `260.dp` to use the saved vertical space for clearer workout information.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait row-density trim (request-driven):
+  - Removed `Step type` and `Step remaining` fields from all phone portrait preset views inside `PhonePortraitSessionWorkoutCard`.
+  - Deleted now-unused phone-portrait card parameters (`stepTypeValue`, `stepRemainingValue`) from `SessionScreen -> PhonePortraitSessionWorkoutCard` wiring.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait follow-up bundle (requested items `1-4` and `7`):
+  - Refined `PhonePortraitSessionWorkoutCard` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) to keep `HR`, `Power / target`, and `Elapsed / total` always visible above the chart.
+  - Converted preset controls to compact mode (`Preset: ...` + `Change`) with expandable 3-option selector.
+  - Restricted presets to secondary metric rows only, leaving workout graph and message area intact.
+  - Updated waiting copy (`session_state_waiting`) to `Start pedaling to begin workout` and kept animated dots behavior via shared `WaitingStatusText`.
+  - Added phase-aware quit button emphasis in `SessionScreen`: waiting-start uses subdued CTA colors, active run uses emphasized CTA colors.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Session start waiting-state copy + dots animation refresh (all layouts/orientations):
+  - Updated waiting copy in `app/src/main/res/values/strings.xml`:
+    - `session_state_waiting`: `Start pedaling to begin workout`
+  - Updated `WaitingStatusText` animation in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - Replaced low-contrast static three-dot rendering with an explicit animated suffix (`.`, `..`, `...`) for clearer perceived motion.
+  - Scope:
+    - Applies to all Session layout branches because they all use `WaitingStatusText` with `sessionStateLabel`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait metric cleanup (request-driven):
+  - Removed `Workout remaining` from all phone portrait preset views inside `PhonePortraitSessionWorkoutCard`.
+  - Updated preset rows:
+    - `Balanced`: replaced `Workout remaining` with `Elapsed/total`.
+    - `Power first`: replaced `Workout remaining` with `Distance`.
+    - `Workout first`: replaced `Workout remaining` with `Cadence/target`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
+- Phone portrait `SESSION` layout switched to one primary workout card with preset-driven inline metrics:
+  - Added a dedicated phone portrait card path in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - `PhonePortraitSessionWorkoutCard`
+    - `SessionInlineMetricsRow`
+    - `SessionInlineMetric`
+  - Phone portrait now keeps workout graph always visible inside that single primary card and uses 3 presets to switch the metric set shown above it.
+  - Non-phone/tablet branches continue to use the previous section-based layout path.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
+    - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-single-card`
+  - Notes:
+    - Latest capture landed on `MENU` due missing selected workout in app state; live `SESSION` screenshot pass is still pending.
+- ADB capture reliability hardening for occasional black phone screenshots:
+  - Updated `scripts/adb/capture.sh` to wake/unlock before capture and fallback to `shell screencap + pull` when the first PNG frame is suspiciously small.
+  - Validation:
+    - `bash -n scripts/adb/capture.sh`
+    - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-quick2`
+    - screenshot: `.local/captures/phone-portrait-quick2/screenshot-20260222-002427.png`
+- Phone portrait `SessionScreen` split from tablet-focused layout behavior:
+  - Added compact-width portrait branching in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt` so phone portrait no longer reuses the denser tablet-oriented row composition.
+  - Phone portrait adjustments:
+    - Reduced horizontal padding and top offset for more usable content width.
+    - Preset selector buttons are stacked vertically with full-width targets.
+    - Top telemetry and primary telemetry are reflowed into fewer columns per row.
+    - Workout step metrics are reflowed to avoid 3-column crowding.
+    - End-session button width increased for easier tap targets.
+  - Tablet/non-phone behavior remains on existing branch path (`phonePortraitLayout=false`).
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+  - Follow-up pending:
+    - Capture and review phone portrait screenshots in active session state.
+- Flaky-inclusive smoke lane changed to blocking:
+  - Updated `.github/workflows/android-build.yml` to remove `continue-on-error` from `Run instrumentation smoke on emulator (include flaky)`.
+  - Removed obsolete non-blocking summary step `Record non-blocking flaky smoke failure`.
+  - Result: when `include_flaky_tests=true` lane fails, `android-instrumentation-smoke` now fails the workflow.
+  - Updated docs in `docs/adb-cheatsheet.md` to state both include/exclude-flaky lanes are blocking.
+  - Validation (no smoke run launched due local quiet window `00:00-04:00`):
+    - `rg -n \"continue-on-error|Record non-blocking flaky smoke failure\" .github/workflows/android-build.yml`
+    - `rg -n \"include_flaky_tests=true.*blocking|include_flaky_tests=false.*blocking\" docs/adb-cheatsheet.md`
+- CI smoke lane validation + workflow-doc cleanup after rotation-test replacement:
+  - Verified manual smoke dispatch both ways on branch `feature/pr32-connect-timeout-watchdog`:
+    - `22264482028` (`include_flaky_tests=false`): `android-instrumentation-smoke=success`, `build-test-lint=skipped`.
+    - `22264782312` (`include_flaky_tests=true`): `android-instrumentation-smoke=success`, `build-test-lint=skipped`.
+  - Confirmed lane routing from job steps:
+    - `include_flaky_tests=false`: include-flaky step skipped, exclude-flaky step executed.
+    - `include_flaky_tests=true`: include-flaky step executed, exclude-flaky step skipped.
+  - Expanded smoke class scope to keep rotation coverage in smoke runs:
+    - `.github/workflows/android-build.yml` now runs `MainActivityContentFlowTest,MainActivityRecreationRotationTest`.
+    - `scripts/adb/emulator-smoke.sh` and `scripts/adb/device-smoke.sh` default `--test-class` now uses the same two-class scope.
+  - Updated workflow-facing docs in `docs/adb-cheatsheet.md`:
+    - Smoke class scope now documents both instrumentation classes.
+    - Added explicit note that as of February 21, 2026 there are currently no `@FlakyTest` instrumentation tests.
+  - Validation:
+    - `bash -n scripts/adb/emulator-smoke.sh`
+    - `bash -n scripts/adb/device-smoke.sh`
+    - `scripts/adb/emulator-smoke.sh --help`
+    - `scripts/adb/device-smoke.sh --help`
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest,com.example.ergometerapp.MainActivityRecreationRotationTest --no-daemon` (`SM-X210`: 9 tests, 0 failures)
+- Rotation regression coverage replacement with recreation-safe `MainActivity` instrumentation:
+  - Added `app/src/androidTest/java/com/example/ergometerapp/MainActivityRecreationRotationTest.kt`.
+  - New test `menuAndSessionAnchorsRemainVisibleAcrossRotationRecreation` rotates portrait/landscape and verifies `MENU` + `SESSION` anchors survive activity recreation.
+  - Removed the legacy quarantined rotation case from `app/src/androidTest/java/com/example/ergometerapp/ui/MainActivityContentFlowTest.kt`.
+  - Validation:
+    - `./gradlew :app:compileDebugAndroidTestKotlin --no-daemon`
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.MainActivityRecreationRotationTest --no-daemon` (`SM-X210`: 1 test, 0 failures)
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.MainActivityRecreationRotationTest --no-daemon` (`SM-A226B`: 1 test, 0 failures)
+- Night-window correction for nightly smoke:
+  - Updated GitHub schedule from `02:30 UTC` back to `04:30 UTC` by request.
+  - New timing keeps nightly smoke outside the `00:00-06:00` Finland working window (`06:30` winter / `07:30` summer local time).
+  - Updated docs in `docs/adb-cheatsheet.md` to match the corrected schedule.
+- Smoke-lane auto-cancel for manual reruns:
+  - Added job-level concurrency to `android-instrumentation-smoke`:
+    - `group: ${{ github.workflow }}-smoke-${{ github.ref_name || github.ref }}`
+    - `cancel-in-progress: true`
+  - Result: new smoke dispatch on same branch cancels previous in-progress smoke run automatically.
+  - Validation:
+    - Back-to-back dispatch check: `22248406229` -> `cancelled` after newer `22248407185` started on same branch.
+    - Validation run was then explicitly cancelled to avoid wasted CI time.
+- Docs-only PR gate verification for CI wait-time reduction:
+  - Opened temporary docs-only PR against `feature/pr32-connect-timeout-watchdog` to validate new `detect-android-changes` behavior.
+  - Verification run `22248334054`:
+    - `detect-android-changes`: `success`
+    - `build-test-lint`: `skipped`
+    - `android-instrumentation-smoke`: `skipped`
+  - Result: docs-only changes now bypass long Android fast gate as intended.
+- CI wait-time reduction via Android change detection gate:
+  - Added `detect-android-changes` job in `.github/workflows/android-build.yml`.
+  - `build-test-lint` now depends on detected Android-impacting file changes for `pull_request`/`push`, while manual dispatch keeps explicit control.
+  - Detection writes a step summary with decision and changed files, making skip/run behavior visible in each CI run.
+  - Validation:
+    - Docs-only commit simulation (`dcff1d5`) produced no relevant file matches for the gate.
+    - Android-impacting commit simulation (`af0bd63`) matched `.github/workflows/android-build.yml` as expected.
+- Rotation-test quarantine for stable smoke signal:
+  - `menuAndSessionAnchorsRemainVisibleAcrossRotation` in `MainActivityContentFlowTest` is now explicitly quarantined with `@Ignore`.
+  - Retained a bounded retry helper inside the quarantined test to document the investigated race-mitigation attempt.
+  - Validation:
+    - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SKIPPED`: rotation test, class run passes)
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon` (`SKIPPED`: rotation test, class run passes)
+    - `22247846824` (`include_flaky_tests=true`) completed `success`; include-flaky lane reports `menuAndSessionAnchorsRemainVisibleAcrossRotation` as `SKIPPED` with no test failures.
+- Non-blocking policy for flaky-inclusive GitHub smoke:
+  - `Run instrumentation smoke on emulator (include flaky)` now uses `continue-on-error: true`.
+  - Added workflow summary marker when flaky-inclusive lane fails:
+    - `Record non-blocking flaky smoke failure`
+  - Result: `include_flaky_tests=true` is informational; default `exclude flaky` lane remains the pass/fail smoke gate.
+  - Validation:
+    - `22247080041` (`include_flaky_tests=true`) completed `success` while still recording flaky failure (`menuAndSessionAnchorsRemainVisibleAcrossRotation`) and adding non-blocking summary note.
+    - Uploaded `smoke-policy.txt` confirms `include_flaky=true`.
+- GitHub smoke dispatch stabilization round (PR `#33` branch):
+  - Replaced multiline Gradle invocations in emulator-runner script blocks with single-line commands to avoid `/usr/bin/sh` line-splitting (`Task '\\' not found`).
+  - Added `disk-size: 4096M` to emulator-runner include/exclude smoke steps.
+  - Manual dispatch results:
+    - `22246195078` (`include_flaky_tests=true`): workflow path worked; instrumentation executed and failed in known flaky test `menuAndSessionAnchorsRemainVisibleAcrossRotation`.
+    - `22246629540` (`include_flaky_tests=false`): `android-instrumentation-smoke` completed successfully.
+- GitHub emulator-runner shell-compat fix for smoke policy:
+  - Replaced bash-array based runner-arg logic with two explicit emulator-runner steps (`include flaky` / `exclude flaky`) keyed by resolved smoke-policy output.
+  - Fix addresses workflow-dispatch run failure where `/usr/bin/sh` could not parse bash array syntax.
+- Workflow dispatch smoke-only routing fix:
+  - `build-test-lint` is now skipped when manual dispatch is explicitly used for smoke (`run_instrumentation_smoke=true`), so manual smoke does not trigger redundant full build/test/lint.
+- `MainActivityContentFlowTest` anchor fix for animated waiting labels:
+  - Updated connecting/stopping assertions to match normalized waiting status text used by animated dot rendering.
+  - Fixed failing cases:
+    - `criticalFlowScreensRenderExpectedAnchors`
+    - `startSessionAnchorsStayConsistentAcrossConnectPermissionDenyThenGrant`
+  - Validation:
+    - `ANDROID_SERIAL=R92Y40YAZPB ./gradlew :app:connectedDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=com.example.ergometerapp.ui.MainActivityContentFlowTest --no-daemon`
+- Device smoke end-to-end pass after cleanup hardening:
+  - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB` now completes with `test_exit_code=0` and no lingering `adb logcat` process.
+  - Verified artifact run:
+    - `.local/device-test-runs/run-20260221-013713/run-summary.txt`
+- Device smoke cleanup hardening for failure-path exit:
+  - Reworked `scripts/adb/device-smoke.sh` logcat capture to avoid background pipeline orphaning (`adb logcat` is now tracked as a single process).
+  - Added forced shutdown fallback for lingering logcat PID and post-capture filtering step, preserving default filtered `logcat.log`.
+  - Confirmed failure-path exit no longer leaves `device-smoke.sh` or `adb logcat` processes running.
+  - Validation:
+    - `bash -n scripts/adb/device-smoke.sh`
+    - `scripts/adb/device-smoke.sh --serial R92Y40YAZPB` (expected test failure due existing UI anchor assertions, script exits cleanly)
+- Opened PR `#33` (`feature/pr32-connect-timeout-watchdog` -> `main`) with session connect-timeout + smoke/CI policy changes.
+- Flaky-test visibility policy finalized across local + GitHub smoke lanes:
+  - `android-build.yml` now supports manual flaky inclusion input (`include_flaky_tests`) and resolves explicit smoke policy per trigger.
+  - Nightly scheduled smoke includes flaky tests by default; manual dispatch can include them explicitly.
+  - Smoke artifacts now include `smoke-policy.txt` and connected AndroidTest reports for triage visibility.
+  - `scripts/adb/emulator-smoke.sh` now logs flaky policy at runtime and records both `exclude_flaky` and `include_flaky` in `run-summary.txt`.
+  - `docs/adb-cheatsheet.md` now documents lane-specific flaky policy and artifact expectations.
+  - Validation:
+    - `bash -n scripts/adb/emulator-smoke.sh`
+    - `scripts/adb/emulator-smoke.sh --help`
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
+- Device smoke determinism via explicit Gradle serial pinning:
+  - `scripts/adb/device-smoke.sh` now runs install and connected AndroidTest Gradle tasks with `ANDROID_SERIAL` pinned to the selected/resolved device serial.
+  - Added explicit run log line for Gradle target serial and included `gradle_android_serial` in `run-summary.txt`.
+  - Validation:
+    - `bash -n scripts/adb/device-smoke.sh`
+    - `scripts/adb/device-smoke.sh --help`
+- GitHub CI smoke decoupling and safer trigger model:
+  - Workflow now runs `push` checks only on `main` to avoid duplicate branch `push` + `pull_request` CI noise.
+  - Added nightly schedule (currently `04:30 UTC`, `06:30` Finland winter / `07:30` Finland summer local time) and manual toggle input for emulator smoke execution.
+  - `android-instrumentation-smoke` no longer blocks normal PR runs by default; it runs on nightly schedule or manual dispatch input.
+  - Added explicit workflow token hardening with read-only `contents` permissions.
+  - Validation:
+    - `git diff -- .github/workflows/android-build.yml`
+- Session start connect-phase watchdog (`CONNECTING` timeout):
+  - Added a bounded connect-phase timeout in `SessionOrchestrator` (`15s`) to fail fast from stuck `CONNECTING` and return to `MENU` with recovery prompt.
+  - Added cancellation wiring so timeout is cleared on successful control grant, disconnect cleanup, and orchestrator teardown.
+  - Added deterministic unit coverage in `SessionOrchestratorFlowTest`:
+    - `connectFlowTimeoutRollsBackToMenuWithRecoveryPrompt`
+    - `connectFlowTimeoutIsCancelledAfterRequestControlGranted`
+  - Validation:
+    - `./gradlew :app:testDebugUnitTest --tests "com.example.ergometerapp.session.SessionOrchestratorFlowTest" --no-daemon`
 - UI process hardening for future sessions:
   - Added `docs/ui-workflow-playbook.md` with a step-by-step beginner-friendly UI workflow.
   - Added an explicit AGENTS rule to follow the playbook on UI tasks and remind when drift is detected.

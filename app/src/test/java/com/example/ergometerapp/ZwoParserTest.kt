@@ -9,6 +9,44 @@ import com.example.ergometerapp.workout.parseZwo
 
 class ZwoParserTest {
     @Test
+    fun parsesTextEventAttributesFromWorkout() {
+        val xml = """
+            <workout_file>
+              <workout>
+                <textevent timeoffset="15" message="Settle cadence" duration="6"/>
+              </workout>
+            </workout_file>
+        """.trimIndent()
+
+        val result = parseZwo(xml)
+
+        assertEquals(1, result.textEvents.size)
+        val textEvent = result.textEvents.first()
+        assertEquals(15, textEvent.timeOffsetSec)
+        assertEquals("Settle cadence", textEvent.message)
+        assertEquals(6, textEvent.durationSec)
+    }
+
+    @Test
+    fun parsesTextEventMessageFromTagText() {
+        val xml = """
+            <workout_file>
+              <workout>
+                <TextEvent TimeOffset="30" Duration="5">Relax shoulders</TextEvent>
+              </workout>
+            </workout_file>
+        """.trimIndent()
+
+        val result = parseZwo(xml)
+
+        assertEquals(1, result.textEvents.size)
+        val textEvent = result.textEvents.first()
+        assertEquals(30, textEvent.timeOffsetSec)
+        assertEquals("Relax shoulders", textEvent.message)
+        assertEquals(5, textEvent.durationSec)
+    }
+
+    @Test
     fun tagAttributeOnlyIsParsed() {
         val xml = """
             <workout_file>
