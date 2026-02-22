@@ -4,26 +4,34 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Capture and review live phone-portrait `SESSION` screenshots (waiting + running) with the new single fixed card layout, then tune only if any metric row truncation remains.
+- next task: Capture and verify phone-portrait `SESSION` after top-row action relocation (`(i)` left, `Quit to summary` right) and HR-zone metric reordering; tune spacing only if any truncation appears.
 - DoD:
   - Phone portrait workout card keeps a fixed core telemetry trio above the graph: `HR`, `Power / target`, and `Elapsed / total`.
   - `Cadence / target` is positioned under `Power / target`, on the right side of the `Elapsed / total` row.
   - `Kcal` row right side is filled with `HR zone` value based on live HR and stored profile (`age` + `sex`).
   - Phone portrait no longer shows preset options or variant switching; it uses one permanent metric layout.
+  - Phone landscape uses a dedicated centered-chart layout: workout graph in the middle, telemetry columns on left and right.
+  - Phone-landscape top controls are in-card: `(i)` on top-left and `Quit and go to summary` on top-right.
   - Phone portrait secondary rows no longer show `Step type` or `Step remaining`.
   - Freed portrait space is used for information density with always-visible secondary metrics and a taller workout graph.
   - Message area stays unchanged for future `.zwo` parser-driven messages.
+  - Shared session status/message field now supports future message override priority (`text event > waiting/status`) through a dedicated override hook.
+  - Shared session status/message field is center-aligned, wraps safely, and clamps to two lines with ellipsis to avoid overlap with neighboring UI controls.
   - Waiting-state label shows `Waiting for pedaling...` with `1 -> 2 -> 3 -> 1` animated dots through shared `WaitingStatusText` in all layouts/orientations.
   - Session quit CTA is phase-sensitive: subdued in waiting-start state, emphasized once the workout is actively running.
-  - `:app:compileDebugKotlin` passes.
+  - No extra standalone top action row is left above the card in phone landscape.
 - risks:
   - Long localized labels can still wrap/truncate in compact-width phone portrait rows.
   - HR-zone output uses an estimated max-HR formula (male/female variants); real training zones may differ from lab-tested values.
   - Taller portrait workout graph may push lower content farther below fold on smallest phones.
+  - In very tight landscape heights, top-row status text can truncate between `(i)` and `Quit`.
+  - Until parser wiring lands, override message hook is placeholder-only (`null`) and needs real `.zwo` text-event source binding.
   - Visual verification for active running state is still pending for this exact revision set.
 - validation commands:
-  - `./gradlew :app:compileDebugKotlin :app:compileDebugAndroidTestKotlin --no-daemon`
+  - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
+  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-landscape-top-actions-in-card`
+  - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-landscape-status-wrap-check`
   - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-portrait-session-followup`
   - `./scripts/adb/capture.sh --serial R92Y40YAZPB --no-record --out-dir .local/captures/tablet-regression-check`
 
@@ -41,6 +49,81 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- Phone portrait status-area spacing + top metric emphasis tuning (request-driven):
+  - Increased top-row `HR` and `Power / target` metric text size by ~30% in `PhonePortraitSessionWorkoutCard` via per-cell value scaling.
+  - Added extra vertical spacing above the shared status line so `Waiting for pedaling...` (and future workout messages) sits lower with more breathing room above.
+  - Expanded portrait status/message field capacity (`min/max height` and `maxLines`) and added a small spacer before the chart so the graph is pushed lower without changing chart height.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait message area cleanup (request-driven):
+  - Removed the `Messages` heading row from `PhonePortraitSessionWorkoutCard` so portrait uses a single shared status/message line without a separate section label (matching the landscape-style status presentation).
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone portrait session card action + metric reflow (request-driven):
+  - Moved `(i)` action to the card top-left in `PhonePortraitSessionWorkoutCard`.
+  - Moved `Quit to summary` into the card top-right in the same row and removed the separate sticky bottom quit button for phone portrait (`SessionScreen` now keeps sticky quit only for non-phone-landscape and non-phone-portrait layouts).
+  - Reordered portrait metric rows so `HR zone` is directly under `HR`.
+  - Updated portrait rows to:
+    - `HR | Power / target`
+    - `HR zone | Cadence / target`
+    - `Elapsed / total | Distance`
+    - `Speed | Kcal`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Session quit CTA wording shortened:
+  - Updated `btn_quit_session_now` from `Quit and go to summary` to `Quit to summary` in `app/src/main/res/values/strings.xml`.
+  - Rationale: better fit in compact layouts without changing the action meaning.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Waiting-dots center-alignment stability fix (request-driven):
+  - Updated `WaitingStatusText` in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt` so animated dots reserve constant visual width even when showing `1 -> 2 -> 3` dots.
+  - Implementation now renders a fixed three-dot suffix and hides non-active dots using transparent span styling, preventing center-aligned status text from shifting horizontally.
+  - Scope applies to all layouts/orientations that use `WaitingStatusText`.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Session status field message handling + wrapping hardening (request-driven):
+  - Refactored `WaitingStatusText` into a single text renderer that preserves animated dot behavior while supporting reliable wrapping and truncation controls.
+  - Added shared status resolution helpers in `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`:
+    - `resolveSessionStatusMessage(...)`
+    - `shouldAnimateSessionStatusDots(...)`
+  - Applied center-aligned, max-2-line, ellipsis-clamped status rendering in:
+    - `PhonePortraitSessionWorkoutCard`
+    - `PhoneLandscapeSessionWorkoutCard`
+    - `WorkoutProgressSection` (tablet/non-phone path)
+  - Added a reserved status-override hook in `SessionScreen` for future parser-driven `.zwo` text events (`text event > waiting/status` priority path).
+  - Fixed a structural Kotlin syntax issue in `PhoneLandscapeSessionWorkoutCard` (`Button` closing brace), restoring full-file parse integrity.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Phone landscape in-card top action consolidation (request-driven):
+  - Moved `Quit and go to summary` into the phone-landscape session card top-right and removed the old separate bottom sticky quit button for this layout branch.
+  - Kept `(i)` action in the same top row on card top-left.
+  - Centered waiting/status text between the two actions with animated dots preserved via `WaitingStatusText`.
+  - Scope: `app/src/main/java/com/example/ergometerapp/ui/Screens.kt`.
+- Phone landscape layout update (request-driven):
+  - Added a dedicated phone-landscape branch in `SessionScreen` (`app/src/main/java/com/example/ergometerapp/ui/Screens.kt`) gated by compact-height landscape.
+  - Implemented `PhoneLandscapeSessionWorkoutCard` with centered workout graph and side telemetry columns:
+    - left: `HR`, `HR zone`, `Power / target`, `Cadence / target`
+    - right: `Elapsed / total`, `Speed`, `Distance`, `Kcal`
+  - Increased center graph column width by ~100% (weight `1.35 -> 2.7`) to emphasize workout profile in landscape.
+  - Moved waiting/status text from the bottom `Messages` area to the top of the card, and removed the bottom `Messages` block in phone landscape.
+  - Removed visible workout name from phone landscape session card; status remains visible without workout title.
+  - Aligned the center graph to start from the bottom of the layout row (`Alignment.Bottom`) for stronger baseline readability.
+  - Added session-time navigation-bar hiding in `MainActivity` for `CONNECTING`, `SESSION`, and `STOPPING` screens; bar remains available outside active session flow.
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
+- Session-wide workout title/description declutter + info dialog:
+  - Removed visible workout-name text from all session layouts:
+    - `PhonePortraitSessionWorkoutCard`
+    - `PhoneLandscapeSessionWorkoutCard`
+    - `WorkoutProgressSection` (tablet/non-phone paths)
+  - Added a shared session workout-info action as a compact in-card info icon (instead of a full top-row button) that opens a workout-info dialog (`name` + `description`) in `SessionScreen`.
+  - Added new strings:
+    - `session_workout_info_action`
+    - `session_workout_info_title`
+    - `session_workout_info_name`
+    - `session_workout_info_description`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin --no-daemon`
 - HR zone profile capture + session display switch:
   - Added persistent HR profile fields (`age`, `sex`) in `app/src/main/java/com/example/ergometerapp/HrProfileSettingsStorage.kt`.
   - Wired profile state and callbacks through `MainViewModel`, `MainActivity`, and `MainActivityContent`.

@@ -12,6 +12,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.runtime.LaunchedEffect
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import com.example.ergometerapp.ui.MainActivityContent
 import com.example.ergometerapp.ui.MainActivityUiModel
 import com.example.ergometerapp.workout.editor.WorkoutEditorAction
@@ -57,9 +61,23 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
+            val currentScreen = viewModel.uiState.screen.value
+            LaunchedEffect(currentScreen) {
+                val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                val immersiveSessionScreen = currentScreen == AppScreen.SESSION ||
+                    currentScreen == AppScreen.CONNECTING ||
+                    currentScreen == AppScreen.STOPPING
+                if (immersiveSessionScreen) {
+                    insetsController.systemBarsBehavior =
+                        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                    insetsController.hide(WindowInsetsCompat.Type.navigationBars())
+                } else {
+                    insetsController.show(WindowInsetsCompat.Type.navigationBars())
+                }
+            }
             MainActivityContent(
                 model = MainActivityUiModel(
-                    screen = viewModel.uiState.screen.value,
+                    screen = currentScreen,
                     bikeData = viewModel.uiState.bikeData.value,
                     heartRate = viewModel.uiState.heartRate.value,
                     phase = viewModel.phase(),

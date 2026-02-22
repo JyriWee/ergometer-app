@@ -188,6 +188,11 @@
         <!-- Workout -->
         <string name="session_workout_title">Workout</string>
         <string name="session_workout_name_value">Workout: %1$s</string>
+        <string name="session_workout_info_action">(i)</string>
+        <string name="session_workout_info_title">Workout info</string>
+        <string name="session_workout_info_content_description">Open workout info</string>
+        <string name="session_workout_info_name">Name: %1$s</string>
+        <string name="session_workout_info_description">Description: %1$s</string>
         <string name="session_workout_step_type">Step type</string>
         <string name="session_workout_step_type_ramp">Ramp</string>
         <string name="session_workout_step_type_steady">Steady</string>
@@ -206,7 +211,7 @@
         <string name="session_workout_state_stopped">Stopped</string>
 
         <!-- Buttons -->
-        <string name="btn_quit_session_now">Quit and go to summary</string>
+        <string name="btn_quit_session_now">Quit to summary</string>
 
         <!-- Summary -->
         <string name="summary_title">Summary</string>
