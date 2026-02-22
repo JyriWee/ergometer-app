@@ -83,7 +83,9 @@ import com.example.ergometerapp.ui.components.WorkoutProfileChart
 import com.example.ergometerapp.ui.components.WorkoutProfileSegment
 import com.example.ergometerapp.ui.components.buildWorkoutProfileSegments
 import com.example.ergometerapp.ui.components.disabledVisibleButtonColors
+import com.example.ergometerapp.workout.DefaultWorkoutTextEventDurationSec
 import com.example.ergometerapp.workout.WorkoutFile
+import com.example.ergometerapp.workout.resolveActiveWorkoutTextEvent
 import com.example.ergometerapp.workout.runner.IntervalPartPhase
 import com.example.ergometerapp.workout.runner.RunnerState
 import kotlinx.coroutines.delay
@@ -1300,8 +1302,26 @@ internal fun SessionScreen(
     val portraitPresetState = rememberSaveable {
         mutableStateOf(SessionPortraitPreset.BALANCED)
     }
-    // Reserved for future parser-driven workout text events shown in the shared status field.
-    val sessionTextEventMessage: String? = null
+    val activeTextEvent = resolveActiveWorkoutTextEvent(
+        textEvents = selectedWorkout?.textEvents.orEmpty(),
+        workoutElapsedSec = runnerState.workoutElapsedSec,
+        defaultDurationSec = DefaultWorkoutTextEventDurationSec,
+    )
+    val runnerIsPaused = phase == SessionPhase.RUNNING &&
+        runnerState.running &&
+        runnerState.paused
+    val sessionTextEventMessage = activeTextEvent
+        ?.message
+        ?.trim()
+        ?.takeIf { it.isNotEmpty() }
+        ?.let { message ->
+            if (runnerIsPaused) {
+                val pausedLabel = stringResource(R.string.session_workout_state_paused)
+                "$pausedLabel · $message"
+            } else {
+                message
+            }
+        }
 
     BoxWithConstraints(
         modifier = Modifier

@@ -4,10 +4,13 @@
 - current: `feature/pr32-connect-timeout-watchdog`
 
 ## Session Handoff
-- next task: Verify launcher presentation on real devices (name + icon) and decide if icon needs one final visual polish pass before release.
+- next task: Run one end-to-end manual session with a `.zwo` file containing timed text events, including a pause/resume during an active message, and verify message timing behavior on phone portrait and landscape.
 - DoD:
   - Launcher app name is `SEA` and full app name is `Simple Ergometer App`.
   - Launcher icon reflects ergometer use purpose and is readable in adaptive-icon masks.
+  - ZWO parser captures text events with `timeoffset`, message, and optional duration when present.
+  - Session status field uses text-event priority over waiting/status fallback and returns to fallback after event duration.
+  - Text-event visibility is driven by workout elapsed seconds, so pause/resume keeps the active event stable and continues on resume.
   - Phone portrait workout card keeps a fixed core telemetry trio above the graph: `HR`, `Power / target`, and `Elapsed / total`.
   - `Cadence / target` is positioned under `Power / target`, on the right side of the `Elapsed / total` row.
   - `Kcal` row right side is filled with `HR zone` value based on live HR and stored profile (`age` + `sex`).
@@ -24,6 +27,7 @@
   - No extra standalone top action row is left above the card in phone landscape.
 - risks:
   - Legacy pre-adaptive launcher assets (`mipmap-*/*.webp`) still exist; very old launchers may show previous icon style.
+  - ZWO files may use additional duration/message attribute names not yet covered by tolerant parser mapping.
   - Long localized labels can still wrap/truncate in compact-width phone portrait rows.
   - HR-zone output uses an estimated max-HR formula (male/female variants); real training zones may differ from lab-tested values.
   - Taller portrait workout graph may push lower content farther below fold on smallest phones.
@@ -32,6 +36,7 @@
   - Visual verification for active running state is still pending for this exact revision set.
 - validation commands:
   - `./gradlew :app:assembleDebug --no-daemon`
+  - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ZwoParserTest" --tests "com.example.ergometerapp.workout.WorkoutTextEventResolverTest" --no-daemon`
   - `ANDROID_SERIAL=R9WT702055P ./gradlew :app:installDebug --no-daemon`
   - `./gradlew :app:compileDebugKotlin --no-daemon`
   - `./scripts/adb/capture.sh --serial R9WT702055P --no-record --out-dir .local/captures/phone-landscape-top-actions-in-card`
@@ -53,6 +58,19 @@
   - Selecting any listed HR strap still applies correctly and session HR data works.
 
 ## Recently Completed
+- ZWO text-event parsing + session status integration (request-driven):
+  - Added `WorkoutTextEvent` and stored parsed events in `WorkoutFile.textEvents`.
+  - Extended `parseZwo(...)` to parse workout text events (`textevent` / `TextEvent`) with:
+    - start offset (`timeoffset` variants)
+    - message from attribute or tag text
+    - optional duration (`duration` variants)
+  - Added `resolveActiveWorkoutTextEvent(...)` with fallback duration (`8s`) and overlap resolution (latest matching event wins).
+  - Wired `SessionScreen` status override to active text events so pause/resume behavior follows workout elapsed time.
+  - Added parser and resolver unit tests:
+    - `com.example.ergometerapp.ZwoParserTest`
+    - `com.example.ergometerapp.workout.WorkoutTextEventResolverTest`
+  - Validation:
+    - `./gradlew :app:compileDebugKotlin :app:testDebugUnitTest --tests "com.example.ergometerapp.ZwoParserTest" --tests "com.example.ergometerapp.workout.WorkoutTextEventResolverTest" --no-daemon`
 - App naming + launcher icon refresh (request-driven):
   - Updated app naming resources in `app/src/main/res/values/strings.xml`:
     - `app_name`: `Simple Ergometer App`

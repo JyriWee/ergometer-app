@@ -9,6 +9,19 @@ data class WorkoutFile(
     val author: String?,
     val tags: List<String>,
     val steps: List<Step>,
+    val textEvents: List<WorkoutTextEvent> = emptyList(),
+)
+
+/**
+ * Time-based text cue parsed from a ZWO workout.
+ *
+ * The event starts at [timeOffsetSec] from workout start. When [durationSec] is null,
+ * caller-defined fallback duration should be used.
+ */
+data class WorkoutTextEvent(
+    val timeOffsetSec: Int,
+    val message: String,
+    val durationSec: Int?,
 )
 
 /**
@@ -61,4 +74,3 @@ sealed class Step {
         val attributes: Map<String, String>,
     ) : Step()
 }
-
